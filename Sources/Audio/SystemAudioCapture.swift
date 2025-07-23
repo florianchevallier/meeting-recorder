@@ -8,6 +8,7 @@ class SystemAudioCapture: NSObject {
     private var audioFile: AVAudioFile?
     private var isRecording = false
     private var recordingStartTime: Date?
+    private var currentFileURL: URL?
     
     override init() {
         super.init()
@@ -39,6 +40,7 @@ class SystemAudioCapture: NSObject {
         // Créer le fichier d'enregistrement
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioFilename = documentsPath.appendingPathComponent("system_audio_\(Date().timeIntervalSince1970).wav")
+        currentFileURL = audioFilename
         
         Logger.shared.log("🔊 [SYSTEM_AUDIO] Recording to: \(audioFilename.path)")
         
@@ -56,10 +58,10 @@ class SystemAudioCapture: NSObject {
         Logger.shared.log("✅ [SYSTEM_AUDIO] System audio recording started successfully")
     }
     
-    func stopRecording() async {
+    func stopRecording() async -> URL? {
         guard isRecording else {
             Logger.shared.log("⚠️ [SYSTEM_AUDIO] Not currently recording")
-            return
+            return nil
         }
         
         do {
@@ -79,6 +81,8 @@ class SystemAudioCapture: NSObject {
         
         recordingStartTime = nil
         Logger.shared.log("✅ [SYSTEM_AUDIO] System audio recording stopped successfully")
+        
+        return currentFileURL
     }
     
     var recordingDuration: TimeInterval {
