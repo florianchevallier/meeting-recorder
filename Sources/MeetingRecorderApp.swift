@@ -22,44 +22,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarManager = StatusBarManager()
         statusBarManager?.setupStatusBar()
         
-        // Request all permissions at launch
+        // Request only microphone permission
         Task {
-            await requestPermissionsAtLaunch()
+            await requestMicrophonePermission()
         }
     }
     
-    private func requestPermissionsAtLaunch() async {
+    private func requestMicrophonePermission() async {
         Logger.shared.log("🚀 MeetingRecorder starting...")
         Logger.shared.log("💻 macOS version: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         
         do {
-            Logger.shared.log("🔐 [PERMISSIONS] Starting permission requests...")
+            Logger.shared.log("🔐 [PERMISSIONS] Starting microphone permission request...")
             
             Logger.shared.log("🎤 [PERMISSIONS] Requesting microphone access...")
             try await permissionManager.requestMicrophonePermission()
             Logger.shared.log("✅ [PERMISSIONS] Microphone permission granted")
             
-            if #available(macOS 12.3, *) {
-                Logger.shared.log("📺 [PERMISSIONS] Requesting screen recording access...")
-                try await permissionManager.requestScreenRecordingPermission()
-                Logger.shared.log("✅ [PERMISSIONS] Screen recording permission granted")
-            }
-            
-            Logger.shared.log("📅 [PERMISSIONS] Requesting calendar access...")
-            try await permissionManager.requestCalendarPermission()
-            Logger.shared.log("✅ [PERMISSIONS] Calendar permission granted")
-            
-            Logger.shared.log("🎉 [PERMISSIONS] All permissions granted successfully!")
+            Logger.shared.log("🎉 [PERMISSIONS] Ready to record!")
             
         } catch {
-            Logger.shared.log("❌ [ERROR] Permission request failed: \(error)")
+            Logger.shared.log("❌ [ERROR] Microphone permission failed: \(error)")
             Logger.shared.log("📋 [ERROR] Error details: \(error.localizedDescription)")
             
-            // Show alert to user about missing permissions
+            // Show alert to user about missing permission
             await MainActor.run {
                 let alert = NSAlert()
-                alert.messageText = "Permissions requises"
-                alert.informativeText = error.localizedDescription + "\n\nL'application ne fonctionnera pas correctement sans ces permissions."
+                alert.messageText = "Permission microphone requise"
+                alert.informativeText = error.localizedDescription + "\n\nL'application ne peut pas enregistrer sans accès au microphone."
                 alert.alertStyle = .warning
                 alert.addButton(withTitle: "Ouvrir Préférences Système")
                 alert.addButton(withTitle: "Continuer")

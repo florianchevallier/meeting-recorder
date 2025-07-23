@@ -4,27 +4,30 @@ struct StatusBarMenu: View {
     @ObservedObject var statusBarManager: StatusBarManager
     
     var body: some View {
-        VStack(spacing: 10) {
-            Text("Meeting Recorder")
+        VStack(spacing: 12) {
+            Text("🎤 Microphone Recorder")
                 .font(.headline)
                 .padding(.top, 8)
             
-            HStack {
+            HStack(spacing: 8) {
                 Circle()
                     .fill(statusBarManager.isRecording ? Color.red : Color.gray)
-                    .frame(width: 10, height: 10)
+                    .frame(width: 12, height: 12)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(statusBarManager.isRecording ? "Recording" : "Idle")
+                    Text(statusBarManager.isRecording ? "En cours d'enregistrement..." : "Prêt")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.primary)
                     
                     if statusBarManager.isRecording {
                         Text(formatDuration(statusBarManager.recordingDuration))
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .fontWeight(.medium)
                     }
                 }
+                
+                Spacer()
             }
             
             Button(action: {
@@ -34,13 +37,31 @@ struct StatusBarMenu: View {
                     statusBarManager.startRecording()
                 }
             }) {
-                Text(statusBarManager.isRecording ? "Stop Recording" : "Start Recording")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 6) {
+                    Image(systemName: statusBarManager.isRecording ? "stop.circle.fill" : "record.circle")
+                        .font(.system(size: 14))
+                    Text(statusBarManager.isRecording ? "Arrêter" : "Démarrer")
+                }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.small)
+            .controlSize(.regular)
+            .tint(statusBarManager.isRecording ? .red : .blue)
             
-            Button("Quit") {
+            if let errorMessage = statusBarManager.errorMessage {
+                Text(errorMessage)
+                    .font(.caption2)
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(6)
+            }
+            
+            Divider()
+            
+            Button("Quitter") {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.bordered)
@@ -48,20 +69,6 @@ struct StatusBarMenu: View {
         }
         .padding()
         .frame(width: 200)
-        .overlay(
-            Group {
-                if let errorMessage = statusBarManager.errorMessage {
-                    VStack {
-                        Spacer()
-                        Text(errorMessage)
-                            .font(.caption2)
-                            .foregroundColor(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 8)
-                    }
-                }
-            }
-        )
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {
