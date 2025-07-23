@@ -13,6 +13,9 @@ class StatusBarManager: ObservableObject {
     private let micRecorder = SimpleMicrophoneRecorder()
     private var systemAudioCapture: (any NSObjectProtocol)?
     
+    // ✨ Nouvelle API unifiée pour macOS 15+ (stored properties ne peuvent pas être @available)
+    private var unifiedCapture: (any NSObjectProtocol)?
+    
     func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
@@ -56,7 +59,7 @@ class StatusBarManager: ObservableObject {
         
         Task {
             do {
-                Logger.shared.log("🔍 [RECORDING] Checking microphone permission...")
+                Logger.shared.log("🔍 [RECORDING] Checking permissions...")
                 
                 // Quick permission check
                 let microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -70,16 +73,27 @@ class StatusBarManager: ObservableObject {
                     return
                 }
                 
-                Logger.shared.log("🎙️ [RECORDING] Starting microphone recording...")
-                try micRecorder.startRecording()
-                
-                // Démarrer la capture audio système si disponible (macOS 13+)
-                if #available(macOS 13.0, *) {
-                    Logger.shared.log("🔊 [RECORDING] Starting system audio capture...")
-                    let systemCapture = SystemAudioCapture()
-                    try await systemCapture.startRecording()
-                    systemAudioCapture = systemCapture
-                    Logger.shared.log("✅ [RECORDING] System audio capture started")
+                // ✨ Utiliser l'API unifiée sur macOS 15+
+                if #available(macOS 15.0, *) {
+                    Logger.shared.log("🚀 [RECORDING] Using unified capture (macOS 15+)")
+                    let unified = UnifiedScreenCapture()
+                    try await unified.startDirectRecording()
+                    unifiedCapture = unified
+                } else {
+                    // Fallback sur l'ancienne approche pour macOS < 15
+                    Logger.shared.log("🔄 [RECORDING] Using legacy approach (macOS < 15)")
+                    
+                    Logger.shared.log("🎙️ [RECORDING] Starting microphone recording...")
+                    try micRecorder.startRecording()
+                    
+                    // Démarrer la capture audio système si disponible (macOS 13+)
+                    if #available(macOS 13.0, *) {
+                        Logger.shared.log("🔊 [RECORDING] Starting system audio capture...")
+                        let systemCapture = SystemAudioCapture()
+                        try await systemCapture.startRecording()
+                        systemAudioCapture = systemCapture
+                        Logger.shared.log("✅ [RECORDING] System audio capture started")
+                    }
                 }
                 
                 await MainActor.run {
@@ -104,17 +118,53 @@ class StatusBarManager: ObservableObject {
         Logger.shared.log("🛑 [RECORDING] User requested recording stop")
         
         Task {
-            var microphoneFileURL: URL?
-            var systemAudioFileURL: URL?
+            var finalFileURL: URL?
             
-            // Arrêter l'enregistrement microphone
-            microphoneFileURL = micRecorder.stopRecording()
-            
-            // Arrêter la capture audio système si elle est active
-            if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
-                systemAudioFileURL = await systemCapture.stopRecording()
-                await MainActor.run {
-                    self.systemAudioCapture = nil
+            // ✨ Utiliser l'API unifiée sur macOS 15+
+            if #available(macOS 15.0, *), let unified = unifiedCapture as? UnifiedScreenCapture {
+                Logger.shared.log("🚀 [RECORDING] Stopping unified capture")
+                if let movURL = await unified.stopRecording() {
+                    do {
+                        Logger.shared.log("🎵 [RECORDING] Converting MOV to M4A...")
+                        finalFileURL = try await unified.convertMOVToM4A(sourceURL: movURL)
+                        
+                        // Optionally remove the original MOV file to save space
+                        try FileManager.default.removeItem(at: movURL)
+                        Logger.shared.log("🗑️ [RECORDING] Original MOV file removed")
+                    } catch {
+                        Logger.shared.log("❌ [RECORDING] MOV to M4A conversion failed: \(error)")
+                        // Keep the original MOV file if conversion fails
+                        finalFileURL = movURL
+                    }
+                }
+                unifiedCapture = nil
+            } else {
+                // Fallback sur l'ancienne approche pour macOS < 15
+                Logger.shared.log("🔄 [RECORDING] Stopping legacy approach")
+                
+                var microphoneFileURL: URL?
+                var systemAudioFileURL: URL?
+                
+                // Arrêter l'enregistrement microphone
+                microphoneFileURL = micRecorder.stopRecording()
+                
+                // Arrêter la capture audio système si elle est active
+                if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
+                    systemAudioFileURL = await systemCapture.stopRecording()
+                    await MainActor.run {
+                        self.systemAudioCapture = nil
+                    }
+                }
+                
+                // Fusionner les fichiers audio en M4A
+                do {
+                    Logger.shared.log("🎵 [RECORDING] Démarrage de la fusion audio...")
+                    finalFileURL = try await AudioMixer.mixAudioFiles(microphoneURL: microphoneFileURL, systemAudioURL: systemAudioFileURL)
+                } catch {
+                    Logger.shared.log("❌ [RECORDING] Erreur lors de la fusion audio: \(error)")
+                    await MainActor.run {
+                        errorMessage = "Erreur lors de la fusion audio: \(error.localizedDescription)"
+                    }
                 }
             }
             
@@ -125,19 +175,11 @@ class StatusBarManager: ObservableObject {
                 stopDurationUpdater()
             }
             
-            // Fusionner les fichiers audio en M4A
-            do {
-                Logger.shared.log("🎵 [RECORDING] Démarrage de la fusion audio...")
-                if let finalURL = try await AudioMixer.mixAudioFiles(microphoneURL: microphoneFileURL, systemAudioURL: systemAudioFileURL) {
-                    Logger.shared.log("✅ [RECORDING] Enregistrement final sauvegardé: \(finalURL.lastPathComponent)")
-                } else {
-                    Logger.shared.log("⚠️ [RECORDING] Aucun fichier audio à fusionner")
-                }
-            } catch {
-                Logger.shared.log("❌ [RECORDING] Erreur lors de la fusion audio: \(error)")
-                await MainActor.run {
-                    errorMessage = "Erreur lors de la fusion audio: \(error.localizedDescription)"
-                }
+            // Afficher le résultat final
+            if let finalURL = finalFileURL {
+                Logger.shared.log("✅ [RECORDING] Enregistrement final sauvegardé: \(finalURL.lastPathComponent)")
+            } else {
+                Logger.shared.log("⚠️ [RECORDING] Aucun fichier généré")
             }
         }
         
@@ -150,8 +192,13 @@ class StatusBarManager: ObservableObject {
         durationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor in
-                // Utiliser la durée du microphone comme référence principale
-                self.recordingDuration = self.micRecorder.recordingDuration
+                // ✨ Utiliser la durée de l'API unifiée sur macOS 15+
+                if #available(macOS 15.0, *), let unified = self.unifiedCapture as? UnifiedScreenCapture {
+                    self.recordingDuration = unified.recordingDuration
+                } else {
+                    // Fallback sur la durée du microphone pour l'ancienne approche
+                    self.recordingDuration = self.micRecorder.recordingDuration
+                }
             }
         }
     }
@@ -167,8 +214,13 @@ class StatusBarManager: ObservableObject {
             stopRecording()
         }
         
-        // Nettoyer la capture audio système
-        if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
+        // Nettoyer l'API unifiée ou la capture audio système
+        if #available(macOS 15.0, *), let unified = unifiedCapture as? UnifiedScreenCapture {
+            Task {
+                await unified.stopRecording()
+            }
+            unifiedCapture = nil
+        } else if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
             Task {
                 await systemCapture.stopRecording()
             }
