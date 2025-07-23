@@ -5,165 +5,84 @@ import ScreenCaptureKit
 
 @MainActor
 class OnboardingViewModel: ObservableObject {
-    @Published var microphoneStatus: PermissionStatus = .unknown
-    @Published var screenRecordingStatus: PermissionStatus = .unknown
-    @Published var calendarStatus: PermissionStatus = .unknown
     @Published var isRequesting = false
     
     private let permissionManager = PermissionManager()
-    private let eventStore = EKEventStore()
+    
+    var microphoneStatus: PermissionStatus {
+        permissionManager.microphonePermission
+    }
+    
+    var screenRecordingStatus: PermissionStatus {
+        permissionManager.screenRecordingPermission
+    }
+    
+    var calendarStatus: PermissionStatus {
+        permissionManager.calendarPermission
+    }
+    
+    var documentsStatus: PermissionStatus {
+        permissionManager.documentsPermission
+    }
     
     var allPermissionsGranted: Bool {
-        microphoneStatus == .granted && 
-        screenRecordingStatus == .granted && 
-        calendarStatus == .granted
+        permissionManager.allPermissionsGranted
     }
     
     func checkCurrentPermissions() async {
-        await checkMicrophonePermission()
-        await checkScreenRecordingPermission()
-        await checkCalendarPermission()
+        permissionManager.checkAllPermissions()
     }
     
     func requestAllPermissions() async {
         isRequesting = true
-        
-        await requestMicrophonePermission()
-        await requestScreenRecordingPermission()
-        await requestCalendarPermission()
-        
+        await permissionManager.requestAllPermissions()
+        // Petit délai pour laisser macOS mettre à jour les permissions
+        try? await Task.sleep(for: .milliseconds(500))
+        permissionManager.refreshAllPermissions()
         isRequesting = false
     }
     
-    // MARK: - Microphone
-    
-    func checkMicrophonePermission() async {
-        let status = AVCaptureDevice.authorizationStatus(for: .audio)
-        microphoneStatus = status.toPermissionStatus
-    }
-    
     func requestMicrophonePermission() async {
-        guard microphoneStatus != .granted else { return }
-        
-        let granted = await AVCaptureDevice.requestAccess(for: .audio)
-        microphoneStatus = granted ? .granted : .denied
-    }
-    
-    // MARK: - Screen Recording
-    
-    func checkScreenRecordingPermission() async {
-        // Vérification passive sans déclencher de demande
-        // On regarde si on peut accéder au contenu partageable sans créer de stream
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            // Si on peut récupérer des displays, la permission est accordée
-            screenRecordingStatus = content.displays.isEmpty ? .notDetermined : .granted
+            try await permissionManager.requestMicrophonePermission()
+            // Rafraîchir après la demande
+            try? await Task.sleep(for: .milliseconds(200))
+            permissionManager.checkMicrophonePermission()
         } catch {
-            // Si on ne peut pas accéder au contenu, soit pas de permission, soit pas déterminé
-            let errorString = error.localizedDescription
-            if errorString.contains("not authorized") || errorString.contains("denied") {
-                screenRecordingStatus = .denied
-            } else {
-                screenRecordingStatus = .notDetermined
-            }
+            print("❌ Microphone permission failed: \(error)")
         }
     }
     
     func requestScreenRecordingPermission() async {
-        guard screenRecordingStatus != .granted else { return }
-        
-        // Pour demander la permission, on essaie de créer un stream temporaire
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            if let display = content.displays.first {
-                let config = SCStreamConfiguration()
-                config.capturesAudio = true
-                config.width = 1
-                config.height = 1
-                
-                let stream = SCStream(filter: SCContentFilter(display: display, excludingWindows: []), configuration: config, delegate: nil)
-                
-                try await stream.startCapture()
-                try await stream.stopCapture()
-                
-                screenRecordingStatus = .granted
-            }
+            try await permissionManager.requestScreenRecordingPermission()
+            // Rafraîchir après la demande
+            try? await Task.sleep(for: .milliseconds(500))
+            permissionManager.checkScreenRecordingPermission()
         } catch {
-            screenRecordingStatus = .denied
-        }
-    }
-    
-    // MARK: - Calendar
-    
-    func checkCalendarPermission() async {
-        if #available(macOS 14.0, *) {
-            switch EKEventStore.authorizationStatus(for: .event) {
-            case .fullAccess:
-                calendarStatus = .granted
-            case .writeOnly:
-                calendarStatus = .denied // On a besoin du full access
-            case .denied:
-                calendarStatus = .denied
-            case .notDetermined:
-                calendarStatus = .notDetermined
-            case .restricted:
-                calendarStatus = .denied
-            @unknown default:
-                calendarStatus = .unknown
-            }
-        } else {
-            switch EKEventStore.authorizationStatus(for: .event) {
-            case .authorized:
-                calendarStatus = .granted
-            case .denied:
-                calendarStatus = .denied
-            case .notDetermined:
-                calendarStatus = .notDetermined
-            case .restricted:
-                calendarStatus = .denied
-            case .fullAccess:
-                calendarStatus = .granted
-            case .writeOnly:
-                calendarStatus = .denied
-            @unknown default:
-                calendarStatus = .unknown
-            }
+            print("❌ Screen recording permission failed: \(error)")
         }
     }
     
     func requestCalendarPermission() async {
-        guard calendarStatus != .granted else { return }
-        
         do {
-            if #available(macOS 14.0, *) {
-                let granted = try await eventStore.requestFullAccessToEvents()
-                calendarStatus = granted ? .granted : .denied
-            } else {
-                let granted = try await eventStore.requestAccess(to: .event)
-                calendarStatus = granted ? .granted : .denied
-            }
+            try await permissionManager.requestCalendarPermission()
+            // Rafraîchir après la demande
+            try? await Task.sleep(for: .milliseconds(200))
+            permissionManager.checkCalendarPermission()
         } catch {
-            print("Erreur lors de la demande de permission calendrier: \(error)")
-            calendarStatus = .denied
+            print("❌ Calendar permission failed: \(error)")
         }
     }
-}
-
-// MARK: - Extensions
-
-extension AVAuthorizationStatus {
-    var toPermissionStatus: PermissionStatus {
-        switch self {
-        case .authorized:
-            return .granted
-        case .denied:
-            return .denied
-        case .notDetermined:
-            return .notDetermined
-        case .restricted:
-            return .denied
-        @unknown default:
-            return .unknown
+    
+    func requestDocumentsPermission() async {
+        do {
+            try await permissionManager.requestDocumentsPermission()
+            // Rafraîchir après la demande
+            try? await Task.sleep(for: .milliseconds(200))
+            permissionManager.checkDocumentsPermission()
+        } catch {
+            print("❌ Documents permission failed: \(error)")
         }
     }
 }

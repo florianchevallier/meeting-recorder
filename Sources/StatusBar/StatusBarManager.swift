@@ -30,8 +30,9 @@ class StatusBarManager: ObservableObject {
     
     private func setupPopover() {
         popover = NSPopover()
-        popover?.contentSize = NSSize(width: 200, height: 120)
+        popover?.contentSize = NSSize(width: 280, height: 360)
         popover?.behavior = .transient
+        popover?.animates = true
         popover?.contentViewController = NSHostingController(rootView: StatusBarMenu(statusBarManager: self))
     }
     

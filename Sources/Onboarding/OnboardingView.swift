@@ -47,6 +47,14 @@ struct OnboardingView: View {
                     status: viewModel.calendarStatus,
                     action: { await viewModel.requestCalendarPermission() }
                 )
+                
+                PermissionRow(
+                    title: "Accès aux Documents",
+                    description: "Pour sauvegarder vos enregistrements",
+                    icon: "folder",
+                    status: viewModel.documentsStatus,
+                    action: { await viewModel.requestDocumentsPermission() }
+                )
             }
             
             Spacer()
@@ -112,7 +120,7 @@ struct PermissionRow: View {
             // Icon
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(status.color)
+                .foregroundColor(status.swiftUIColor)
                 .frame(width: 30)
             
             // Content
@@ -130,12 +138,12 @@ struct PermissionRow: View {
             // Status/Action
             Group {
                 switch status {
-                case .granted:
+                case .authorized:
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                         .font(.title2)
                         
-                case .denied:
+                case .denied, .restricted:
                     Button("Ouvrir Préférences") {
                         openSystemPreferences()
                     }
@@ -153,11 +161,6 @@ struct PermissionRow: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(isRequesting)
-                    
-                case .unknown:
-                    Image(systemName: "questionmark.circle")
-                        .foregroundColor(.orange)
-                        .font(.title2)
                 }
             }
         }
@@ -173,21 +176,6 @@ struct PermissionRow: View {
     }
 }
 
-enum PermissionStatus {
-    case granted
-    case denied
-    case notDetermined
-    case unknown
-    
-    var color: Color {
-        switch self {
-        case .granted: return .green
-        case .denied: return .red
-        case .notDetermined: return .orange
-        case .unknown: return .gray
-        }
-    }
-}
 
 #Preview {
     OnboardingView()
