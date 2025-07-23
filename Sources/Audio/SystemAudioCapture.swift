@@ -26,12 +26,16 @@ class SystemAudioCapture: NSObject {
         
         Logger.shared.log("🔍 [SYSTEM_AUDIO] Starting system audio capture...")
         
-        // Configuration du stream selon les pratiques officielles
+        // Configuration du stream optimisée pour macOS 15
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = true
         configuration.excludesCurrentProcessAudio = true
-        // Laisser ScreenCaptureKit gérer automatiquement sampleRate et channelCount
-        // pour éviter les problèmes de distorsion
+        configuration.sampleRate = 48000
+        configuration.channelCount = 2
+        // Configuration vidéo minimale pour économiser les ressources
+        configuration.width = 1
+        configuration.height = 1
+        configuration.minimumFrameInterval = CMTime(seconds: 10, preferredTimescale: 1)
         
         // Créer un filtre de contenu pour capturer tout l'écran (nécessaire pour l'audio système)
         let availableContent = try await SCShareableContent.current
@@ -39,7 +43,11 @@ class SystemAudioCapture: NSObject {
             throw NSError(domain: "SystemAudioError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No display available"])
         }
         
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        // Fix pour macOS 15: utiliser includingApplications au lieu d'excludingWindows avec tableau vide
+        // qui peut causer "The stream is nil" error
+        let filter = SCContentFilter(display: display, 
+                                   including: availableContent.applications, 
+                                   exceptingWindows: [])
         
         // Préparer le fichier d'enregistrement (sera créé avec le bon format lors du premier sample)
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -50,10 +58,16 @@ class SystemAudioCapture: NSObject {
         
         // Le fichier audio sera créé dynamiquement avec le format des données reçues
         
-        // Créer et démarrer le stream
+        // Créer et démarrer le stream avec vérification robuste
         stream = SCStream(filter: filter, configuration: configuration, delegate: self)
-        try await stream?.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
-        try await stream?.startCapture()
+        
+        guard let stream = stream else {
+            throw NSError(domain: "SystemAudioError", code: 2, 
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to create SCStream - check screen recording permissions"])
+        }
+        
+        try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
+        try await stream.startCapture()
         
         isRecording = true
         recordingStartTime = Date()
@@ -95,8 +109,8 @@ class SystemAudioCapture: NSObject {
     
     deinit {
         if isRecording {
-            Task {
-                await stopRecording()
+            Task { [weak self] in
+                await self?.stopRecording()
             }
         }
     }
