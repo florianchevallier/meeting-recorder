@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>MeetingRecorder</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.meetingrecorder.app</string>
+    <key>CFBundleName</key>
+    <string>MeetingRecorder</string>
+    <key>CFBundleDisplayName</key>
+    <string>Meeting Recorder</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.3</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Cette application a besoin d'accéder au microphone pour enregistrer vos réunions</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Cette application accède à votre calendrier pour démarrer automatiquement les enregistrements de réunion</string>
+    <key>NSScreenRecordingUsageDescription</key>
+    <string>Cette application a besoin d'enregistrer l'écran pour capturer l'audio système lors des réunions</string>
+</dict>
+</plist>
