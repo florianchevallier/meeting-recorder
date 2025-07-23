@@ -11,6 +11,7 @@ class StatusBarManager: ObservableObject {
     @Published var errorMessage: String?
     
     private let micRecorder = SimpleMicrophoneRecorder()
+    private var systemAudioCapture: (any NSObjectProtocol)?
     
     func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -72,6 +73,15 @@ class StatusBarManager: ObservableObject {
                 Logger.shared.log("🎙️ [RECORDING] Starting microphone recording...")
                 try micRecorder.startRecording()
                 
+                // Démarrer la capture audio système si disponible (macOS 13+)
+                if #available(macOS 13.0, *) {
+                    Logger.shared.log("🔊 [RECORDING] Starting system audio capture...")
+                    let systemCapture = SystemAudioCapture()
+                    try await systemCapture.startRecording()
+                    systemAudioCapture = systemCapture
+                    Logger.shared.log("✅ [RECORDING] System audio capture started")
+                }
+                
                 await MainActor.run {
                     isRecording = true
                     errorMessage = nil
@@ -94,6 +104,17 @@ class StatusBarManager: ObservableObject {
         Logger.shared.log("🛑 [RECORDING] User requested recording stop")
         
         micRecorder.stopRecording()
+        
+        // Arrêter la capture audio système si elle est active
+        if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
+            Task {
+                await systemCapture.stopRecording()
+                await MainActor.run {
+                    self.systemAudioCapture = nil
+                }
+            }
+        }
+        
         isRecording = false
         recordingDuration = 0
         updateStatusBarIcon()
@@ -108,6 +129,7 @@ class StatusBarManager: ObservableObject {
         durationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor in
+                // Utiliser la durée du microphone comme référence principale
                 self.recordingDuration = self.micRecorder.recordingDuration
             }
         }
@@ -123,6 +145,15 @@ class StatusBarManager: ObservableObject {
         if isRecording {
             stopRecording()
         }
+        
+        // Nettoyer la capture audio système
+        if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
+            Task {
+                await systemCapture.stopRecording()
+            }
+        }
+        systemAudioCapture = nil
+        
         statusItem = nil
         popover = nil
     }
