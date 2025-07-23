@@ -65,6 +65,12 @@ struct StatusBarMenu: View {
             
             Divider()
             
+            Button("Configurer Permissions") {
+                statusBarManager.showOnboarding()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            
             Button("Quitter") {
                 NSApplication.shared.terminate(nil)
             }
