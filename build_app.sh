@@ -44,9 +44,10 @@ echo -n "APPL????" > "$CONTENTS_DIR/PkgInfo"
 # Make executable executable
 chmod +x "$MACOS_DIR/$APP_NAME"
 
+cp -r "$APP_BUNDLE" /Applications/
+
 echo "✅ MeetingRecorder.app bundle created at: $APP_BUNDLE"
 echo ""
-echo "🚀 To run: open '$APP_BUNDLE'"
-echo "📱 To install: cp -r '$APP_BUNDLE' /Applications/"
+echo "🚀 To run: open /Applications/MeetingRecorder.app"
 echo ""
 echo "⚠️  Note: First launch may require allowing the app in System Preferences > Privacy & Security"
