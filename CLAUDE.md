@@ -259,4 +259,9 @@ tccutil reset ScreenCapture com.meetingrecorder.app
 ls -la ~/Documents/meeting_*.m4a
 ```
 
+### Launching
+
+Always use the fix_permissions to launch the app, NEVER use swift run
+
 L'application compile sans erreur et est prête pour utilisation ! 🎉
+

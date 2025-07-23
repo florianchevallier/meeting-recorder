@@ -9,6 +9,10 @@ class SystemAudioCapture: NSObject {
     private var isRecording = false
     private var recordingStartTime: Date?
     private var currentFileURL: URL?
+    private var audioFileFormat: AVAudioFormat?
+    
+    // Queue dédiée pour l'audio selon les pratiques officielles Apple
+    private let audioQueue = DispatchQueue(label: "SystemAudio.AudioQueue", qos: .userInitiated)
     
     override init() {
         super.init()
@@ -22,12 +26,12 @@ class SystemAudioCapture: NSObject {
         
         Logger.shared.log("🔍 [SYSTEM_AUDIO] Starting system audio capture...")
         
-        // Configuration du stream
+        // Configuration du stream selon les pratiques officielles
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = true
-        configuration.sampleRate = 48000
-        configuration.channelCount = 2
         configuration.excludesCurrentProcessAudio = true
+        // Laisser ScreenCaptureKit gérer automatiquement sampleRate et channelCount
+        // pour éviter les problèmes de distorsion
         
         // Créer un filtre de contenu pour capturer tout l'écran (nécessaire pour l'audio système)
         let availableContent = try await SCShareableContent.current
@@ -37,20 +41,18 @@ class SystemAudioCapture: NSObject {
         
         let filter = SCContentFilter(display: display, excludingWindows: [])
         
-        // Créer le fichier d'enregistrement
+        // Préparer le fichier d'enregistrement (sera créé avec le bon format lors du premier sample)
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioFilename = documentsPath.appendingPathComponent("system_audio_\(Date().timeIntervalSince1970).wav")
         currentFileURL = audioFilename
         
         Logger.shared.log("🔊 [SYSTEM_AUDIO] Recording to: \(audioFilename.path)")
         
-        // Configuration du format audio
-        let audioFormat = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
-        audioFile = try AVAudioFile(forWriting: audioFilename, settings: audioFormat.settings)
+        // Le fichier audio sera créé dynamiquement avec le format des données reçues
         
         // Créer et démarrer le stream
         stream = SCStream(filter: filter, configuration: configuration, delegate: self)
-        try await stream?.addStreamOutput(self, type: .audio, sampleHandlerQueue: .main)
+        try await stream?.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
         try await stream?.startCapture()
         
         isRecording = true
@@ -72,6 +74,7 @@ class SystemAudioCapture: NSObject {
         
         stream = nil
         audioFile = nil
+        audioFileFormat = nil
         isRecording = false
         
         if let startTime = recordingStartTime {
@@ -114,38 +117,67 @@ extension SystemAudioCapture: SCStreamOutput {
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .audio else { return }
         
-        // Convertir et sauvegarder les données audio
-        guard let audioFile = audioFile else { return }
+        // Vérifications robustes selon les pratiques officielles
+        guard sampleBuffer.isValid,
+              CMSampleBufferDataIsReady(sampleBuffer),
+              CMSampleBufferGetNumSamples(sampleBuffer) > 0 else { 
+            return 
+        }
         
+        // Méthode officielle Apple pour gérer l'audio ScreenCaptureKit
+        handleAudioSample(sampleBuffer)
+    }
+    
+    private func handleAudioSample(_ sampleBuffer: CMSampleBuffer) {
         do {
-            // Convertir le CMSampleBuffer en AVAudioPCMBuffer
-            guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
-                return
+            // Utilisation de withAudioBufferList (approche officielle Apple)
+            try sampleBuffer.withAudioBufferList { audioBufferList, blockBuffer in
+                guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
+                      let description = formatDescription.audioStreamBasicDescription else {
+                    Logger.shared.log("❌ [SYSTEM_AUDIO] Invalid audio format description")
+                    return
+                }
+                
+                let frameCount = CMSampleBufferGetNumSamples(sampleBuffer)
+                let format = AVAudioFormat(standardFormatWithSampleRate: description.mSampleRate, 
+                                         channels: description.mChannelsPerFrame)!
+                
+                // Créer le fichier audio dynamiquement avec le format réel des données
+                if audioFile == nil {
+                    guard let fileURL = currentFileURL else {
+                        Logger.shared.log("❌ [SYSTEM_AUDIO] No file URL available")
+                        return
+                    }
+                    
+                    audioFileFormat = format
+                    audioFile = try AVAudioFile(forWriting: fileURL, settings: format.settings)
+                    Logger.shared.log("✅ [SYSTEM_AUDIO] Audio file created with format: \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch")
+                }
+                
+                guard let audioFile = audioFile else {
+                    Logger.shared.log("❌ [SYSTEM_AUDIO] Audio file not available")
+                    return
+                }
+                
+                // Utiliser bufferListNoCopy pour éviter les distorsions de CMSampleBufferCopyPCMDataIntoAudioBufferList
+                guard let audioBuffer = AVAudioPCMBuffer(pcmFormat: format, 
+                                                       bufferListNoCopy: audioBufferList.unsafePointer) else {
+                    Logger.shared.log("❌ [SYSTEM_AUDIO] Failed to create PCM buffer with bufferListNoCopy")
+                    return
+                }
+                
+                audioBuffer.frameLength = AVAudioFrameCount(frameCount)
+                
+                // Écriture directe sans copie supplémentaire (évite la distorsion)
+                try audioFile.write(from: audioBuffer)
+                
+                // Log périodique pour diagnostic
+                if frameCount > 0 {
+                    print("🔊 System Audio: \(frameCount) frames @ \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch")
+                }
             }
-            
-            let audioFormat = AVAudioFormat(cmAudioFormatDescription: formatDescription)
-            
-            let sampleCount = CMSampleBufferGetNumSamples(sampleBuffer)
-            guard let audioBuffer = AVAudioPCMBuffer(pcmFormat: audioFormat, frameCapacity: AVAudioFrameCount(sampleCount)) else {
-                return
-            }
-            
-            audioBuffer.frameLength = AVAudioFrameCount(sampleCount)
-            
-            // Copier les données audio
-            let audioBufferList = audioBuffer.mutableAudioBufferList
-            CMSampleBufferCopyPCMDataIntoAudioBufferList(sampleBuffer, at: 0, frameCount: Int32(sampleCount), into: audioBufferList)
-            
-            // Écrire dans le fichier
-            try audioFile.write(from: audioBuffer)
-            
-            // Log périodique
-            let bufferFrameCount = audioBuffer.frameLength
-            let channels = audioBuffer.format.channelCount
-            print("🔊 System Audio: \(bufferFrameCount) frames, \(channels) channels")
-            
         } catch {
-            Logger.shared.log("❌ [SYSTEM_AUDIO] Failed to write audio: \(error)")
+            Logger.shared.log("❌ [SYSTEM_AUDIO] Audio processing error: \(error)")
         }
     }
 } 
