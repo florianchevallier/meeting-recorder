@@ -103,22 +103,43 @@ class StatusBarManager: ObservableObject {
     func stopRecording() {
         Logger.shared.log("🛑 [RECORDING] User requested recording stop")
         
-        micRecorder.stopRecording()
-        
-        // Arrêter la capture audio système si elle est active
-        if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
-            Task {
-                await systemCapture.stopRecording()
+        Task {
+            var microphoneFileURL: URL?
+            var systemAudioFileURL: URL?
+            
+            // Arrêter l'enregistrement microphone
+            microphoneFileURL = micRecorder.stopRecording()
+            
+            // Arrêter la capture audio système si elle est active
+            if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
+                systemAudioFileURL = await systemCapture.stopRecording()
                 await MainActor.run {
                     self.systemAudioCapture = nil
                 }
             }
+            
+            await MainActor.run {
+                isRecording = false
+                recordingDuration = 0
+                updateStatusBarIcon()
+                stopDurationUpdater()
+            }
+            
+            // Fusionner les fichiers audio en M4A
+            do {
+                Logger.shared.log("🎵 [RECORDING] Démarrage de la fusion audio...")
+                if let finalURL = try await AudioMixer.mixAudioFiles(microphoneURL: microphoneFileURL, systemAudioURL: systemAudioFileURL) {
+                    Logger.shared.log("✅ [RECORDING] Enregistrement final sauvegardé: \(finalURL.lastPathComponent)")
+                } else {
+                    Logger.shared.log("⚠️ [RECORDING] Aucun fichier audio à fusionner")
+                }
+            } catch {
+                Logger.shared.log("❌ [RECORDING] Erreur lors de la fusion audio: \(error)")
+                await MainActor.run {
+                    errorMessage = "Erreur lors de la fusion audio: \(error.localizedDescription)"
+                }
+            }
         }
-        
-        isRecording = false
-        recordingDuration = 0
-        updateStatusBarIcon()
-        stopDurationUpdater()
         
         Logger.shared.log("✅ [RECORDING] Recording stopped")
     }

@@ -6,6 +6,7 @@ class SimpleMicrophoneRecorder: NSObject {
     private var audioFile: AVAudioFile?
     private var isRecording = false
     private var recordingStartTime: Date?
+    private var currentFileURL: URL?
     
     override init() {
         super.init()
@@ -32,6 +33,7 @@ class SimpleMicrophoneRecorder: NSObject {
         // Create recording file
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioFilename = documentsPath.appendingPathComponent("recording_\(Date().timeIntervalSince1970).wav")
+        currentFileURL = audioFilename
         
         Logger.shared.log("🎤 [AUDIO] Recording to: \(audioFilename.path)")
         
@@ -64,10 +66,10 @@ class SimpleMicrophoneRecorder: NSObject {
         Logger.shared.log("✅ [AUDIO] Recording started successfully")
     }
     
-    func stopRecording() {
+    func stopRecording() -> URL? {
         guard isRecording else {
             Logger.shared.log("⚠️ [AUDIO] Not currently recording")
-            return
+            return nil
         }
         
         audioEngine?.inputNode.removeTap(onBus: 0)
@@ -82,6 +84,8 @@ class SimpleMicrophoneRecorder: NSObject {
         
         recordingStartTime = nil
         Logger.shared.log("✅ [AUDIO] Recording stopped successfully")
+        
+        return currentFileURL
     }
     
     var recordingDuration: TimeInterval {
@@ -91,7 +95,7 @@ class SimpleMicrophoneRecorder: NSObject {
     
     deinit {
         if isRecording {
-            stopRecording()
+            _ = stopRecording()
         }
     }
 }
