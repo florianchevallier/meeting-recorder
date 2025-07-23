@@ -5,9 +5,13 @@ struct StatusBarMenu: View {
     
     var body: some View {
         VStack(spacing: 12) {
-            Text("🎤 Microphone Recorder")
+            Text("🎤 Meeting Recorder")
                 .font(.headline)
                 .padding(.top, 8)
+            
+            Text("Micro + Audio Système")
+                .font(.caption2)
+                .foregroundColor(.secondary)
             
             HStack(spacing: 8) {
                 Circle()
@@ -15,7 +19,7 @@ struct StatusBarMenu: View {
                     .frame(width: 12, height: 12)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(statusBarManager.isRecording ? "En cours d'enregistrement..." : "Prêt")
+                    Text(statusBarManager.isRecording ? "Enregistrement actif" : "Prêt à enregistrer")
                         .font(.caption)
                         .foregroundColor(.primary)
                     
