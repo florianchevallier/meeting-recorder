@@ -208,6 +208,43 @@ class StatusBarManager: ObservableObject {
         durationTimer = nil
     }
     
+    func showOnboarding() {
+        // Open onboarding window
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Try to open onboarding window
+        if let existingWindow = NSApp.windows.first(where: { 
+            $0.title.contains("Configuration des Permissions") || 
+            $0.identifier?.rawValue == "onboarding" 
+        }) {
+            existingWindow.makeKeyAndOrderFront(nil)
+            existingWindow.center()
+        } else {
+            // Create new onboarding window with proper setup
+            DispatchQueue.main.async {
+                let onboardingView = OnboardingView()
+                let hostingController = NSHostingController(rootView: onboardingView)
+                
+                let window = NSWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+                    styleMask: [.titled, .closable, .miniaturizable],
+                    backing: .buffered,
+                    defer: false
+                )
+                
+                window.title = "Configuration des Permissions"
+                window.contentViewController = hostingController
+                window.center()
+                window.isReleasedWhenClosed = false // Éviter les crashes
+                window.makeKeyAndOrderFront(nil)
+                window.level = .floating
+                
+                // Donner le focus à la fenêtre
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
+    
     func cleanup() {
         stopDurationUpdater()
         if isRecording {

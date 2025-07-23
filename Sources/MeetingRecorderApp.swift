@@ -6,9 +6,15 @@ struct MeetingRecorderApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
-        Settings {
+        // WindowGroup caché - l'app fonctionne uniquement via la status bar
+        WindowGroup {
             EmptyView()
+                .frame(width: 0, height: 0)
+                .hidden()
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 0, height: 0)
     }
 }
 
@@ -17,53 +23,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissionManager = PermissionManager()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Masquer toutes les fenêtres existantes
+        NSApp.windows.forEach { $0.orderOut(nil) }
+        
+        // Configuration comme accessory app (pas d'icône dans le dock)
         NSApp.setActivationPolicy(.accessory)
         
+        // Setup status bar first
         statusBarManager = StatusBarManager()
         statusBarManager?.setupStatusBar()
         
-        // Request only microphone permission
-        Task {
-            await requestMicrophonePermission()
+        // Vérifier l'onboarding après un court délai
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            if OnboardingManager.shared.shouldShowOnboarding {
+                self?.showOnboarding()
+            }
         }
     }
     
-    private func requestMicrophonePermission() async {
-        Logger.shared.log("🚀 MeetingRecorder starting...")
-        Logger.shared.log("💻 macOS version: \(ProcessInfo.processInfo.operatingSystemVersionString)")
-        
-        do {
-            Logger.shared.log("🔐 [PERMISSIONS] Starting microphone permission request...")
-            
-            Logger.shared.log("🎤 [PERMISSIONS] Requesting microphone access...")
-            try await permissionManager.requestMicrophonePermission()
-            Logger.shared.log("✅ [PERMISSIONS] Microphone permission granted")
-            
-            Logger.shared.log("🎉 [PERMISSIONS] Ready to record!")
-            
-        } catch {
-            Logger.shared.log("❌ [ERROR] Microphone permission failed: \(error)")
-            Logger.shared.log("📋 [ERROR] Error details: \(error.localizedDescription)")
-            
-            // Show alert to user about missing permission
-            await MainActor.run {
-                let alert = NSAlert()
-                alert.messageText = "Permission microphone requise"
-                alert.informativeText = error.localizedDescription + "\n\nL'application ne peut pas enregistrer sans accès au microphone."
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "Ouvrir Préférences Système")
-                alert.addButton(withTitle: "Continuer")
-                
-                let response = alert.runModal()
-                if response == .alertFirstButtonReturn {
-                    // Open System Preferences
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
-                        Logger.shared.log("🔧 [DEBUG] Opening System Preferences...")
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-            }
-        }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Empêcher la réouverture de fenêtres - on utilise uniquement la status bar
+        return false
+    }
+    
+    @MainActor
+    private func showOnboarding() {
+        // Utiliser directement le StatusBarManager pour afficher l'onboarding
+        statusBarManager?.showOnboarding()
     }
     
     func applicationWillTerminate(_ notification: Notification) {
