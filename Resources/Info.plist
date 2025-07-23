@@ -26,5 +26,7 @@
     <string>Cette application accède à votre calendrier pour démarrer automatiquement les enregistrements de réunion</string>
     <key>NSScreenRecordingUsageDescription</key>
     <string>Cette application a besoin d'enregistrer l'écran pour capturer l'audio système lors des réunions</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Cette application sauvegarde vos enregistrements de réunion dans le dossier Documents</string>
 </dict>
 </plist>
