@@ -65,17 +65,23 @@ struct StatusBarMenu: View {
             Circle()
                 .fill(statusBarManager.isRecording ? 
                       .linearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom) :
+                      statusBarManager.isTeamsMeetingDetected ?
+                      .linearGradient(colors: [.blue, .cyan], startPoint: .top, endPoint: .bottom) :
                       .linearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
                 )
                 .frame(width: 8, height: 8)
-                .scaleEffect(statusBarManager.isRecording ? 1.2 : 1.0)
+                .scaleEffect(statusBarManager.isRecording || statusBarManager.isTeamsMeetingDetected ? 1.2 : 1.0)
                 .animation(statusBarManager.isRecording ? 
-                          .easeInOut(duration: 1.0).repeatForever(autoreverses: true) : 
-                          .default, value: statusBarManager.isRecording)
+                          .easeInOut(duration: 1.0).repeatForever(autoreverses: true) :
+                          statusBarManager.isTeamsMeetingDetected ?
+                          .easeInOut(duration: 2.0).repeatForever(autoreverses: true) :
+                          .default, value: statusBarManager.isRecording || statusBarManager.isTeamsMeetingDetected)
             
-            Text(statusBarManager.isRecording ? "REC" : "IDLE")
+            Text(statusBarManager.isRecording ? "REC" : 
+                 statusBarManager.isTeamsMeetingDetected ? "TEAMS" : "IDLE")
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundColor(statusBarManager.isRecording ? .red : .secondary)
+                .foregroundColor(statusBarManager.isRecording ? .red : 
+                                statusBarManager.isTeamsMeetingDetected ? .blue : .secondary)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -157,27 +163,38 @@ struct StatusBarMenu: View {
                 ))
             } else {
                 VStack(spacing: 4) {
-                    Text("Prêt à enregistrer")
+                    Text(statusBarManager.isTeamsMeetingDetected ? "Réunion Teams détectée" : "Prêt à enregistrer")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(statusBarManager.isTeamsMeetingDetected ? .blue : .primary)
                     
-                    HStack(spacing: 12) {
+                    if statusBarManager.isTeamsMeetingDetected {
                         HStack(spacing: 4) {
-                            Image(systemName: "mic.fill")
+                            Image(systemName: "video.circle.fill")
                                 .font(.system(size: 10))
                                 .foregroundColor(.blue)
-                            Text("Micro")
+                            Text("Auto-enregistrement activé")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.blue)
                         }
-                        
-                        HStack(spacing: 4) {
-                            Image(systemName: "speaker.wave.2.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(.green)
-                            Text("Système")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.secondary)
+                    } else {
+                        HStack(spacing: 12) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "mic.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.blue)
+                                Text("Micro")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: "speaker.wave.2.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.green)
+                                Text("Système")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
@@ -197,6 +214,16 @@ struct StatusBarMenu: View {
                 .padding(.horizontal, 20)
             
             HStack(spacing: 0) {
+                QuickActionButton(
+                    icon: statusBarManager.isAutoRecordingEnabled() ? "video.fill" : "video.slash",
+                    title: "Auto Teams",
+                    action: { statusBarManager.toggleAutoRecording() },
+                    isActive: statusBarManager.isAutoRecordingEnabled()
+                )
+                
+                Divider()
+                    .frame(height: 44)
+                
                 QuickActionButton(
                     icon: "gearshape.fill",
                     title: "Permissions",
@@ -284,14 +311,16 @@ struct QuickActionButton: View {
     let title: String
     let action: () -> Void
     let isDestructive: Bool
+    let isActive: Bool
     
     @State private var isHovering = false
     
-    init(icon: String, title: String, action: @escaping () -> Void, isDestructive: Bool = false) {
+    init(icon: String, title: String, action: @escaping () -> Void, isDestructive: Bool = false, isActive: Bool = false) {
         self.icon = icon
         self.title = title
         self.action = action
         self.isDestructive = isDestructive
+        self.isActive = isActive
     }
     
     var body: some View {
@@ -299,11 +328,11 @@ struct QuickActionButton: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isDestructive ? .red : .primary)
+                    .foregroundColor(isDestructive ? .red : isActive ? .blue : .primary)
                 
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(isDestructive ? .red : .secondary)
+                    .foregroundColor(isDestructive ? .red : isActive ? .blue : .secondary)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())

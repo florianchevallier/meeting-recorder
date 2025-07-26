@@ -178,15 +178,6 @@ L'application est **entièrement fonctionnelle** pour l'enregistrement manuel !
 - **Gestion Permissions** : Microphone, calendrier, screen recording
 - **Nommage Automatique** : `meeting_YYYY-MM-DD_HH-mm-ss.m4a`
 
-#### 🚀 Comment Tester
-```bash
-# Lancer l'application
-swift run
-
-# Cliquer sur l'icône status bar → Start Recording
-# Jouer de la musique + parler dans le micro
-# Stop Recording → Vérifier ~/Documents/
-```
 
 ### 🔄 **PHASE 2 EN ATTENTE** - Intégration Calendrier
 Les classes de base sont créées mais pas encore connectées au système principal.

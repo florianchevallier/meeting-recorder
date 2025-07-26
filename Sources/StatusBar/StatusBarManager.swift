@@ -9,12 +9,17 @@ class StatusBarManager: ObservableObject {
     @Published var isRecording = false
     @Published var recordingDuration: TimeInterval = 0
     @Published var errorMessage: String?
+    @Published var isTeamsMeetingDetected = false
     
     private let micRecorder = SimpleMicrophoneRecorder()
     private var systemAudioCapture: (any NSObjectProtocol)?
     
     // ✨ Nouvelle API unifiée pour macOS 15+ (stored properties ne peuvent pas être @available)
     private var unifiedCapture: (any NSObjectProtocol)?
+    
+    // 🔍 Teams detection
+    private let teamsDetector = TeamsDetector()
+    private var autoRecordingEnabled = true
     
     func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -26,6 +31,45 @@ class StatusBarManager: ObservableObject {
         }
         
         setupPopover()
+        setupTeamsDetection()
+    }
+    
+    private func setupTeamsDetection() {
+        // Start Teams monitoring
+        teamsDetector.startMonitoring()
+        
+        // Listen for Teams meeting status changes
+        NotificationCenter.default.addObserver(
+            forName: .teamsMeetingStatusChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let isActive = notification.userInfo?["isActive"] as? Bool else { return }
+            
+            Task { @MainActor in
+                self.handleTeamsMeetingStatusChange(isActive: isActive)
+            }
+        }
+    }
+    
+    private func handleTeamsMeetingStatusChange(isActive: Bool) {
+        isTeamsMeetingDetected = isActive
+        updateStatusBarIcon()
+        
+        Logger.shared.log("🔍 [TEAMS] Meeting status changed: \(isActive ? "DETECTED" : "ENDED")")
+        
+        if autoRecordingEnabled {
+            if isActive && !isRecording {
+                Logger.shared.log("🎬 [AUTO] Starting automatic recording for Teams meeting")
+                startRecording()
+            } else if !isActive && isRecording {
+                // Optional: Auto-stop recording when meeting ends
+                // Uncomment the next line if you want auto-stop
+                // stopRecording()
+                Logger.shared.log("🎬 [AUTO] Teams meeting ended (recording continues)")
+            }
+        }
     }
     
     private func setupPopover() {
@@ -50,9 +94,30 @@ class StatusBarManager: ObservableObject {
     private func updateStatusBarIcon() {
         guard let button = statusItem?.button else { return }
         
-        let iconName = isRecording ? "record.circle.fill" : "record.circle"
-        button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "Microphone Recorder")
+        let iconName: String
+        let description: String
+        
+        if isRecording {
+            iconName = "record.circle.fill"
+            description = "Recording in progress"
+        } else if isTeamsMeetingDetected {
+            iconName = "video.circle"
+            description = "Teams meeting detected"
+        } else {
+            iconName = "record.circle"
+            description = "Meeting recorder ready"
+        }
+        
+        button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: description)
         button.image?.size = NSSize(width: 18, height: 18)
+        
+        // Change icon color based on status
+        if isTeamsMeetingDetected && !isRecording {
+            button.image?.isTemplate = false
+            // Make it more visible when Teams meeting is detected
+        } else {
+            button.image?.isTemplate = true
+        }
     }
     
     func startRecording() {
@@ -246,11 +311,35 @@ class StatusBarManager: ObservableObject {
         }
     }
     
+    // MARK: - Teams Detection Controls
+    
+    func toggleAutoRecording() {
+        autoRecordingEnabled.toggle()
+        Logger.shared.log("🔍 [AUTO] Auto-recording \(autoRecordingEnabled ? "ENABLED" : "DISABLED")")
+    }
+    
+    func isAutoRecordingEnabled() -> Bool {
+        return autoRecordingEnabled
+    }
+    
+    func getTeamsStatus() -> (detected: Bool, lastCheck: Date?, method: String) {
+        let status = teamsDetector.getDetectionStatus()
+        return (detected: status.isActive, lastCheck: status.lastCheck, method: status.method)
+    }
+    
+    func manualTeamsCheck() async -> Bool {
+        return await teamsDetector.checkNow()
+    }
+    
     func cleanup() {
         stopDurationUpdater()
         if isRecording {
             stopRecording()
         }
+        
+        // Stop Teams detection
+        teamsDetector.stopMonitoring()
+        NotificationCenter.default.removeObserver(self)
         
         // Nettoyer l'API unifiée ou la capture audio système
         if #available(macOS 15.0, *), let unified = unifiedCapture as? UnifiedScreenCapture {
