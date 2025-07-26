@@ -7,7 +7,7 @@ import ScreenCaptureKit
 class OnboardingViewModel: ObservableObject {
     @Published var isRequesting = false
     
-    private let permissionManager = PermissionManager()
+    @ObservedObject private var permissionManager = PermissionManager.shared
     
     var microphoneStatus: PermissionStatus {
         permissionManager.microphonePermission

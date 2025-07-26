@@ -9,7 +9,7 @@ class OnboardingManager: ObservableObject {
     
     private let userDefaults = UserDefaults.standard
     private let hasCompletedOnboardingKey = "hasCompletedOnboarding"
-    private let permissionManager = PermissionManager()
+    private let permissionManager = PermissionManager.shared
     
     private init() {
         let hasCompleted = userDefaults.bool(forKey: hasCompletedOnboardingKey)

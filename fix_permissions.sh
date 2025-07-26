@@ -8,11 +8,18 @@ echo "🔧 Fixing permissions issue..."
 # 1. Kill existing app
 pkill -f MeetingRecorder 2>/dev/null || true
 
-# 2. Reset all permissions cleanly
+# 2. Reset all permissions cleanly (including folders access and onboarding)
 echo "🗑️  Resetting all permissions..."
 tccutil reset Microphone com.meetingrecorder.app 2>/dev/null || true
 tccutil reset ScreenCapture com.meetingrecorder.app 2>/dev/null || true
 tccutil reset Calendar com.meetingrecorder.app 2>/dev/null || true
+tccutil reset SystemPolicyDocumentsFolder com.meetingrecorder.app 2>/dev/null || true
+tccutil reset SystemPolicyDownloadsFolder com.meetingrecorder.app 2>/dev/null || true
+tccutil reset SystemPolicyDesktopFolder com.meetingrecorder.app 2>/dev/null || true
+
+# Reset onboarding flag
+echo "🔄 Resetting onboarding state..."
+defaults delete com.meetingrecorder.app hasCompletedOnboarding 2>/dev/null || true
 
 # 3. Build fresh copy
 echo "🔨 Building fresh app..."

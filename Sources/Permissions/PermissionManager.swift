@@ -5,12 +5,14 @@ import EventKit
 import ScreenCaptureKit
 
 class PermissionManager: ObservableObject {
+    static let shared = PermissionManager()
+    
     @Published var microphonePermission: PermissionStatus = .notDetermined
     @Published var screenRecordingPermission: PermissionStatus = .notDetermined
     @Published var calendarPermission: PermissionStatus = .notDetermined
     @Published var documentsPermission: PermissionStatus = .notDetermined
     
-    init() {
+    private init() {
         checkAllPermissions()
     }
     
@@ -149,8 +151,32 @@ class PermissionManager: ObservableObject {
             }
         }
         
-        DispatchQueue.main.async {
+        print("📅 [CALENDAR] Permission request result: \(granted)")
+        
+        await MainActor.run {
             self.calendarPermission = granted ? .authorized : .denied
+            print("📅 [CALENDAR] UI updated to: \(self.calendarPermission)")
+        }
+        
+        // Double-check avec un délai pour macOS 14+
+        if #available(macOS 14.0, *) {
+            try? await Task.sleep(for: .milliseconds(500))
+            await MainActor.run {
+                let newStatus = EKEventStore.authorizationStatus(for: .event)
+                let newPermission = PermissionStatus(from: newStatus)
+                print("📅 [CALENDAR] Re-checked authorization status: \(newStatus) -> \(newPermission)")
+                
+                // Si le statut API a changé, utiliser ça plutôt que le résultat de la requête
+                if newPermission == .authorized {
+                    self.calendarPermission = .authorized
+                    print("📅 [CALENDAR] Authorization status override - now authorized")
+                } else if newPermission != .notDetermined {
+                    self.calendarPermission = newPermission
+                    print("📅 [CALENDAR] Using authorization status result: \(newPermission)")
+                }
+                
+                print("📅 [CALENDAR] Final permission state: \(self.calendarPermission)")
+            }
         }
         
         if !granted {
@@ -167,24 +193,32 @@ class PermissionManager: ObservableObject {
     func requestDocumentsPermission() async throws {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         
-        // Essayer d'accéder au dossier Documents
-        let granted = documentsURL.startAccessingSecurityScopedResource()
-        if granted {
-            documentsURL.stopAccessingSecurityScopedResource()
-        }
+        print("📁 [DOCUMENTS] Requesting Documents folder permission...")
         
-        // Essayer de créer un fichier test
-        let testFileURL = documentsURL.appendingPathComponent("meeting_recorder_test.txt")
+        // Essayer d'accéder au dossier Documents avec le même nom de fichier réaliste
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = formatter.string(from: Date())
+        let testFileURL = documentsURL.appendingPathComponent("meeting_\(timestamp)_permission_test.m4a")
+        
         do {
-            try "test".write(to: testFileURL, atomically: true, encoding: .utf8)
+            // Créer un fichier test avec le même type que l'app utilise
+            let testData = Data()
+            try testData.write(to: testFileURL)
             try FileManager.default.removeItem(at: testFileURL)
             
-            DispatchQueue.main.async {
+            print("📁 [DOCUMENTS] Permission test file created and removed successfully")
+            
+            await MainActor.run {
                 self.documentsPermission = .authorized
+                print("📁 [DOCUMENTS] Permission status updated to authorized")
             }
         } catch {
-            DispatchQueue.main.async {
+            print("📁 [DOCUMENTS] Permission test failed: \(error.localizedDescription)")
+            
+            await MainActor.run {
                 self.documentsPermission = .denied
+                print("📁 [DOCUMENTS] Permission status updated to denied")
             }
             throw PermissionError.documentsPermissionDenied
         }
@@ -192,13 +226,49 @@ class PermissionManager: ObservableObject {
     
     func checkDocumentsPermission() {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let testFileURL = documentsURL.appendingPathComponent("meeting_recorder_access_test.txt")
+        
+        // Tester avec le même pattern de nom de fichier que l'app utilise réellement
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = formatter.string(from: Date())
+        let testFileURL = documentsURL.appendingPathComponent("meeting_\(timestamp)_test.m4a")
+        
+        print("📁 [DOCUMENTS] Testing write access with realistic filename: \(testFileURL.lastPathComponent)")
+        print("📁 [DOCUMENTS] Full path: \(testFileURL.path)")
         
         do {
-            try "test".write(to: testFileURL, atomically: true, encoding: .utf8)
-            try? FileManager.default.removeItem(at: testFileURL)
-            documentsPermission = .authorized
+            // Tester l'écriture d'un fichier vide M4A (même type que l'app utilise)
+            let testData = Data("test_audio_data".utf8)
+            try testData.write(to: testFileURL)
+            
+            // Vérifier que le fichier existe réellement au bon endroit
+            let realPath = testFileURL.path
+            let fileExists = FileManager.default.fileExists(atPath: realPath)
+            let isReadable = FileManager.default.isReadableFile(atPath: realPath)
+            
+            print("📁 [DOCUMENTS] File written, exists: \(fileExists), readable: \(isReadable)")
+            
+            if fileExists && isReadable {
+                // Tenter de lire le fichier pour vérifier l'accès réel
+                let readData = try Data(contentsOf: testFileURL)
+                let readString = String(data: readData, encoding: .utf8) ?? ""
+                
+                if readString == "test_audio_data" {
+                    print("📁 [DOCUMENTS] Real write/read test succeeded - genuine permission")
+                    try? FileManager.default.removeItem(at: testFileURL)
+                    documentsPermission = .authorized
+                } else {
+                    print("📁 [DOCUMENTS] Data mismatch - sandboxed/redirected write detected")
+                    documentsPermission = .denied
+                }
+            } else {
+                print("📁 [DOCUMENTS] File not accessible after write - permission denied")
+                documentsPermission = .denied
+            }
+            
         } catch {
+            print("📁 [DOCUMENTS] Write test failed: \(error.localizedDescription)")
+            print("📁 [DOCUMENTS] Error code: \((error as NSError).code)")
             documentsPermission = .denied
         }
     }
