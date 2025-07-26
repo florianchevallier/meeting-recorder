@@ -20,7 +20,7 @@ struct MeetingRecorderApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarManager: StatusBarManager?
-    private let permissionManager = PermissionManager()
+    private let permissionManager = PermissionManager.shared
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Masquer toutes les fenêtres existantes
