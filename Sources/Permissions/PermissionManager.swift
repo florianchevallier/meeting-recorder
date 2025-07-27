@@ -102,6 +102,22 @@ class PermissionManager: ObservableObject {
         await NSWorkspace.shared.open(url)
         checkAccessibilityPermission() // Check immediately after opening preferences
     }
+    
+    // MARK: - Open System Preferences
+    func openScreenRecordingSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+        NSWorkspace.shared.open(url)
+    }
+    
+    func openMicrophoneSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!
+        NSWorkspace.shared.open(url)
+    }
+    
+    func openAccessibilitySettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
+    }
 
     func checkAccessibilityPermission() {
         DispatchQueue.main.async {
