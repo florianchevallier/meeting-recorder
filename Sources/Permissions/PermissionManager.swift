@@ -99,7 +99,7 @@ class PermissionManager: ObservableObject {
     func requestAccessibilityPermission() async {
         // Ouvrir les préférences système pour que l'utilisateur donne la permission
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        await NSWorkspace.shared.open(url)
+        NSWorkspace.shared.open(url)
         checkAccessibilityPermission() // Check immediately after opening preferences
     }
     

@@ -36,7 +36,7 @@ class TeamsDetector: ObservableObject {
         Logger.shared.log("🔍 [TEAMS] Starting Teams meeting detection...")
         
         monitoringTimer = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            Task {
                 await self?.checkTeamsMeetingStatus()
             }
         }

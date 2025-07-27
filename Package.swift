@@ -7,7 +7,7 @@ let package = Package(
     name: "MeetingRecorder",
     defaultLocalization: "en",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     products: [
         .executable(

@@ -25,7 +25,7 @@ git push origin v1.0.0
 ```
 
 **Pipeline** : `.github/workflows/ci.yml`
-- ✅ Tests automatiques sur macOS 13+
+- ✅ Tests automatiques sur macOS 14+
 - ✅ Build multi-architecture (arm64 + x86_64)  
 - ✅ DMG avec instructions d'installation
 - ✅ Release GitHub avec assets
@@ -143,7 +143,7 @@ gh run watch --repo florianchevallier/meeting-recorder
 ## 🔧 Configuration Système
 
 ### Prérequis Développement
-- **macOS 13.0+** pour ScreenCaptureKit complet
+- **macOS 15.0+** pour ScreenCaptureKit unifié avec microphone
 - **Xcode 15.1+** ou Command Line Tools
 - **Swift 5.9+** avec Package Manager
 - **GitHub CLI** pour releases manuelles (optionnel)
