@@ -121,6 +121,16 @@ jobs:
           echo "⚠️ No app icon found - app will use default icon"
         fi
         
+        # Auto-signer l'app (ad-hoc) avec entitlements pour éviter les problèmes de permissions
+        echo "🔐 Signing app with ad-hoc signature and entitlements..."
+        codesign --force --deep --sign - --entitlements MeetingRecorder.entitlements "$APP_PATH"
+        
+        # Vérifier la signature et les entitlements
+        echo "🔍 Verifying signature..."
+        codesign -dv "$APP_PATH" || echo "⚠️ Signature verification failed"
+        echo "🔍 Verifying entitlements..."
+        codesign -d --entitlements - "$APP_PATH" || echo "⚠️ Entitlements verification failed"
+        
         echo "app-path=$APP_PATH" >> $GITHUB_OUTPUT
         echo "✅ App built at: $APP_PATH"
         ls -la "$APP_PATH/Contents/MacOS/"
