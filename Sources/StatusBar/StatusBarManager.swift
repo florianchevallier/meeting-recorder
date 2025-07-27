@@ -143,61 +143,53 @@ class StatusBarManager: ObservableObject {
             description = L10n.statusReady
         }
         
-        // Utiliser le logo personnalisé depuis les ressources
-        if let appIconImage = loadAppIcon() {
-            button.image = appIconImage
-            button.image?.size = NSSize(width: 18, height: 18)
-            button.toolTip = description
-            
-            // Modifier l'apparence selon l'état
-            if isRecording {
-                // Réduire légèrement l'opacité pendant l'enregistrement pour indiquer l'activité
-                button.image?.isTemplate = false
-                button.alphaValue = 0.8
-            } else if isTeamsMeetingDetected {
-                // Image normale quand Teams est détecté
-                button.image?.isTemplate = false
-                button.alphaValue = 1.0
-            } else {
-                // Image en template par défaut
-                button.image?.isTemplate = true
-                button.alphaValue = 1.0
-            }
+        // Fallback vers les icônes système (gardons l'existant qui fonctionne bien)
+        let iconName: String
+        
+        if isRecording {
+            iconName = "record.circle.fill"
+        } else if isTeamsMeetingDetected {
+            iconName = "video.circle"
         } else {
-            // Fallback vers les icônes système si le logo personnalisé n'est pas trouvé
-            let iconName: String
-            
-            if isRecording {
-                iconName = "record.circle.fill"
-            } else if isTeamsMeetingDetected {
-                iconName = "video.circle"
-            } else {
-                iconName = "record.circle"
-            }
-            
-            button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: description)
-            button.image?.size = NSSize(width: 18, height: 18)
-            button.image?.isTemplate = true
-            button.alphaValue = 1.0
+            iconName = "record.circle"
         }
+        
+        button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: description)
+        button.image?.size = NSSize(width: 18, height: 18)
+        button.image?.isTemplate = true
+        button.alphaValue = 1.0
+        button.toolTip = description
     }
     
     private func loadAppIcon() -> NSImage? {
-        // Essayer de charger depuis les ressources du bundle
-        if let resourcePath = Bundle.main.path(forResource: "AppIcon", ofType: "png", inDirectory: "Resources/Images"),
-           let image = NSImage(contentsOfFile: resourcePath) {
-            return image
-        }
-        
-        // Fallback: essayer de charger directement depuis les ressources
-        if let image = NSImage(named: "AppIcon") {
-            return image
-        }
-        
-        // Essayer avec Bundle.module pour les Swift Packages
+        // Pour Swift Package Manager, utiliser Bundle.module
         if let resourceURL = Bundle.module.url(forResource: "AppIcon", withExtension: "png", subdirectory: "Resources/Images"),
            let image = NSImage(contentsOf: resourceURL) {
-            return image
+            // Créer une version optimisée pour la status bar
+            let statusBarImage = NSImage(size: NSSize(width: 18, height: 18))
+            statusBarImage.lockFocus()
+            image.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
+            statusBarImage.unlockFocus()
+            return statusBarImage
+        }
+        
+        // Fallback: essayer de charger directement depuis les ressources du bundle principal
+        if let image = NSImage(named: "AppIcon") {
+            let statusBarImage = NSImage(size: NSSize(width: 18, height: 18))
+            statusBarImage.lockFocus()
+            image.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
+            statusBarImage.unlockFocus()
+            return statusBarImage
+        }
+        
+        // Essayer avec Bundle.main en dernier recours
+        if let resourcePath = Bundle.main.path(forResource: "AppIcon", ofType: "png", inDirectory: "Resources/Images"),
+           let image = NSImage(contentsOfFile: resourcePath) {
+            let statusBarImage = NSImage(size: NSSize(width: 18, height: 18))
+            statusBarImage.lockFocus()
+            image.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
+            statusBarImage.unlockFocus()
+            return statusBarImage
         }
         
         return nil
