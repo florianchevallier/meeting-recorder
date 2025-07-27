@@ -119,7 +119,7 @@ open /Applications/MeetingRecorder.app
 ## 📋 Configuration Système Requise
 
 ### Minimum
-- **macOS 13.0** (Ventura) ou supérieur
+- **macOS 15.0** (Sequoia) ou supérieur
 - **8 GB RAM** recommandés
 - **100 MB** espace disque libre
 - **Microphone** intégré ou externe
