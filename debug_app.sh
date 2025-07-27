@@ -13,6 +13,17 @@ BUILD_DIR="$PROJECT_DIR/.build"
 APP_NAME="MeetingRecorder"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 BUILD_CONFIG="${1:-release}"
+
+# Bundle ID basé sur le build config
+if [ "$BUILD_CONFIG" = "debug" ]; then
+    BUNDLE_ID="com.meetingrecorder.meety.debug"
+    APP_DISPLAY_NAME="Meety Debug"
+    APP_FILE_NAME="MeetyDebug.app"
+else
+    BUNDLE_ID="com.meetingrecorder.meety" 
+    APP_DISPLAY_NAME="Meety"
+    APP_FILE_NAME="Meety.app"
+fi
 ARCH=$(uname -m)
 BUILD_PATH="$BUILD_DIR/$ARCH-apple-macosx/$BUILD_CONFIG"
 
@@ -21,22 +32,25 @@ echo "🐛 Building and debugging MeetingRecorder.app (config: $BUILD_CONFIG)...
 # 1. Désinstallation propre
 echo "🗑️  Uninstalling existing app..."
 pkill -f MeetingRecorder 2>/dev/null || true
+pkill -f Meety 2>/dev/null || true
 rm -rf /Applications/MeetingRecorder.app
+rm -rf /Applications/Meety.app
+rm -rf /Applications/MeetyDebug.app
 rm -rf "$BUILD_DIR/$APP_NAME.app"
 
 # 2. Reset complet des permissions
-echo "🗑️  Resetting all permissions..."
-tccutil reset Microphone com.meetingrecorder.app 2>/dev/null || true
-tccutil reset ScreenCapture com.meetingrecorder.app 2>/dev/null || true
-tccutil reset Accessibility com.meetingrecorder.app 2>/dev/null || true
-tccutil reset SystemPolicyDocumentsFolder com.meetingrecorder.app 2>/dev/null || true
-tccutil reset SystemPolicyDownloadsFolder com.meetingrecorder.app 2>/dev/null || true
-tccutil reset SystemPolicyDesktopFolder com.meetingrecorder.app 2>/dev/null || true
+echo "🗑️  Resetting all permissions for $BUNDLE_ID..."
+tccutil reset Microphone "$BUNDLE_ID" 2>/dev/null || true
+tccutil reset ScreenCapture "$BUNDLE_ID" 2>/dev/null || true
+tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
+tccutil reset SystemPolicyDocumentsFolder "$BUNDLE_ID" 2>/dev/null || true
+tccutil reset SystemPolicyDownloadsFolder "$BUNDLE_ID" 2>/dev/null || true
+tccutil reset SystemPolicyDesktopFolder "$BUNDLE_ID" 2>/dev/null || true
 
 # Reset état onboarding et préférences
 echo "🔄 Resetting app preferences..."
-defaults delete com.meetingrecorder.app hasCompletedOnboarding 2>/dev/null || true
-defaults delete com.meetingrecorder.app 2>/dev/null || true
+defaults delete "$BUNDLE_ID" hasCompletedOnboarding 2>/dev/null || true
+defaults delete "$BUNDLE_ID" 2>/dev/null || true
 
 # 3. Build app bundle
 echo "🔨 Building fresh app bundle..."
@@ -58,7 +72,17 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 # Copy files
 cp "$BUILD_PATH/$APP_NAME" "$MACOS_DIR/$APP_NAME"
+
+# Modifier l'Info.plist avec le bon bundle ID et display name
 cp "$PROJECT_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
+if [ "$BUILD_CONFIG" = "debug" ]; then
+    echo "🔧 Configuring for debug mode..."
+    # Modifier le bundle ID pour debug
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$CONTENTS_DIR/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_DISPLAY_NAME" "$CONTENTS_DIR/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_DISPLAY_NAME" "$CONTENTS_DIR/Info.plist"
+fi
+
 echo -n "APPL????" > "$CONTENTS_DIR/PkgInfo"
 chmod +x "$MACOS_DIR/$APP_NAME"
 
@@ -74,10 +98,10 @@ fi
 
 # 4. Install to Applications
 echo "📦 Installing to /Applications..."
-mv "$APP_BUNDLE" /Applications/
+mv "$APP_BUNDLE" "/Applications/$APP_FILE_NAME"
 
 echo "✅ Installation complete!"
-echo "💡 App installed at: /Applications/MeetingRecorder.app"
+echo "💡 App installed at: /Applications/$APP_FILE_NAME"
 
 # 5. Lancer session de debug
 echo ""
@@ -91,7 +115,8 @@ cleanup() {
     echo ""
     echo "🛑 Stopping debug session..."
     pkill -f "MeetingRecorder" 2>/dev/null || true
-    echo "🚀 To restart: open /Applications/MeetingRecorder.app"
+    pkill -f "Meety" 2>/dev/null || true
+    echo "🚀 To restart: open /Applications/$APP_FILE_NAME"
     exit 0
 }
 
@@ -102,7 +127,7 @@ touch "$LOG_FILE"
 
 # Lancer l'app
 echo "🚀 Launching app..."
-open "/Applications/MeetingRecorder.app"
+open "/Applications/$APP_FILE_NAME"
 
 # Attendre que l'app démarre
 sleep 2

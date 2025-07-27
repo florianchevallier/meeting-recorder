@@ -59,11 +59,20 @@ class PermissionManager: ObservableObject {
     }
     
     func checkScreenRecordingPermission() {
-        // La seule façon fiable est de vérifier si on peut obtenir une liste de displays.
+        // Méthode plus fiable pour Sequoia 2024+ 
         Task {
-            let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            DispatchQueue.main.async {
-                self.screenRecordingPermission = (content?.displays.isEmpty ?? true) ? .notDetermined : .authorized
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                // Si on obtient du contenu, la permission est accordée
+                let hasPermission = !content.displays.isEmpty
+                DispatchQueue.main.async {
+                    self.screenRecordingPermission = hasPermission ? .authorized : .notDetermined
+                }
+            } catch {
+                // Si erreur, permission probablement refusée
+                DispatchQueue.main.async {
+                    self.screenRecordingPermission = .denied
+                }
             }
         }
     }
@@ -120,8 +129,47 @@ class PermissionManager: ObservableObject {
     }
 
     func checkAccessibilityPermission() {
+        // Test réel : vérifier si on peut accéder aux fenêtres d'une app
+        // Exactement comme le TeamsDetector le fait !
+        let hasWindowAccess = testWindowAccess()
+        
         DispatchQueue.main.async {
-            self.accessibilityPermission = AXIsProcessTrusted() ? .authorized : .notDetermined
+            self.accessibilityPermission = hasWindowAccess ? .authorized : .notDetermined
+        }
+    }
+    
+    /// Test si on peut vraiment accéder aux infos fenêtres (comme TeamsDetector)
+    private func testWindowAccess() -> Bool {
+        // Trouver une app en cours d'exécution pour tester
+        let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder")
+        guard let finderApp = runningApps.first else {
+            // Fallback : tester avec n'importe quelle app
+            let allApps = NSWorkspace.shared.runningApplications
+            guard let testApp = allApps.first(where: { $0.bundleIdentifier != nil }) else {
+                return false
+            }
+            return testAppWindowAccess(app: testApp)
+        }
+        
+        return testAppWindowAccess(app: finderApp)
+    }
+    
+    /// Test réel d'accès aux fenêtres d'une app spécifique
+    private func testAppWindowAccess(app: NSRunningApplication) -> Bool {
+        guard let pid = app.processIdentifier as pid_t? else { return false }
+        
+        let appElement = AXUIElementCreateApplication(pid)
+        var windowsValue: CFTypeRef?
+        
+        let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)
+        
+        switch result {
+        case .success:
+            return true  // On peut accéder aux fenêtres !
+        case .apiDisabled, .failure:
+            return false  // Permission refusée
+        default:
+            return false
         }
     }
 

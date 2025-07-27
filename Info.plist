@@ -39,5 +39,9 @@
     <string>Cette application sauvegarde vos enregistrements de réunion dans le dossier Documents</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Cette application a besoin d'accéder aux événements système pour détecter automatiquement les réunions Teams</string>
+    
+    <!-- Accessibility Access (requis pour la détection automatique) -->
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Cette application utilise l'accessibilité pour détecter automatiquement le début et la fin des réunions</string>
 </dict>
 </plist>
