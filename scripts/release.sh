@@ -189,7 +189,7 @@ monitor_pipeline() {
     
     # Find the workflow run for our tag
     local run_id
-    run_id=$(gh run list --branch "v$version" --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
+    run_id=$(gh run list --event push --limit 5 --json databaseId,headSha,headBranch --jq ".[] | select(.headBranch == \"v$version\") | .databaseId" 2>/dev/null | head -1 || echo "")
     
     if [[ -n "$run_id" && "$run_id" != "null" ]]; then
         log_info "Found workflow run: $run_id"

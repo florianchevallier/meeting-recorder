@@ -18,7 +18,7 @@ jobs:
         xcode-version: '16.0'
     
     - name: Cache Swift Package Manager
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: .build
         key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
@@ -55,7 +55,7 @@ jobs:
         xcode-version: '16.0'
     
     - name: Cache Swift Package Manager
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: .build
         key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
@@ -157,7 +157,7 @@ jobs:
         echo "✅ DMG created: $DMG_PATH"
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: MeetingRecorder-${{ steps.version.outputs.version }}
         path: |
@@ -172,7 +172,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Download build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: MeetingRecorder-${{ needs.build.outputs.version }}
         path: release-artifacts/
