@@ -99,7 +99,19 @@ jobs:
         # Copy Info.plist
         cp Info.plist "$APP_PATH/Contents/"
         
-        # Copy resources
+        # Copy localization bundle (critical for app startup)
+        LOCALIZATION_BUNDLE=".build/apple/Products/Release/${APP_NAME}_${APP_NAME}.bundle"
+        if [ -d "$LOCALIZATION_BUNDLE" ]; then
+          echo "📦 Copying localization bundle: $LOCALIZATION_BUNDLE"
+          cp -r "$LOCALIZATION_BUNDLE" "$APP_PATH/Contents/Resources/"
+        else
+          echo "❌ ERROR: Localization bundle not found at $LOCALIZATION_BUNDLE"
+          echo "Available files in build directory:"
+          ls -la .build/apple/Products/Release/
+          exit 1
+        fi
+        
+        # Copy other resources
         if [ -d "Sources/Resources" ]; then
           cp -r Sources/Resources/* "$APP_PATH/Contents/Resources/"
         fi
