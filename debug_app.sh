@@ -13,6 +13,8 @@ BUILD_DIR="$PROJECT_DIR/.build"
 APP_NAME="MeetingRecorder"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 BUILD_CONFIG="${1:-release}"
+ARCH=$(uname -m)
+BUILD_PATH="$BUILD_DIR/$ARCH-apple-macosx/$BUILD_CONFIG"
 
 echo "🐛 Building and debugging MeetingRecorder.app (config: $BUILD_CONFIG)..."
 
@@ -26,7 +28,6 @@ rm -rf "$BUILD_DIR/$APP_NAME.app"
 echo "🗑️  Resetting all permissions..."
 tccutil reset Microphone com.meetingrecorder.app 2>/dev/null || true
 tccutil reset ScreenCapture com.meetingrecorder.app 2>/dev/null || true
-tccutil reset Calendar com.meetingrecorder.app 2>/dev/null || true
 tccutil reset Accessibility com.meetingrecorder.app 2>/dev/null || true
 tccutil reset SystemPolicyDocumentsFolder com.meetingrecorder.app 2>/dev/null || true
 tccutil reset SystemPolicyDownloadsFolder com.meetingrecorder.app 2>/dev/null || true
@@ -56,14 +57,24 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 # Copy files
-cp "$BUILD_DIR/$BUILD_CONFIG/$APP_NAME" "$MACOS_DIR/$APP_NAME"
-cp "$PROJECT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
+cp "$BUILD_PATH/$APP_NAME" "$MACOS_DIR/$APP_NAME"
+cp "$PROJECT_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
 echo -n "APPL????" > "$CONTENTS_DIR/PkgInfo"
 chmod +x "$MACOS_DIR/$APP_NAME"
 
+# Copy resource bundle for localization
+if [ -d "$BUILD_PATH/MeetingRecorder_MeetingRecorder.bundle" ]; then
+    echo "📦 Copying localization bundle..."
+    cp -R "$BUILD_PATH/MeetingRecorder_MeetingRecorder.bundle" "$RESOURCES_DIR/"
+else
+    echo "⚠️  Warning: Localization bundle not found at $BUILD_PATH!"
+    echo "Available files:"
+    ls -la "$BUILD_PATH/" 2>/dev/null || echo "Path doesn't exist"
+fi
+
 # 4. Install to Applications
 echo "📦 Installing to /Applications..."
-cp -r "$APP_BUNDLE" /Applications/
+mv "$APP_BUNDLE" /Applications/
 
 echo "✅ Installation complete!"
 echo "💡 App installed at: /Applications/MeetingRecorder.app"

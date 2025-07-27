@@ -137,13 +137,13 @@ class StatusBarManager: ObservableObject {
         
         if isRecording {
             iconName = "record.circle.fill"
-            description = "Recording in progress"
+            description = L10n.statusRecording
         } else if isTeamsMeetingDetected {
             iconName = "video.circle"
-            description = "Teams meeting detected"
+            description = L10n.statusTeamsDetected
         } else {
             iconName = "record.circle"
-            description = "Meeting recorder ready"
+            description = L10n.statusReady
         }
         
         button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: description)
@@ -172,7 +172,7 @@ class StatusBarManager: ObservableObject {
                 if !hasMicPermission {
                     Logger.shared.log("❌ [RECORDING] Missing microphone permission")
                     await MainActor.run {
-                        errorMessage = "Permission microphone manquante. Veuillez l'autoriser dans les Préférences Système."
+                        errorMessage = L10n.errorMicrophonePermission
                     }
                     return
                 }
@@ -212,7 +212,7 @@ class StatusBarManager: ObservableObject {
                 Logger.shared.log("❌ [RECORDING] Recording start failed: \(error)")
                 
                 await MainActor.run {
-                    errorMessage = "Échec de l'enregistrement : \(error.localizedDescription)"
+                    errorMessage = L10n.errorRecordingFailed(error.localizedDescription)
                 }
             }
         }
@@ -267,7 +267,7 @@ class StatusBarManager: ObservableObject {
                 } catch {
                     Logger.shared.log("❌ [RECORDING] Erreur lors de la fusion audio: \(error)")
                     await MainActor.run {
-                        errorMessage = "Erreur lors de la fusion audio: \(error.localizedDescription)"
+                        errorMessage = L10n.errorAudioMixingFailed(error.localizedDescription)
                     }
                 }
             }
@@ -336,7 +336,7 @@ class StatusBarManager: ObservableObject {
                     defer: false
                 )
                 
-                window.title = "Configuration des Permissions"
+                window.title = L10n.onboardingTitle
                 window.contentViewController = hostingController
                 window.center()
                 window.isReleasedWhenClosed = false // Éviter les crashes

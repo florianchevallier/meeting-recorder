@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "MeetingRecorder",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v13)
     ],
@@ -21,7 +22,10 @@ let package = Package(
         .executableTarget(
             name: "MeetingRecorder",
             dependencies: [],
-            path: "Sources"
+            path: "Sources",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .testTarget(
             name: "MeetingRecorderTests",

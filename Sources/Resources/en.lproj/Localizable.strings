@@ -1,0 +1,78 @@
+// Meeting Recorder - English Localization
+
+// MARK: - App Info
+"app.name" = "Meeting Recorder";
+"app.subtitle" = "Professional Audio";
+
+// MARK: - Status Bar Menu
+"status.ready" = "Ready to record";
+"status.recording" = "Recording in progress...";
+"status.teams_detected" = "Teams meeting detected";
+"status.teams_active" = "Teams meeting active";
+"status.idle" = "IDLE";
+"status.recording_short" = "REC";
+"status.teams_short" = "TEAMS";
+
+// MARK: - Recording Controls
+"record.start" = "Start Recording";
+"record.stop" = "Stop Recording";
+"record.duration" = "Duration";
+
+// MARK: - Quick Actions
+"action.auto_start" = "Auto Start";
+"action.auto_stop" = "Auto Stop";
+"action.permissions" = "Permissions";
+"action.folder" = "Folder";
+"action.quit" = "Quit";
+
+// MARK: - Teams Detection
+"teams.auto_stop_in" = "Auto stop in %ds";
+"teams.meeting_active" = "Teams meeting active";
+
+// MARK: - Audio Sources
+"audio.microphone" = "Microphone";
+"audio.system" = "System";
+
+// MARK: - Permissions
+"permission.microphone.title" = "Microphone";
+"permission.microphone.description" = "This app needs access to the microphone to record your meetings";
+"permission.screen_recording.title" = "Screen Recording";
+"permission.screen_recording.description" = "This app needs screen recording access to capture system audio during meetings";
+"permission.documents.title" = "Documents Folder";
+"permission.documents.description" = "This app saves your meeting recordings in the Documents folder";
+"permission.accessibility.title" = "Accessibility";
+"permission.accessibility.description" = "This app uses accessibility features to detect Teams meetings automatically";
+
+// MARK: - Permission Status
+"permission.status.not_determined" = "Not Determined";
+"permission.status.authorized" = "Authorized";
+"permission.status.denied" = "Denied";
+"permission.status.restricted" = "Restricted";
+
+// MARK: - Error Messages
+"error.microphone_permission" = "Microphone permission missing. Please allow it in System Preferences.";
+"error.screen_recording_permission" = "Screen recording access is required to capture system audio. Please allow access in System Preferences.";
+"error.documents_permission" = "Documents folder access is required to save recordings. Please allow access in System Preferences.";
+"error.accessibility_permission" = "Accessibility access is required to automatically detect Teams meetings. Please allow access in System Preferences.";
+"error.recording_failed" = "Recording failed: %@";
+"error.audio_mixing_failed" = "Audio mixing error: %@";
+
+// MARK: - Onboarding
+"onboarding.title" = "Permissions Setup";
+"onboarding.welcome" = "Welcome to Meeting Recorder";
+"onboarding.description" = "Record your meetings automatically with system audio and your microphone";
+"onboarding.button.start" = "Start Using";
+"onboarding.button.request_all" = "Request All Permissions";
+"onboarding.button.skip" = "Skip (Configure Later)";
+"onboarding.button.open_preferences" = "Open Preferences";
+"onboarding.button.authorize" = "Authorize";
+
+// MARK: - Log Messages
+"log.recording_start" = "User requested recording start";
+"log.recording_stop" = "User requested recording stop";
+"log.teams_detected" = "Teams meeting detected";
+"log.teams_ended" = "Teams meeting ended";
+"log.auto_recording_enabled" = "Auto-recording ENABLED";
+"log.auto_recording_disabled" = "Auto-recording DISABLED";
+"log.auto_stop_enabled" = "Auto-stop ENABLED";
+"log.auto_stop_disabled" = "Auto-stop DISABLED";
