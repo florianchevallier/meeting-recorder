@@ -187,7 +187,7 @@ extension SystemAudioCapture: SCStreamOutput {
                 
                 // Log périodique pour diagnostic
                 if frameCount > 0 {
-                    print("🔊 System Audio: \(frameCount) frames @ \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch")
+                    Logger.shared.log("🔊 System Audio: \(frameCount) frames @ \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch")
                 }
             }
         } catch {

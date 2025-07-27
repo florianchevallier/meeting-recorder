@@ -53,7 +53,7 @@ class SimpleMicrophoneRecorder: NSObject {
                 // Log audio data received
                 let frameCount = buffer.frameLength
                 let channels = buffer.format.channelCount
-                print("🎤 Recording: \(frameCount) frames, \(channels) channels")
+                Logger.shared.log("🎤 Recording: \(frameCount) frames, \(channels) channels")
                 
             } catch {
                 Logger.shared.log("❌ [AUDIO] Failed to write audio: \(error)")

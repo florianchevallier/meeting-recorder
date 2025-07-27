@@ -22,7 +22,7 @@ class StatusBarManager: ObservableObject {
     private var autoRecordingEnabled = true
     private var autoStopEnabled = true
     private var endingTimer: Timer?
-    private let autoStopDelay: TimeInterval = 1.0 // 5 seconds grace period
+    private let autoStopDelay: TimeInterval = 1.0 // 1 second grace period
     
     func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
