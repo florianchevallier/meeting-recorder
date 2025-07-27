@@ -1,20 +1,42 @@
 # Build artifacts
-.build
+.build/
+dist/
+DerivedData/
 
 # IDE specific
-.claude
-.vscode
+.claude/
+.vscode/
 *.xcuserdata
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
 
 # macOS specific
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+Icon?
 
-# Logs
+# Logs and debug files
 *.log
 MeetingRecorder_debug.log
+Console.log
 
 # Temporary files
 *~
 *.tmp
 *.swp
+*.bak
+
+# Audio recordings (for testing)
+meeting_*.m4a
+test_*.wav
+
+# Distribution files
+*.zip
+*.dmg
+*.pkg
+
+# Documentation build
+docs/_build/
