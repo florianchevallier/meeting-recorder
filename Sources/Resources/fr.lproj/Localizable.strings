@@ -1,0 +1,78 @@
+// Meeting Recorder - Localisation Française
+
+// MARK: - App Info
+"app.name" = "Meeting Recorder";
+"app.subtitle" = "Audio professionnel";
+
+// MARK: - Status Bar Menu
+"status.ready" = "Prêt à enregistrer";
+"status.recording" = "Enregistrement en cours...";
+"status.teams_detected" = "Réunion Teams détectée";
+"status.teams_active" = "Réunion Teams active";
+"status.idle" = "IDLE";
+"status.recording_short" = "REC";
+"status.teams_short" = "TEAMS";
+
+// MARK: - Recording Controls
+"record.start" = "Démarrer l'enregistrement";
+"record.stop" = "Arrêter l'enregistrement";
+"record.duration" = "Durée";
+
+// MARK: - Quick Actions
+"action.auto_start" = "Auto Start";
+"action.auto_stop" = "Auto Stop";
+"action.permissions" = "Permissions";
+"action.folder" = "Dossier";
+"action.quit" = "Quitter";
+
+// MARK: - Teams Detection
+"teams.auto_stop_in" = "Arrêt auto dans %ds";
+"teams.meeting_active" = "Réunion Teams active";
+
+// MARK: - Audio Sources
+"audio.microphone" = "Micro";
+"audio.system" = "Système";
+
+// MARK: - Permissions
+"permission.microphone.title" = "Microphone";
+"permission.microphone.description" = "Cette application a besoin d'accéder au microphone pour enregistrer vos réunions";
+"permission.screen_recording.title" = "Enregistrement d'écran";
+"permission.screen_recording.description" = "Cette application a besoin d'enregistrer l'écran pour capturer l'audio système lors des réunions";
+"permission.documents.title" = "Dossier Documents";
+"permission.documents.description" = "Cette application sauvegarde vos enregistrements de réunion dans le dossier Documents";
+"permission.accessibility.title" = "Accessibilité";
+"permission.accessibility.description" = "Cette application utilise les fonctionnalités d'accessibilité pour détecter automatiquement les réunions Teams";
+
+// MARK: - Permission Status
+"permission.status.not_determined" = "Non déterminé";
+"permission.status.authorized" = "Autorisé";
+"permission.status.denied" = "Refusé";
+"permission.status.restricted" = "Restreint";
+
+// MARK: - Error Messages
+"error.microphone_permission" = "Permission microphone manquante. Veuillez l'autoriser dans les Préférences Système.";
+"error.screen_recording_permission" = "L'accès à l'enregistrement d'écran est requis pour capturer l'audio système. Veuillez autoriser l'accès dans les Préférences Système.";
+"error.documents_permission" = "L'accès au dossier Documents est requis pour sauvegarder les enregistrements. Veuillez autoriser l'accès dans les Préférences Système.";
+"error.accessibility_permission" = "L'accès à l'accessibilité est requis pour détecter automatiquement les réunions Teams. Veuillez autoriser l'accès dans les Préférences Système.";
+"error.recording_failed" = "Échec de l'enregistrement : %@";
+"error.audio_mixing_failed" = "Erreur lors de la fusion audio : %@";
+
+// MARK: - Onboarding
+"onboarding.title" = "Configuration des Permissions";
+"onboarding.welcome" = "Bienvenue dans Meeting Recorder";
+"onboarding.description" = "Enregistrez automatiquement vos réunions avec l'audio système et votre microphone";
+"onboarding.button.start" = "Commencer à Utiliser";
+"onboarding.button.request_all" = "Demander Toutes les Permissions";
+"onboarding.button.skip" = "Passer (Configurer Plus Tard)";
+"onboarding.button.open_preferences" = "Ouvrir Préférences";
+"onboarding.button.authorize" = "Autoriser";
+
+// MARK: - Log Messages
+"log.recording_start" = "Demande de démarrage d'enregistrement";
+"log.recording_stop" = "Demande d'arrêt d'enregistrement";
+"log.teams_detected" = "Réunion Teams détectée";
+"log.teams_ended" = "Réunion Teams terminée";
+"log.auto_recording_enabled" = "Enregistrement automatique ACTIVÉ";
+"log.auto_recording_disabled" = "Enregistrement automatique DÉSACTIVÉ";
+"log.auto_stop_enabled" = "Arrêt automatique ACTIVÉ";
+"log.auto_stop_disabled" = "Arrêt automatique DÉSACTIVÉ";

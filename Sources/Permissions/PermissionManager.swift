@@ -150,10 +150,10 @@ enum PermissionStatus: String, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .notDetermined: return "Non déterminé"
-        case .authorized: return "Autorisé"
-        case .denied: return "Refusé"
-        case .restricted: return "Restreint"
+        case .notDetermined: return L10n.permissionStatusNotDetermined
+        case .authorized: return L10n.permissionStatusAuthorized
+        case .denied: return L10n.permissionStatusDenied
+        case .restricted: return L10n.permissionStatusRestricted
         }
     }
     
@@ -176,13 +176,13 @@ enum PermissionError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphonePermissionDenied:
-            return "L'accès au microphone est requis pour enregistrer. Veuillez autoriser l'accès dans les Préférences Système."
+            return L10n.errorMicrophonePermission
         case .screenRecordingPermissionDenied:
-            return "L'accès à l'enregistrement d'écran est requis pour capturer l'audio système. Veuillez autoriser l'accès dans les Préférences Système."
+            return L10n.errorScreenRecordingPermission
         case .documentsPermissionDenied:
-            return "L'accès au dossier Documents est requis pour sauvegarder les enregistrements. Veuillez autoriser l'accès dans les Préférences Système."
+            return L10n.errorDocumentsPermission
         case .accessibilityPermissionDenied:
-            return "L'accès à l'accessibilité est requis pour détecter automatiquement les réunions Teams. Veuillez autoriser l'accès dans les Préférences Système."
+            return L10n.errorAccessibilityPermission
         }
     }
 }

@@ -5,6 +5,10 @@ struct StatusBarMenu: View {
     @State private var isHovering = false
     @State private var audioLevel: Double = 0.0
     
+    init(statusBarManager: StatusBarManager) {
+        self.statusBarManager = statusBarManager
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header Section
@@ -41,11 +45,11 @@ struct StatusBarMenu: View {
                     ))
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Meeting Recorder")
+                    Text(L10n.appName)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(.primary)
                     
-                    Text("Audio professionnel")
+                    Text(L10n.appSubtitle)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
                 }
@@ -77,8 +81,8 @@ struct StatusBarMenu: View {
                           .easeInOut(duration: 2.0).repeatForever(autoreverses: true) :
                           .default, value: statusBarManager.isRecording || statusBarManager.isTeamsMeetingDetected)
             
-            Text(statusBarManager.isRecording ? "REC" : 
-                 statusBarManager.isTeamsMeetingDetected ? "TEAMS" : "IDLE")
+            Text(statusBarManager.isRecording ? L10n.statusRecordingShort : 
+                 statusBarManager.isTeamsMeetingDetected ? L10n.statusTeamsShort : L10n.statusIdle)
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                 .foregroundColor(statusBarManager.isRecording ? .red : 
                                 statusBarManager.isTeamsMeetingDetected ? .blue : .secondary)
@@ -153,7 +157,7 @@ struct StatusBarMenu: View {
                             endPoint: .trailing
                         ))
                     
-                    Text("Enregistrement en cours...")
+                    Text(L10n.statusRecording)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.secondary)
                 }
@@ -163,7 +167,7 @@ struct StatusBarMenu: View {
                 ))
             } else {
                 VStack(spacing: 4) {
-                    Text(statusBarManager.isTeamsMeetingDetected ? "Réunion Teams détectée" : "Prêt à enregistrer")
+                    Text(statusBarManager.isTeamsMeetingDetected ? L10n.statusTeamsDetected : L10n.statusReady)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(statusBarManager.isTeamsMeetingDetected ? .blue : .primary)
                     
@@ -173,7 +177,7 @@ struct StatusBarMenu: View {
                                 Image(systemName: "video.circle.fill")
                                     .font(.system(size: 10))
                                     .foregroundColor(.blue)
-                                Text("Réunion Teams active")
+                                Text(L10n.statusTeamsActive)
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(.blue)
                             }
@@ -183,7 +187,7 @@ struct StatusBarMenu: View {
                                     Image(systemName: "timer")
                                         .font(.system(size: 9))
                                         .foregroundColor(.orange)
-                                    Text("Arrêt auto dans \(statusBarManager.getAutoStopDelay())s")
+                                    Text(L10n.teamsAutoStopIn(statusBarManager.getAutoStopDelay()))
                                         .font(.system(size: 10, weight: .medium))
                                         .foregroundColor(.orange)
                                 }
@@ -195,7 +199,7 @@ struct StatusBarMenu: View {
                                 Image(systemName: "mic.fill")
                                     .font(.system(size: 10))
                                     .foregroundColor(.blue)
-                                Text("Micro")
+                                Text(L10n.audioMicrophone)
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(.secondary)
                             }
@@ -204,7 +208,7 @@ struct StatusBarMenu: View {
                                 Image(systemName: "speaker.wave.2.fill")
                                     .font(.system(size: 10))
                                     .foregroundColor(.green)
-                                Text("Système")
+                                Text(L10n.audioSystem)
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(.secondary)
                             }
@@ -229,7 +233,7 @@ struct StatusBarMenu: View {
             HStack(spacing: 0) {
                 QuickActionButton(
                     icon: statusBarManager.isAutoRecordingEnabled() ? "video.fill" : "video.slash",
-                    title: "Auto Start",
+                    title: L10n.actionAutoStart,
                     action: { statusBarManager.toggleAutoRecording() },
                     isActive: statusBarManager.isAutoRecordingEnabled()
                 )
@@ -239,7 +243,7 @@ struct StatusBarMenu: View {
                 
                 QuickActionButton(
                     icon: statusBarManager.isAutoStopEnabled() ? "stop.circle.fill" : "stop.circle",
-                    title: "Auto Stop",
+                    title: L10n.actionAutoStop,
                     action: { statusBarManager.toggleAutoStop() },
                     isActive: statusBarManager.isAutoStopEnabled()
                 )
@@ -249,7 +253,7 @@ struct StatusBarMenu: View {
                 
                 QuickActionButton(
                     icon: "gearshape.fill",
-                    title: "Permissions",
+                    title: L10n.actionPermissions,
                     action: { statusBarManager.showOnboarding() }
                 )
                 
@@ -258,7 +262,7 @@ struct StatusBarMenu: View {
                 
                 QuickActionButton(
                     icon: "folder.fill",
-                    title: "Dossier",
+                    title: L10n.actionFolder,
                     action: openRecordingsFolder
                 )
                 
@@ -267,7 +271,7 @@ struct StatusBarMenu: View {
                 
                 QuickActionButton(
                     icon: "xmark.circle.fill",
-                    title: "Quitter",
+                    title: L10n.actionQuit,
                     action: { NSApplication.shared.terminate(nil) },
                     isDestructive: true
                 )
@@ -326,6 +330,7 @@ struct StatusBarMenu: View {
         let seconds = Int(duration) % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
+    
 }
 
 // MARK: - Quick Action Button

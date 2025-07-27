@@ -12,11 +12,11 @@ struct OnboardingView: View {
                     .font(.system(size: 64))
                     .foregroundColor(.red)
                 
-                Text("Meeting Recorder")
+                Text(L10n.appName)
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
-                Text("Enregistrez automatiquement vos réunions avec l'audio système et votre microphone")
+                Text(L10n.onboardingDescription)
                     .font(.body)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
@@ -25,16 +25,16 @@ struct OnboardingView: View {
             // Permissions list
             VStack(spacing: 20) {
                 PermissionRow(
-                    title: "Accès au Microphone",
-                    description: "Pour enregistrer votre voix durant les réunions",
+                    title: L10n.permissionMicrophoneTitle,
+                    description: L10n.permissionMicrophoneDescription,
                     icon: "mic.fill",
                     status: viewModel.microphoneStatus,
                     action: { await viewModel.requestMicrophonePermission() }
                 )
                 
                 PermissionRow(
-                    title: "Enregistrement d'Écran",
-                    description: "Pour capturer l'audio système (Zoom, Teams, etc.)",
+                    title: L10n.permissionScreenRecordingTitle,
+                    description: L10n.permissionScreenRecordingDescription,
                     icon: "display",
                     status: viewModel.screenRecordingStatus,
                     action: { await viewModel.requestScreenRecordingPermission() }
@@ -42,16 +42,16 @@ struct OnboardingView: View {
                 
                 
                 PermissionRow(
-                    title: "Accès aux Documents",
-                    description: "Pour sauvegarder vos enregistrements",
+                    title: L10n.permissionDocumentsTitle,
+                    description: L10n.permissionDocumentsDescription,
                     icon: "folder",
                     status: viewModel.documentsStatus,
                     action: { await viewModel.requestDocumentsPermission() }
                 )
                 
                 PermissionRow(
-                    title: "Accès à l'Accessibilité",
-                    description: "Pour détecter automatiquement les réunions Teams",
+                    title: L10n.permissionAccessibilityTitle,
+                    description: L10n.permissionAccessibilityDescription,
                     icon: "accessibility",
                     status: viewModel.accessibilityStatus,
                     action: { await viewModel.requestAccessibilityPermission() }
@@ -63,14 +63,14 @@ struct OnboardingView: View {
             // Action buttons
             VStack(spacing: 12) {
                 if viewModel.allPermissionsGranted {
-                    Button("Commencer à Utiliser") {
+                    Button(L10n.onboardingButtonStart) {
                         onboardingManager.markOnboardingCompleted()
                         closeWindow()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                 } else {
-                    Button("Demander Toutes les Permissions") {
+                    Button(L10n.onboardingButtonRequestAll) {
                         Task {
                             await viewModel.requestAllPermissions()
                         }
@@ -80,7 +80,7 @@ struct OnboardingView: View {
                     .disabled(viewModel.isRequesting)
                 }
                 
-                Button("Passer (Configurer Plus Tard)") {
+                Button(L10n.onboardingButtonSkip) {
                     onboardingManager.markOnboardingCompleted()
                     closeWindow()
                 }
@@ -144,14 +144,14 @@ struct PermissionRow: View {
                         .font(.title2)
                         
                 case .denied, .restricted:
-                    Button("Ouvrir Préférences") {
+                    Button(L10n.onboardingButtonOpenPreferences) {
                         openSystemPreferences()
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     
                 case .notDetermined:
-                    Button("Autoriser") {
+                    Button(L10n.onboardingButtonAuthorize) {
                         isRequesting = true
                         Task {
                             await action()

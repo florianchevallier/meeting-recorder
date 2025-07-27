@@ -20,6 +20,17 @@
     <string>12.3</string>
     <key>LSUIElement</key>
     <true/>
+    
+    <!-- Localization Support -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>fr</string>
+    </array>
+    
+    <!-- Permissions -->
     <key>NSMicrophoneUsageDescription</key>
     <string>Cette application a besoin d'accéder au microphone pour enregistrer vos réunions</string>
     <key>NSScreenRecordingUsageDescription</key>
