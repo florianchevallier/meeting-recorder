@@ -2,6 +2,21 @@ import Cocoa
 import CoreAudio
 import AVFoundation
 
+// MARK: - Log Detection Result
+enum LogDetectionResult: CustomStringConvertible {
+    case explicitStart  // Found recent START event without subsequent END
+    case explicitEnd    // Found recent END event (more recent than any START)
+    case noEvents       // No relevant events found in logs
+    
+    var description: String {
+        switch self {
+        case .explicitStart: return "START"
+        case .explicitEnd: return "END" 
+        case .noEvents: return "NO_EVENTS"
+        }
+    }
+}
+
 @MainActor
 class TeamsDetector: ObservableObject {
     @Published var isTeamsMeetingActive = false
@@ -57,23 +72,53 @@ class TeamsDetector: ObservableObject {
     private func detectActiveTeamsMeeting() -> Bool {
         // 1. Check if Teams is running
         guard isTeamsRunning() else {
+            Logger.shared.log("🔍 [TEAMS] Teams not running")
             return false
         }
         
-        // 2. Check microphone usage (global indicator)
+        // 2. Check Teams logs (reliable for explicit start/end events)
+        let logResult = checkTeamsLogsWithState()
+        
+        // 3. Check for meeting windows (visual confirmation)
+        let hasMeetingWindow = hasTeamsMeetingWindow()
+        
+        // 4. Check microphone usage (audio confirmation)  
         let micInUse = isMicrophoneActive()
         
-        // 3. Check for meeting windows (if Teams is running and mic is active)
-        if micInUse {
-            let hasMeetingWindow = hasTeamsMeetingWindow()
-            Logger.shared.log("🔍 [TEAMS] Teams running: ✅, Mic active: ✅, Meeting window: \(hasMeetingWindow ? "✅" : "❌")")
-            return hasMeetingWindow
-        }
+        Logger.shared.log("🔍 [TEAMS] Detection results - Logs: \(logResult.description), Windows: \(hasMeetingWindow ? "✅" : "❌"), Mic: \(micInUse ? "✅" : "❌")")
         
-        // 4. Fallback: Check Teams logs if available
-        let logDetection = checkTeamsLogs()
-        Logger.shared.log("🔍 [TEAMS] Teams running: ✅, Mic active: ❌, Log detection: \(logDetection ? "✅" : "❌")")
-        return logDetection
+        // Decision logic based on log state
+        switch logResult {
+        case .explicitEnd:
+            // Logs explicitly show meeting ended - trust this over other indicators
+            Logger.shared.log("🔍 [TEAMS] Explicit END in logs - meeting INACTIVE")
+            return false
+            
+        case .explicitStart:
+            // Logs explicitly show meeting started - meeting is active
+            Logger.shared.log("🔍 [TEAMS] Explicit START in logs - meeting ACTIVE")
+            return true
+            
+        case .noEvents:
+            // No log events found - use stricter window + audio detection
+            Logger.shared.log("🔍 [TEAMS] No log events found - using fallback detection")
+            
+            // For reliable auto-stop, require BOTH window AND microphone
+            // This prevents false positives when Teams stays open but meeting ended
+            if hasMeetingWindow && micInUse {
+                Logger.shared.log("🔍 [TEAMS] Meeting window + mic active - meeting ACTIVE")
+                return true
+            } else if hasMeetingWindow {
+                Logger.shared.log("🔍 [TEAMS] Meeting window found but no mic activity - meeting POSSIBLY ENDED")
+                return false
+            } else if micInUse {
+                Logger.shared.log("🔍 [TEAMS] Mic active but no meeting window - meeting POSSIBLY ENDED")
+                return false
+            }
+            
+            Logger.shared.log("🔍 [TEAMS] No clear indicators - meeting INACTIVE")
+            return false
+        }
     }
     
     /// Check if Microsoft Teams is currently running
@@ -219,53 +264,88 @@ class TeamsDetector: ObservableObject {
             "- Microsoft Teams" // Meeting windows often end with this
         ]
         
+        // Exclude patterns that indicate meeting has ended
+        let excludePatterns = [
+            "main window", "fenêtre principale",
+            "chat", "teams home", "activity",
+            "calendar", "calendrier", "files", "fichiers"
+        ]
+        
         let lowercaseTitle = title.lowercased()
         
+        // First check if it's an excluded pattern (non-meeting window)
+        for excludePattern in excludePatterns {
+            if lowercaseTitle.contains(excludePattern.lowercased()) {
+                return false
+            }
+        }
+        
+        // Then check if it matches meeting patterns
         return meetingKeywords.contains { keyword in
             lowercaseTitle.contains(keyword.lowercased())
         }
     }
     
-    /// Check Teams logs for meeting status (fallback method)
-    private func checkTeamsLogs() -> Bool {
+    /// Check Teams logs for meeting status with explicit state detection
+    private func checkTeamsLogsWithState() -> LogDetectionResult {
         // Implementation for checking Teams logs
         // This is a fallback method for when other detection fails
         
         guard let homeDir = FileManager.default.homeDirectoryForCurrentUser.path as String? else {
-            return false
+            return .noEvents
         }
         
         let logsPath = "\(homeDir)/Library/Application Support/Microsoft/Teams/logs.txt"
         
         guard FileManager.default.fileExists(atPath: logsPath) else {
-            return false
+            return .noEvents
         }
         
         do {
             let logsContent = try String(contentsOfFile: logsPath)
             let lines = logsContent.components(separatedBy: .newlines)
             
-            // Look for recent meeting events (last 10 lines)
-            let recentLines = Array(lines.suffix(10))
+            // Look for recent meeting events (last 20 lines for better detection)
+            let recentLines = Array(lines.suffix(20))
             
-            for line in recentLines {
+            // Parse recent events - find ALL events, don't break early
+            var foundStartIndex = -1
+            var foundEndIndex = -1
+            
+            for (index, line) in recentLines.enumerated() {
                 // Check for meeting start indicators
                 if line.contains("eventData: s::;m::1;a::1") {
-                    Logger.shared.log("🔍 [TEAMS] Meeting detected in logs: START event")
-                    return true
+                    Logger.shared.log("🔍 [TEAMS] Meeting START event found at line \(index)")
+                    foundStartIndex = index
                 }
                 
                 // Check for meeting end indicators
                 if line.contains("eventData: s::;m::1;a::3") {
-                    Logger.shared.log("🔍 [TEAMS] Meeting detected in logs: END event")
-                    return false
+                    Logger.shared.log("🔍 [TEAMS] Meeting END event found at line \(index)")
+                    foundEndIndex = index
                 }
+            }
+            
+            // Determine state based on which event was found last (higher index = more recent)
+            if foundEndIndex >= 0 && foundStartIndex >= 0 {
+                // Both events found - compare indices to see which is more recent
+                let meetingIsActive = foundStartIndex > foundEndIndex
+                Logger.shared.log("🔍 [TEAMS] Both events found - START at \(foundStartIndex), END at \(foundEndIndex) → Meeting \(meetingIsActive ? "ACTIVE" : "ENDED")")
+                return meetingIsActive ? .explicitStart : .explicitEnd
+            } else if foundEndIndex >= 0 {
+                // Only END event found
+                Logger.shared.log("🔍 [TEAMS] Only END event found - meeting ENDED")
+                return .explicitEnd
+            } else if foundStartIndex >= 0 {
+                // Only START event found
+                Logger.shared.log("🔍 [TEAMS] Only START event found - meeting ACTIVE")
+                return .explicitStart
             }
         } catch {
             Logger.shared.log("❌ [TEAMS] Error reading Teams logs: \(error)")
         }
         
-        return false
+        return .noEvents
     }
     
     // MARK: - Public Interface
@@ -284,10 +364,22 @@ class TeamsDetector: ObservableObject {
     
     private func determineLastDetectionMethod() -> String {
         if !isTeamsRunning() { return "Teams not running" }
-        if isMicrophoneActive() && hasTeamsMeetingWindow() { return "Window + Audio" }
-        if isMicrophoneActive() { return "Audio only" }
-        if checkTeamsLogs() { return "Logs" }
-        return "No meeting detected"
+        
+        let logResult = checkTeamsLogsWithState()
+        let hasWindow = hasTeamsMeetingWindow()
+        let micActive = isMicrophoneActive()
+        
+        switch logResult {
+        case .explicitStart:
+            return hasWindow ? "Logs + Window" : "Logs (START)"
+        case .explicitEnd:
+            return "Logs (END)"
+        case .noEvents:
+            if hasWindow && micActive { return "Window + Audio" }
+            if hasWindow { return "Window only" }
+            if micActive { return "Audio only" }
+            return "No meeting detected"
+        }
     }
 }
 
