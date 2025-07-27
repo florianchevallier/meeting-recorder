@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Permet à l'app de fonctionner même signée ad-hoc -->
+    <key>com.apple.security.get-task-allow</key>
+    <true/>
+    
+    <!-- Permissions pour ScreenCaptureKit -->
+    <key>com.apple.security.device.screen-capture</key>
+    <true/>
+    
+    <!-- Permissions pour microphone -->
+    <key>com.apple.security.device.microphone</key>
+    <true/>
+    
+    <!-- Permissions pour Accessibility API -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+</dict>
+</plist>
