@@ -168,13 +168,26 @@ struct StatusBarMenu: View {
                         .foregroundColor(statusBarManager.isTeamsMeetingDetected ? .blue : .primary)
                     
                     if statusBarManager.isTeamsMeetingDetected {
-                        HStack(spacing: 4) {
-                            Image(systemName: "video.circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(.blue)
-                            Text("Auto-enregistrement activé")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.blue)
+                        VStack(spacing: 2) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "video.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.blue)
+                                Text("Réunion Teams active")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            if statusBarManager.hasScheduledAutoStop() {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "timer")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.orange)
+                                    Text("Arrêt auto dans \(statusBarManager.getAutoStopDelay())s")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(.orange)
+                                }
+                            }
                         }
                     } else {
                         HStack(spacing: 12) {
@@ -216,9 +229,19 @@ struct StatusBarMenu: View {
             HStack(spacing: 0) {
                 QuickActionButton(
                     icon: statusBarManager.isAutoRecordingEnabled() ? "video.fill" : "video.slash",
-                    title: "Auto Teams",
+                    title: "Auto Start",
                     action: { statusBarManager.toggleAutoRecording() },
                     isActive: statusBarManager.isAutoRecordingEnabled()
+                )
+                
+                Divider()
+                    .frame(height: 44)
+                
+                QuickActionButton(
+                    icon: statusBarManager.isAutoStopEnabled() ? "stop.circle.fill" : "stop.circle",
+                    title: "Auto Stop",
+                    action: { statusBarManager.toggleAutoStop() },
+                    isActive: statusBarManager.isAutoStopEnabled()
                 )
                 
                 Divider()

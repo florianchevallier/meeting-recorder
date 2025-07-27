@@ -1,20 +1,21 @@
 # MeetingRecorder - Application macOS d'Enregistrement Automatique de Réunions
 
 ## Vue d'ensemble du projet
-Application native macOS dans la status bar qui enregistre automatiquement les réunions en capturant l'audio système et le microphone, avec déclenchement automatique basé sur les événements du calendrier.
+Application native macOS dans la status bar qui enregistre automatiquement les réunions en capturant l'audio système et le microphone, avec détection automatique des réunions Teams via surveillance de processus et fenêtres.
 
 ## Objectifs MVP
 1. Interface dans la status bar avec bouton start/stop manuel
 2. Enregistrement simultané audio système + microphone
 3. Gestion complète des permissions macOS
-4. Intégration calendrier pour déclenchement automatique
+4. Détection automatique des réunions Teams
 5. Sauvegarde des enregistrements avec nommage automatique
 
 ## Stack technique
 - **Swift/SwiftUI** : Interface utilisateur native
 - **ScreenCaptureKit** : Capture audio système (macOS 12.3+)
 - **AVAudioEngine** : Enregistrement microphone
-- **EventKit** : Intégration calendrier
+- **CoreAudio** : Détection activité microphone
+- **Accessibility API** : Surveillance fenêtres Teams
 - **NSStatusItem** : Interface status bar
 - **UserNotifications** : Notifications discrètes
 
@@ -32,13 +33,12 @@ MeetingRecorder/
 │   │   ├── MicrophoneCapture.swift   # AVAudioEngine ✅ IMPLÉMENTÉ
 │   │   └── AudioMixer.swift          # Mélangeur audio temps réel ✅ IMPLÉMENTÉ
 │   ├── Calendar/
-│   │   ├── CalendarManager.swift     # EventKit integration ⏳ EN ATTENTE
-│   │   └── MeetingDetector.swift     # Détection événements ⏳ EN ATTENTE
+│   │   └── TeamsDetector.swift       # Détection réunions Teams ✅ IMPLÉMENTÉ
 │   ├── Permissions/
 │   │   └── PermissionManager.swift   # Gestion permissions ✅ IMPLÉMENTÉ
 │   └── Models/
 │       ├── RecordingSession.swift    # Modèle session ✅ IMPLÉMENTÉ
-│       └── MeetingEvent.swift        # Modèle événement ✅ IMPLÉMENTÉ
+│       └── [Modèles supprimés]       # MeetingEvent.swift retiré
 ├── Resources/
 │   └── Info.plist                    # Permissions macOS ✅ IMPLÉMENTÉ
 ├── Tests/
@@ -52,11 +52,16 @@ MeetingRecorder/
 NSMicrophoneUsageDescription
 Cette application a besoin d'accéder au microphone pour enregistrer vos réunions
 
-NSCalendarsUsageDescription
-Cette application accède à votre calendrier pour démarrer automatiquement les enregistrements de réunion
-
 NSScreenRecordingUsageDescription
 Cette application a besoin d'enregistrer l'écran pour capturer l'audio système lors des réunions
+
+NSDocumentsFolderUsageDescription
+Cette application sauvegarde vos enregistrements de réunion dans le dossier Documents
+```
+
+## Permissions optionnelles pour Teams Detection
+```
+Accessibility API - Surveillance des fenêtres Teams (demandée automatiquement)
 ```
 
 ## Commandes de développement

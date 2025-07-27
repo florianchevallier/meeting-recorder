@@ -6,6 +6,7 @@
 set -e
 
 echo "🐛 Building and debugging MeetingRecorder.app..."
+./fix_permissions.sh
 
 # Build en mode debug
 ./build_app.sh debug

@@ -145,27 +145,57 @@ class TeamsDetector: ObservableObject {
     
     /// Check specific app for meeting-related windows
     private func checkAppForMeetingWindows(app: NSRunningApplication) -> Bool {
-        guard let pid = app.processIdentifier as pid_t? else { return false }
+        guard let pid = app.processIdentifier as pid_t? else { 
+            Logger.shared.log("🔍 [TEAMS] No PID for app")
+            return false 
+        }
+        
+        Logger.shared.log("🔍 [TEAMS] Checking windows for app: \(app.localizedName ?? "Unknown") (PID: \(pid))")
         
         let appElement = AXUIElementCreateApplication(pid)
         var windowsValue: CFTypeRef?
         
         let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)
-        guard result == .success, let windows = windowsValue as? [AXUIElement] else {
+        
+        switch result {
+        case .success:
+            if let windows = windowsValue as? [AXUIElement] {
+                Logger.shared.log("🔍 [TEAMS] Found \(windows.count) windows")
+                
+                // Check each window title for meeting indicators
+                for (index, window) in windows.enumerated() {
+                    if let title = getWindowTitle(window: window) {
+                        let isMeeting = isMeetingWindow(title: title)
+                        Logger.shared.log("🔍 [TEAMS] Window \(index + 1): \"\(title)\" -> Meeting: \(isMeeting)")
+                        
+                        if isMeeting {
+                            Logger.shared.log("🔍 [TEAMS] 🎉 MEETING WINDOW DETECTED: \"\(title)\"")
+                            return true
+                        }
+                    } else {
+                        Logger.shared.log("🔍 [TEAMS] Window \(index + 1): (no title)")
+                    }
+                }
+                
+                Logger.shared.log("🔍 [TEAMS] No meeting windows found in \(windows.count) windows")
+                return false
+            } else {
+                Logger.shared.log("🔍 [TEAMS] Got success but couldn't parse windows")
+                return false
+            }
+        case .apiDisabled:
+            Logger.shared.log("🔍 [TEAMS] ❌ Accessibility API is disabled")
+            return false
+        case .failure:
+            Logger.shared.log("🔍 [TEAMS] ❌ Failed to access windows (general failure)")
+            return false
+        default:
+            Logger.shared.log("🔍 [TEAMS] ❌ Error accessing windows: \(result.rawValue)")
+            if result.rawValue == -25204 {
+                Logger.shared.log("🔍 [TEAMS] 💡 Error -25204 usually means accessibility permission not granted")
+            }
             return false
         }
-        
-        // Check each window title for meeting indicators
-        for window in windows {
-            if let title = getWindowTitle(window: window) {
-                if isMeetingWindow(title: title) {
-                    Logger.shared.log("🔍 [TEAMS] Meeting window detected: \"\(title)\"")
-                    return true
-                }
-            }
-        }
-        
-        return false
     }
     
     /// Get window title from AXUIElement
