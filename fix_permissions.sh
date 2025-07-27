@@ -13,6 +13,7 @@ echo "🗑️  Resetting all permissions..."
 tccutil reset Microphone com.meetingrecorder.app 2>/dev/null || true
 tccutil reset ScreenCapture com.meetingrecorder.app 2>/dev/null || true
 tccutil reset Calendar com.meetingrecorder.app 2>/dev/null || true
+tccutil reset Accessibility com.meetingrecorder.app 2>/dev/null || true
 tccutil reset SystemPolicyDocumentsFolder com.meetingrecorder.app 2>/dev/null || true
 tccutil reset SystemPolicyDownloadsFolder com.meetingrecorder.app 2>/dev/null || true
 tccutil reset SystemPolicyDesktopFolder com.meetingrecorder.app 2>/dev/null || true
@@ -32,7 +33,7 @@ cp -r .build/MeetingRecorder.app /Applications/
 
 echo "✅ Done! Now:"
 echo "1. Launch: open /Applications/MeetingRecorder.app"
-echo "2. Grant ALL permissions when asked (microphone, screen recording, calendar)"
+echo "2. Grant ALL permissions when asked (microphone, screen recording, calendar, accessibility)"
 echo "3. Try recording - it should work!"
 echo ""
 echo "💡 The app is now in /Applications so permissions should stick better."

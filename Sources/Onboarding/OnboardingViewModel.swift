@@ -1,5 +1,4 @@
 import SwiftUI
-import EventKit
 import AVFoundation
 import ScreenCaptureKit
 
@@ -17,12 +16,13 @@ class OnboardingViewModel: ObservableObject {
         permissionManager.screenRecordingPermission
     }
     
-    var calendarStatus: PermissionStatus {
-        permissionManager.calendarPermission
-    }
     
     var documentsStatus: PermissionStatus {
         permissionManager.documentsPermission
+    }
+    
+    var accessibilityStatus: PermissionStatus {
+        permissionManager.accessibilityPermission
     }
     
     var allPermissionsGranted: Bool {
@@ -64,16 +64,6 @@ class OnboardingViewModel: ObservableObject {
         }
     }
     
-    func requestCalendarPermission() async {
-        do {
-            try await permissionManager.requestCalendarPermission()
-            // Rafraîchir après la demande
-            try? await Task.sleep(for: .milliseconds(200))
-            permissionManager.checkCalendarPermission()
-        } catch {
-            print("❌ Calendar permission failed: \(error)")
-        }
-    }
     
     func requestDocumentsPermission() async {
         do {
@@ -84,5 +74,29 @@ class OnboardingViewModel: ObservableObject {
         } catch {
             print("❌ Documents permission failed: \(error)")
         }
+    }
+    
+    func requestAccessibilityPermission() async {
+        do {
+            try await permissionManager.requestAccessibilityPermission()
+            // Délai plus long pour laisser l'utilisateur configurer manuellement
+            try? await Task.sleep(for: .milliseconds(1000))
+            permissionManager.checkAccessibilityPermission()
+        } catch {
+            print("❌ Accessibility permission failed: \(error)")
+        }
+    }
+    
+    func startPermissionMonitoring() {
+        // Timer supprimé - trop bruyant et pas nécessaire
+        // Les permissions se rafraîchissent quand l'utilisateur revient dans l'app
+    }
+    
+    func stopPermissionMonitoring() {
+        // Plus de timer à arrêter
+    }
+    
+    deinit {
+        // Plus de timer à nettoyer
     }
 }

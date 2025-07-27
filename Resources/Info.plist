@@ -22,11 +22,11 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Cette application a besoin d'accéder au microphone pour enregistrer vos réunions</string>
-    <key>NSCalendarsUsageDescription</key>
-    <string>Cette application accède à votre calendrier pour démarrer automatiquement les enregistrements de réunion</string>
     <key>NSScreenRecordingUsageDescription</key>
     <string>Cette application a besoin d'enregistrer l'écran pour capturer l'audio système lors des réunions</string>
     <key>NSDocumentsFolderUsageDescription</key>
     <string>Cette application sauvegarde vos enregistrements de réunion dans le dossier Documents</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Cette application a besoin d'accéder aux événements système pour détecter automatiquement les réunions Teams</string>
 </dict>
 </plist>

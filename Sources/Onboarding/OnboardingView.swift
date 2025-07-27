@@ -40,13 +40,6 @@ struct OnboardingView: View {
                     action: { await viewModel.requestScreenRecordingPermission() }
                 )
                 
-                PermissionRow(
-                    title: "Accès au Calendrier",
-                    description: "Pour démarrer automatiquement lors des réunions",
-                    icon: "calendar",
-                    status: viewModel.calendarStatus,
-                    action: { await viewModel.requestCalendarPermission() }
-                )
                 
                 PermissionRow(
                     title: "Accès aux Documents",
@@ -54,6 +47,14 @@ struct OnboardingView: View {
                     icon: "folder",
                     status: viewModel.documentsStatus,
                     action: { await viewModel.requestDocumentsPermission() }
+                )
+                
+                PermissionRow(
+                    title: "Accès à l'Accessibilité",
+                    description: "Pour détecter automatiquement les réunions Teams",
+                    icon: "accessibility",
+                    status: viewModel.accessibilityStatus,
+                    action: { await viewModel.requestAccessibilityPermission() }
                 )
             }
             
@@ -79,6 +80,14 @@ struct OnboardingView: View {
                     .disabled(viewModel.isRequesting)
                 }
                 
+                Button("Actualiser les Permissions") {
+                    Task {
+                        await viewModel.checkCurrentPermissions()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                
                 Button("Passer (Configurer Plus Tard)") {
                     onboardingManager.markOnboardingCompleted()
                     closeWindow()
@@ -93,6 +102,18 @@ struct OnboardingView: View {
             await viewModel.checkCurrentPermissions()
             // Demander automatiquement toutes les permissions au premier lancement
             await viewModel.requestAllPermissions()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // Quand l'app devient active (ex: retour depuis les Préférences Système)
+            Task {
+                await viewModel.checkCurrentPermissions()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didUnhideNotification)) { _ in
+            // Quand l'app sort du mode caché
+            Task {
+                await viewModel.checkCurrentPermissions()
+            }
         }
     }
     

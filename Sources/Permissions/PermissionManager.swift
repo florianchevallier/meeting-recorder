@@ -1,16 +1,16 @@
 import Foundation
 import SwiftUI
 import AVFoundation
-import EventKit
 import ScreenCaptureKit
+import Cocoa
 
 class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
     
     @Published var microphonePermission: PermissionStatus = .notDetermined
     @Published var screenRecordingPermission: PermissionStatus = .notDetermined
-    @Published var calendarPermission: PermissionStatus = .notDetermined
     @Published var documentsPermission: PermissionStatus = .notDetermined
+    @Published var accessibilityPermission: PermissionStatus = .notDetermined
     
     private init() {
         checkAllPermissions()
@@ -20,8 +20,8 @@ class PermissionManager: ObservableObject {
     func checkAllPermissions() {
         checkMicrophonePermission()
         checkScreenRecordingPermission()
-        checkCalendarPermission()
         checkDocumentsPermission()
+        checkAccessibilityPermission()
     }
     
     // MARK: - Microphone Permission
@@ -136,58 +136,6 @@ class PermissionManager: ObservableObject {
         }
     }
     
-    // MARK: - Calendar Permission
-    func requestCalendarPermission() async throws {
-        let eventStore = EKEventStore()
-        
-        let granted: Bool
-        if #available(macOS 14.0, *) {
-            granted = try await eventStore.requestFullAccessToEvents()
-        } else {
-            granted = await withCheckedContinuation { continuation in
-                eventStore.requestAccess(to: .event) { granted, _ in
-                    continuation.resume(returning: granted)
-                }
-            }
-        }
-        
-        print("📅 [CALENDAR] Permission request result: \(granted)")
-        
-        await MainActor.run {
-            self.calendarPermission = granted ? .authorized : .denied
-            print("📅 [CALENDAR] UI updated to: \(self.calendarPermission)")
-        }
-        
-        // Double-check avec un délai pour macOS 14+
-        if #available(macOS 14.0, *) {
-            try? await Task.sleep(for: .milliseconds(500))
-            await MainActor.run {
-                let newStatus = EKEventStore.authorizationStatus(for: .event)
-                let newPermission = PermissionStatus(from: newStatus)
-                print("📅 [CALENDAR] Re-checked authorization status: \(newStatus) -> \(newPermission)")
-                
-                // Si le statut API a changé, utiliser ça plutôt que le résultat de la requête
-                if newPermission == .authorized {
-                    self.calendarPermission = .authorized
-                    print("📅 [CALENDAR] Authorization status override - now authorized")
-                } else if newPermission != .notDetermined {
-                    self.calendarPermission = newPermission
-                    print("📅 [CALENDAR] Using authorization status result: \(newPermission)")
-                }
-                
-                print("📅 [CALENDAR] Final permission state: \(self.calendarPermission)")
-            }
-        }
-        
-        if !granted {
-            throw PermissionError.calendarPermissionDenied
-        }
-    }
-    
-    func checkCalendarPermission() {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        calendarPermission = PermissionStatus(from: status)
-    }
     
     // MARK: - Documents Folder Permission
     func requestDocumentsPermission() async throws {
@@ -273,13 +221,109 @@ class PermissionManager: ObservableObject {
         }
     }
     
+    // MARK: - Accessibility Permission
+    func requestAccessibilityPermission() async throws {
+        print("🔓 [ACCESSIBILITY] Requesting Accessibility permission...")
+        
+        // Vérifier d'abord le statut actuel
+        let currentStatus = checkAccessibilityPermissionStatus()
+        
+        if currentStatus == .authorized {
+            DispatchQueue.main.async {
+                self.accessibilityPermission = .authorized
+            }
+            return
+        }
+        
+        // Si pas autorisé, ouvrir les préférences système
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        
+        await MainActor.run {
+            NSWorkspace.shared.open(url)
+        }
+        
+        // L'utilisateur doit manuellement accorder la permission
+        // On met à jour le statut comme "notDetermined" pour indiquer qu'une action est requise
+        DispatchQueue.main.async {
+            self.accessibilityPermission = .notDetermined
+        }
+        
+        // Dans ce cas, on ne lance pas d'erreur car c'est un processus manuel
+        // L'utilisateur peut vérifier manuellement plus tard
+        print("🔓 [ACCESSIBILITY] System Preferences opened - user must manually grant permission")
+    }
+    
+    func checkAccessibilityPermission() {
+        print("🔓 [ACCESSIBILITY] === STARTING CHECK ===")
+        let status = checkAccessibilityPermissionStatus()
+        print("🔓 [ACCESSIBILITY] Status determined: \(status.displayName)")
+        
+        // Force UI update on main thread
+        DispatchQueue.main.async {
+            self.accessibilityPermission = status
+            print("🔓 [ACCESSIBILITY] UI updated with status: \(status.displayName)")
+        }
+        
+        print("🔓 [ACCESSIBILITY] === CHECK COMPLETE ===")
+    }
+    
+    private func checkAccessibilityPermissionStatus() -> PermissionStatus {
+        print("🔓 [ACCESSIBILITY] Checking permission status...")
+        
+        // Test 1: Basic check
+        let basicCheck = AXIsProcessTrusted()
+        print("🔓 [ACCESSIBILITY] Basic AXIsProcessTrusted: \(basicCheck)")
+        
+        // Test 2: Check with options (no prompt)
+        let checkOptions = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+        let accessEnabled = AXIsProcessTrustedWithOptions(checkOptions as CFDictionary)
+        print("🔓 [ACCESSIBILITY] AXIsProcessTrustedWithOptions: \(accessEnabled)")
+        
+        // Test 3: Bundle identifier check
+        if let bundleId = Bundle.main.bundleIdentifier {
+            print("🔓 [ACCESSIBILITY] Bundle ID: \(bundleId)")
+        } else {
+            print("🔓 [ACCESSIBILITY] Bundle ID: NOT FOUND")
+        }
+        
+        // Si les deux tests officiels passent, c'est suffisant
+        // Le test simple `testSimpleAccessibilityAccess()` peut échouer même avec les permissions accordées
+        if accessEnabled && basicCheck {
+            print("🔓 [ACCESSIBILITY] → Status: AUTHORIZED (both official tests pass)")
+            return .authorized
+        } else {
+            print("🔓 [ACCESSIBILITY] → Status: NOT_DETERMINED")
+            return .notDetermined
+        }
+    }
+    
+    private func testSimpleAccessibilityAccess() -> Bool {
+        // Test simple - juste essayer d'accéder à l'élément système
+        let systemWideElement = AXUIElementCreateSystemWide()
+        var focusedAppValue: CFTypeRef?
+        
+        let result = AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedApplicationAttribute as CFString, &focusedAppValue)
+        
+        switch result {
+        case .success:
+            print("🔓 [ACCESSIBILITY] Simple test: SUCCESS - can access system elements")
+            return true
+        case .apiDisabled:
+            print("🔓 [ACCESSIBILITY] Simple test: API_DISABLED")
+            return false
+        default:
+            print("🔓 [ACCESSIBILITY] Simple test: ERROR - \(result.rawValue)")
+            return false
+        }
+    }
+    
     // MARK: - Request All Permissions
     func requestAllPermissions() async {
         do {
             try await requestMicrophonePermission()
             try await requestScreenRecordingPermission()
-            try await requestCalendarPermission()
             try await requestDocumentsPermission()
+            try await requestAccessibilityPermission()
         } catch {
             print("❌ Permission error: \(error)")
         }
@@ -297,14 +341,18 @@ class PermissionManager: ObservableObject {
     var allPermissionsGranted: Bool {
         return microphonePermission == .authorized &&
                screenRecordingPermission == .authorized &&
-               calendarPermission == .authorized &&
-               documentsPermission == .authorized
+               documentsPermission == .authorized &&
+               accessibilityPermission == .authorized
     }
     
     var recordingPermissionsGranted: Bool {
         return microphonePermission == .authorized &&
                screenRecordingPermission == .authorized &&
                documentsPermission == .authorized
+    }
+    
+    var automaticDetectionPermissionsGranted: Bool {
+        return accessibilityPermission == .authorized
     }
 }
 
@@ -325,15 +373,6 @@ enum PermissionStatus: String, CaseIterable {
         }
     }
     
-    init(from ekStatus: EKAuthorizationStatus) {
-        switch ekStatus {
-        case .authorized, .fullAccess: self = .authorized
-        case .denied: self = .denied
-        case .restricted: self = .restricted
-        case .notDetermined, .writeOnly: self = .notDetermined
-        @unknown default: self = .notDetermined
-        }
-    }
     
     var displayName: String {
         switch self {
@@ -365,8 +404,8 @@ enum PermissionStatus: String, CaseIterable {
 enum PermissionError: Error, LocalizedError {
     case microphonePermissionDenied
     case screenRecordingPermissionDenied
-    case calendarPermissionDenied
     case documentsPermissionDenied
+    case accessibilityPermissionDenied
     
     var errorDescription: String? {
         switch self {
@@ -374,10 +413,10 @@ enum PermissionError: Error, LocalizedError {
             return "L'accès au microphone est requis pour enregistrer. Veuillez autoriser l'accès dans les Préférences Système."
         case .screenRecordingPermissionDenied:
             return "L'accès à l'enregistrement d'écran est requis pour capturer l'audio système. Veuillez autoriser l'accès dans les Préférences Système."
-        case .calendarPermissionDenied:
-            return "L'accès au calendrier est requis pour démarrer automatiquement les enregistrements. Veuillez autoriser l'accès dans les Préférences Système."
         case .documentsPermissionDenied:
             return "L'accès au dossier Documents est requis pour sauvegarder les enregistrements. Veuillez autoriser l'accès dans les Préférences Système."
+        case .accessibilityPermissionDenied:
+            return "L'accès à l'accessibilité est requis pour détecter automatiquement les réunions Teams. Veuillez autoriser l'accès dans les Préférences Système."
         }
     }
 }
