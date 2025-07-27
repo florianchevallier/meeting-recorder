@@ -133,30 +133,74 @@ class StatusBarManager: ObservableObject {
     private func updateStatusBarIcon() {
         guard let button = statusItem?.button else { return }
         
-        let iconName: String
         let description: String
         
         if isRecording {
-            iconName = "record.circle.fill"
             description = L10n.statusRecording
         } else if isTeamsMeetingDetected {
-            iconName = "video.circle"
             description = L10n.statusTeamsDetected
         } else {
-            iconName = "record.circle"
             description = L10n.statusReady
         }
         
-        button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: description)
-        button.image?.size = NSSize(width: 18, height: 18)
-        
-        // Change icon color based on status
-        if isTeamsMeetingDetected && !isRecording {
-            button.image?.isTemplate = false
-            // Make it more visible when Teams meeting is detected
+        // Utiliser le logo personnalisé depuis les ressources
+        if let appIconImage = loadAppIcon() {
+            button.image = appIconImage
+            button.image?.size = NSSize(width: 18, height: 18)
+            button.toolTip = description
+            
+            // Modifier l'apparence selon l'état
+            if isRecording {
+                // Réduire légèrement l'opacité pendant l'enregistrement pour indiquer l'activité
+                button.image?.isTemplate = false
+                button.alphaValue = 0.8
+            } else if isTeamsMeetingDetected {
+                // Image normale quand Teams est détecté
+                button.image?.isTemplate = false
+                button.alphaValue = 1.0
+            } else {
+                // Image en template par défaut
+                button.image?.isTemplate = true
+                button.alphaValue = 1.0
+            }
         } else {
+            // Fallback vers les icônes système si le logo personnalisé n'est pas trouvé
+            let iconName: String
+            
+            if isRecording {
+                iconName = "record.circle.fill"
+            } else if isTeamsMeetingDetected {
+                iconName = "video.circle"
+            } else {
+                iconName = "record.circle"
+            }
+            
+            button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: description)
+            button.image?.size = NSSize(width: 18, height: 18)
             button.image?.isTemplate = true
+            button.alphaValue = 1.0
         }
+    }
+    
+    private func loadAppIcon() -> NSImage? {
+        // Essayer de charger depuis les ressources du bundle
+        if let resourcePath = Bundle.main.path(forResource: "AppIcon", ofType: "png", inDirectory: "Resources/Images"),
+           let image = NSImage(contentsOfFile: resourcePath) {
+            return image
+        }
+        
+        // Fallback: essayer de charger directement depuis les ressources
+        if let image = NSImage(named: "AppIcon") {
+            return image
+        }
+        
+        // Essayer avec Bundle.module pour les Swift Packages
+        if let resourceURL = Bundle.module.url(forResource: "AppIcon", withExtension: "png", subdirectory: "Resources/Images"),
+           let image = NSImage(contentsOf: resourceURL) {
+            return image
+        }
+        
+        return nil
     }
     
     func startRecording() {
