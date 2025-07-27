@@ -89,7 +89,7 @@ jobs:
         
         # Create app bundle structure
         APP_NAME="MeetingRecorder"
-        APP_PATH="dist/${APP_NAME}.app"
+        APP_PATH="dist/Meety.app"
         mkdir -p "$APP_PATH/Contents/MacOS"
         mkdir -p "$APP_PATH/Contents/Resources"
         
@@ -135,14 +135,14 @@ jobs:
         
         # Create temporary folder
         mkdir -p dmg-temp
-        cp -r "dist/MeetingRecorder.app" dmg-temp/
+        cp -r "dist/Meety.app" dmg-temp/
         
         # Add installation instructions
         cat > dmg-temp/INSTALLATION.txt << 'EOF'
-        📦 MeetingRecorder Installation
+        📦 Meety Installation
         
         🔧 Installation Steps:
-        1. Copy MeetingRecorder.app to /Applications
+        1. Copy Meety.app to /Applications
         2. Right-click on the app → "Open"
         3. Click "Open" in the security dialog
         4. Grant permissions when requested
@@ -160,7 +160,7 @@ jobs:
         ln -s /Applications dmg-temp/Applications
         
         # Create DMG
-        hdiutil create -volname "MeetingRecorder" \
+        hdiutil create -volname "Meety" \
           -srcfolder dmg-temp \
           -ov -format UDZO \
           "$DMG_PATH"
@@ -173,7 +173,7 @@ jobs:
       with:
         name: MeetingRecorder-${{ steps.version.outputs.version }}
         path: |
-          dist/MeetingRecorder.app
+          dist/Meety.app
           dist/MeetingRecorder-${{ steps.version.outputs.version }}.dmg
 
   release:
@@ -197,7 +197,7 @@ jobs:
         VERSION="${{ needs.build.outputs.version }}"
         
         cat > release-notes.md << EOF
-        # MeetingRecorder v$VERSION
+        # Meety v$VERSION
         
         ## 🎉 Fonctionnalités
         - ✅ Enregistrement automatique des réunions Microsoft Teams
@@ -234,7 +234,7 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        name: "MeetingRecorder v${{ needs.build.outputs.version }}"
+        name: "Meety v${{ needs.build.outputs.version }}"
         body_path: release-notes.md
         files: |
           release-artifacts/MeetingRecorder-${{ needs.build.outputs.version }}.dmg
