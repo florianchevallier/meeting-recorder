@@ -11,6 +11,7 @@ class StatusBarManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var isTeamsMeetingDetected = false
     
+    let permissionManager = PermissionManager.shared
     private let micRecorder = SimpleMicrophoneRecorder()
     private var systemAudioCapture: (any NSObjectProtocol)?
     

@@ -1,0 +1,238 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: macos-13
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.1'
+    
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v3
+      with:
+        path: .build
+        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
+    
+    - name: Build for testing
+      run: swift build --configuration debug
+    
+    - name: Run tests
+      run: swift test --configuration debug --parallel
+    
+    - name: Validate package structure
+      run: |
+        swift package describe --type json > package-info.json
+        cat package-info.json
+        
+  build:
+    needs: test
+    runs-on: macos-13
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    outputs:
+      app-path: ${{ steps.build.outputs.app-path }}
+      version: ${{ steps.version.outputs.version }}
+      build-number: ${{ steps.version.outputs.build-number }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.1'
+    
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v3
+      with:
+        path: .build
+        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
+    
+    - name: Extract version info
+      id: version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/v* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+          BUILD_NUMBER=${{ github.run_number }}
+        else
+          VERSION="0.1.0-dev"
+          BUILD_NUMBER="${{ github.run_number }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "build-number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION, Build: $BUILD_NUMBER"
+    
+    - name: Update Info.plist with version
+      run: |
+        plutil -replace CFBundleShortVersionString -string "${{ steps.version.outputs.version }}" Info.plist
+        plutil -replace CFBundleVersion -string "${{ steps.version.outputs.build-number }}" Info.plist
+        plutil -p Info.plist
+    
+    - name: Build release
+      id: build
+      run: |
+        swift build --configuration release --arch arm64 --arch x86_64
+        
+        # Create app bundle structure
+        APP_NAME="MeetingRecorder"
+        APP_PATH="dist/${APP_NAME}.app"
+        mkdir -p "$APP_PATH/Contents/MacOS"
+        mkdir -p "$APP_PATH/Contents/Resources"
+        
+        # Copy executable
+        cp .build/apple/Products/Release/${APP_NAME} "$APP_PATH/Contents/MacOS/"
+        
+        # Copy Info.plist
+        cp Info.plist "$APP_PATH/Contents/"
+        
+        # Copy resources
+        if [ -d "Sources/Resources" ]; then
+          cp -r Sources/Resources/* "$APP_PATH/Contents/Resources/"
+        fi
+        
+        # Create basic app icon placeholder if not exists
+        if [ ! -f "$APP_PATH/Contents/Resources/AppIcon.icns" ]; then
+          echo "⚠️ No app icon found - app will use default icon"
+        fi
+        
+        echo "app-path=$APP_PATH" >> $GITHUB_OUTPUT
+        echo "✅ App built at: $APP_PATH"
+        ls -la "$APP_PATH/Contents/MacOS/"
+        
+        echo "🔒 Note: This build will require manual installation (right-click > Open)"
+    
+    - name: Create DMG
+      id: dmg
+      run: |
+        DMG_NAME="MeetingRecorder-${{ steps.version.outputs.version }}.dmg"
+        DMG_PATH="dist/$DMG_NAME"
+        
+        # Create temporary folder
+        mkdir -p dmg-temp
+        cp -r "dist/MeetingRecorder.app" dmg-temp/
+        
+        # Add installation instructions
+        cat > dmg-temp/INSTALLATION.txt << 'EOF'
+        📦 MeetingRecorder Installation
+        
+        🔧 Installation Steps:
+        1. Copy MeetingRecorder.app to /Applications
+        2. Right-click on the app → "Open"
+        3. Click "Open" in the security dialog
+        4. Grant permissions when requested
+        
+        📋 Required Permissions:
+        - Microphone access
+        - Screen recording permission
+        - Calendar access (optional)
+        
+        🚀 Getting Started:
+        Look for the microphone icon in your menu bar after launch!
+        EOF
+        
+        # Create symlink to Applications
+        ln -s /Applications dmg-temp/Applications
+        
+        # Create DMG
+        hdiutil create -volname "MeetingRecorder" \
+          -srcfolder dmg-temp \
+          -ov -format UDZO \
+          "$DMG_PATH"
+        
+        echo "dmg-path=$DMG_PATH" >> $GITHUB_OUTPUT
+        echo "✅ DMG created: $DMG_PATH"
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: MeetingRecorder-${{ steps.version.outputs.version }}
+        path: |
+          dist/MeetingRecorder.app
+          dist/MeetingRecorder-${{ steps.version.outputs.version }}.dmg
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: MeetingRecorder-${{ needs.build.outputs.version }}
+        path: release-artifacts/
+    
+    - name: Generate release notes
+      id: release-notes
+      run: |
+        VERSION="${{ needs.build.outputs.version }}"
+        
+        cat > release-notes.md << EOF
+        # MeetingRecorder v$VERSION
+        
+        ## 🎉 Fonctionnalités
+        - ✅ Enregistrement automatique des réunions Microsoft Teams
+        - ✅ Interface dans la barre de menu macOS
+        - ✅ Capture simultanée audio système et microphone
+        - ✅ Gestion complète des permissions macOS
+        - ✅ Mélangeur audio temps réel sans feedback
+        - ✅ Sauvegarde haute qualité (AAC 48kHz)
+        - ✅ Nommage automatique intelligent
+        
+        ## 🔧 Installation
+        1. Télécharger le DMG
+        2. Monter le DMG et copier l'app vers Applications
+        3. **Clic droit** sur l'app → "Ouvrir"
+        4. Cliquer "Ouvrir" dans la boîte de dialogue de sécurité
+        5. Accorder les permissions demandées
+        
+        ## 📋 Configuration Requise
+        - macOS 13.0 ou supérieur
+        - Permissions microphone et enregistrement d'écran
+        - Accès au calendrier (optionnel pour auto-détection)
+        
+        ## 🚀 Utilisation
+        Cherchez l'icône microphone dans votre barre de menu après installation !
+        
+        ## 🔒 Sécurité
+        - Code source disponible sur GitHub
+        - Build automatisé via GitHub Actions
+        - Données 100% locales sur votre Mac
+        EOF
+        
+        echo "release-notes-file=release-notes.md" >> $GITHUB_OUTPUT
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: "MeetingRecorder v${{ needs.build.outputs.version }}"
+        body_path: release-notes.md
+        files: |
+          release-artifacts/MeetingRecorder-${{ needs.build.outputs.version }}.dmg
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Post-release summary
+      run: |
+        echo "🎉 Release v${{ needs.build.outputs.version }} created!"
+        echo "📦 Download: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.build.outputs.version }}"
+        echo "🚀 Installation: Right-click app → Open to bypass security warnings"

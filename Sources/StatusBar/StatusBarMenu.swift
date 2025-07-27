@@ -289,18 +289,40 @@ struct StatusBarMenu: View {
                 Divider()
                     .padding(.horizontal, 20)
                 
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.orange)
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                        
+                        Text(errorMessage)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                        
+                        Spacer()
+                    }
                     
-                    Text(errorMessage)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                    
-                    Spacer()
+                    // Bouton Autoriser pour l'enregistrement d'écran
+                    if statusBarManager.permissionManager.screenRecordingPermission != .authorized {
+                        Button(action: {
+                            statusBarManager.permissionManager.openScreenRecordingSettings()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "gear")
+                                    .font(.system(size: 10, weight: .medium))
+                                Text("Autoriser l'enregistrement d'écran")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.blue)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
