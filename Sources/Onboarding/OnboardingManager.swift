@@ -34,7 +34,7 @@ class OnboardingManager: ObservableObject {
         permissionManager.checkAllPermissions()
         
         // Si les permissions critiques ne sont pas accordées, montrer l'onboarding
-        if !permissionManager.recordingPermissionsGranted {
+        if !permissionManager.allPermissionsGranted {
             shouldShowOnboarding = true
         }
     }

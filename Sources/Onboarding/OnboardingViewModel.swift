@@ -1,102 +1,81 @@
 import SwiftUI
-import AVFoundation
-import ScreenCaptureKit
+import Combine
 
 @MainActor
 class OnboardingViewModel: ObservableObject {
     @Published var isRequesting = false
     
-    @ObservedObject private var permissionManager = PermissionManager.shared
+    @Published var microphoneStatus: PermissionStatus = .notDetermined
+    @Published var screenRecordingStatus: PermissionStatus = .notDetermined
+    @Published var documentsStatus: PermissionStatus = .notDetermined
+    @Published var accessibilityStatus: PermissionStatus = .notDetermined
     
-    var microphoneStatus: PermissionStatus {
-        permissionManager.microphonePermission
+    @Published var allPermissionsGranted: Bool = false
+    
+    private var permissionManager = PermissionManager.shared
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        // S'abonner aux changements de permissions du manager
+        permissionManager.$microphonePermission
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.microphoneStatus, on: self)
+            .store(in: &cancellables)
+        
+        permissionManager.$screenRecordingPermission
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.screenRecordingStatus, on: self)
+            .store(in: &cancellables)
+        
+        permissionManager.$documentsPermission
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.documentsStatus, on: self)
+            .store(in: &cancellables)
+        
+        permissionManager.$accessibilityPermission
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.accessibilityStatus, on: self)
+            .store(in: &cancellables)
+        
+        // S'abonner à tous les changements pour mettre à jour `allPermissionsGranted`
+        $microphoneStatus.merge(with: $screenRecordingStatus, $documentsStatus, $accessibilityStatus)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateAllPermissionsGranted()
+            }
+            .store(in: &cancellables)
+        
+        // Vérifier l'état initial
+        checkCurrentPermissions()
     }
     
-    var screenRecordingStatus: PermissionStatus {
-        permissionManager.screenRecordingPermission
+    private func updateAllPermissionsGranted() {
+        allPermissionsGranted = permissionManager.allPermissionsGranted
     }
     
-    
-    var documentsStatus: PermissionStatus {
-        permissionManager.documentsPermission
-    }
-    
-    var accessibilityStatus: PermissionStatus {
-        permissionManager.accessibilityPermission
-    }
-    
-    var allPermissionsGranted: Bool {
-        permissionManager.allPermissionsGranted
-    }
-    
-    func checkCurrentPermissions() async {
+    func checkCurrentPermissions() {
         permissionManager.checkAllPermissions()
     }
     
     func requestAllPermissions() async {
         isRequesting = true
         await permissionManager.requestAllPermissions()
-        // Petit délai pour laisser macOS mettre à jour les permissions
-        try? await Task.sleep(for: .milliseconds(500))
-        permissionManager.refreshAllPermissions()
         isRequesting = false
     }
     
     func requestMicrophonePermission() async {
-        do {
-            try await permissionManager.requestMicrophonePermission()
-            // Rafraîchir après la demande
-            try? await Task.sleep(for: .milliseconds(200))
-            permissionManager.checkMicrophonePermission()
-        } catch {
-            print("❌ Microphone permission failed: \(error)")
-        }
+        await permissionManager.requestMicrophonePermission()
     }
     
     func requestScreenRecordingPermission() async {
-        do {
-            try await permissionManager.requestScreenRecordingPermission()
-            // Rafraîchir après la demande
-            try? await Task.sleep(for: .milliseconds(500))
-            permissionManager.checkScreenRecordingPermission()
-        } catch {
-            print("❌ Screen recording permission failed: \(error)")
-        }
+        await permissionManager.requestScreenRecordingPermission()
     }
     
-    
     func requestDocumentsPermission() async {
-        do {
-            try await permissionManager.requestDocumentsPermission()
-            // Rafraîchir après la demande
-            try? await Task.sleep(for: .milliseconds(200))
-            permissionManager.checkDocumentsPermission()
-        } catch {
-            print("❌ Documents permission failed: \(error)")
-        }
+        await permissionManager.requestDocumentsPermission()
     }
     
     func requestAccessibilityPermission() async {
-        do {
-            try await permissionManager.requestAccessibilityPermission()
-            // Délai plus long pour laisser l'utilisateur configurer manuellement
-            try? await Task.sleep(for: .milliseconds(1000))
-            permissionManager.checkAccessibilityPermission()
-        } catch {
-            print("❌ Accessibility permission failed: \(error)")
-        }
-    }
-    
-    func startPermissionMonitoring() {
-        // Timer supprimé - trop bruyant et pas nécessaire
-        // Les permissions se rafraîchissent quand l'utilisateur revient dans l'app
-    }
-    
-    func stopPermissionMonitoring() {
-        // Plus de timer à arrêter
-    }
-    
-    deinit {
-        // Plus de timer à nettoyer
+        await permissionManager.requestAccessibilityPermission()
     }
 }
