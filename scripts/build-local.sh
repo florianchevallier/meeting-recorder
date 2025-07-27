@@ -148,7 +148,7 @@ create_app_bundle() {
     # Make executable
     chmod +x "$APP_PATH/Contents/MacOS/${APP_NAME}"
     
-    # Copy Info.plist with version
+    # Copy Info.plist with version (production config for Meety)
     cp Info.plist "$APP_PATH/Contents/"
     plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP_PATH/Contents/Info.plist"
     plutil -replace CFBundleVersion -string "$(date +%Y%m%d%H%M)" "$APP_PATH/Contents/Info.plist"

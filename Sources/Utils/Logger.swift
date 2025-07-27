@@ -6,10 +6,14 @@ class Logger {
     
     private init() {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        logFile = documentsURL.appendingPathComponent("MeetingRecorder_debug.log")
+        
+        // Use different log files for dev vs prod
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.meetingrecorder.unknown"
+        let appName = bundleId.contains(".dev") ? "MeetyDev" : "Meety"
+        logFile = documentsURL.appendingPathComponent("\(appName)_debug.log")
         
         // Clear previous log on startup
-        try? "=== MeetingRecorder Debug Log - \(Date()) ===\n".write(to: logFile, atomically: true, encoding: .utf8)
+        try? "=== \(appName) Debug Log - \(Date()) ===\n".write(to: logFile, atomically: true, encoding: .utf8)
     }
     
     func log(_ message: String) {
