@@ -80,14 +80,6 @@ struct OnboardingView: View {
                     .disabled(viewModel.isRequesting)
                 }
                 
-                Button("Actualiser les Permissions") {
-                    Task {
-                        await viewModel.checkCurrentPermissions()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                
                 Button("Passer (Configurer Plus Tard)") {
                     onboardingManager.markOnboardingCompleted()
                     closeWindow()
@@ -98,22 +90,9 @@ struct OnboardingView: View {
         }
         .padding(40)
         .frame(width: 500, height: 600)
-        .task {
-            await viewModel.checkCurrentPermissions()
-            // Demander automatiquement toutes les permissions au premier lancement
-            await viewModel.requestAllPermissions()
-        }
+        .onAppear(perform: viewModel.checkCurrentPermissions)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            // Quand l'app devient active (ex: retour depuis les Préférences Système)
-            Task {
-                await viewModel.checkCurrentPermissions()
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didUnhideNotification)) { _ in
-            // Quand l'app sort du mode caché
-            Task {
-                await viewModel.checkCurrentPermissions()
-            }
+            viewModel.checkCurrentPermissions()
         }
     }
     
