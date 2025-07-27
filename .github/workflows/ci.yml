@@ -104,6 +104,14 @@ jobs:
         if [ -d "$LOCALIZATION_BUNDLE" ]; then
           echo "📦 Copying localization bundle: $LOCALIZATION_BUNDLE"
           cp -r "$LOCALIZATION_BUNDLE" "$APP_PATH/Contents/Resources/"
+          
+          # Copy app icon directly to Resources folder for macOS to find it
+          if [ -f "$LOCALIZATION_BUNDLE/AppIcon.icns" ]; then
+            cp "$LOCALIZATION_BUNDLE/AppIcon.icns" "$APP_PATH/Contents/Resources/"
+            echo "🎨 App icon copied to Resources/"
+          else
+            echo "⚠️ Warning: AppIcon.icns not found in bundle!"
+          fi
         else
           echo "❌ ERROR: Localization bundle not found at $LOCALIZATION_BUNDLE"
           echo "Available files in build directory:"
@@ -114,11 +122,6 @@ jobs:
         # Copy other resources
         if [ -d "Sources/Resources" ]; then
           cp -r Sources/Resources/* "$APP_PATH/Contents/Resources/"
-        fi
-        
-        # Create basic app icon placeholder if not exists
-        if [ ! -f "$APP_PATH/Contents/Resources/AppIcon.icns" ]; then
-          echo "⚠️ No app icon found - app will use default icon"
         fi
         
         # Auto-signer l'app (ad-hoc) avec entitlements pour éviter les problèmes de permissions

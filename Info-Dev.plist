@@ -21,6 +21,10 @@
     <key>LSUIElement</key>
     <true/>
     
+    <!-- App Icon -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
+    
     <!-- Localization Support -->
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>

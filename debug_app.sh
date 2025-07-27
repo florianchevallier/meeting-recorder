@@ -90,6 +90,14 @@ chmod +x "$MACOS_DIR/$APP_NAME"
 if [ -d "$BUILD_PATH/MeetingRecorder_MeetingRecorder.bundle" ]; then
     echo "📦 Copying localization bundle..."
     cp -R "$BUILD_PATH/MeetingRecorder_MeetingRecorder.bundle" "$RESOURCES_DIR/"
+    
+    # Copy app icon directly to Resources folder for macOS to find it
+    if [ -f "$BUILD_PATH/MeetingRecorder_MeetingRecorder.bundle/AppIcon.icns" ]; then
+        cp "$BUILD_PATH/MeetingRecorder_MeetingRecorder.bundle/AppIcon.icns" "$RESOURCES_DIR/"
+        echo "🎨 App icon copied to Resources/"
+    else
+        echo "⚠️  Warning: AppIcon.icns not found in bundle!"
+    fi
 else
     echo "⚠️  Warning: Localization bundle not found at $BUILD_PATH!"
     echo "Available files:"
