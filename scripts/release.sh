@@ -51,6 +51,7 @@ WHAT IT DOES:
     ✅ Runs tests to ensure quality
     ✅ Creates and pushes git tag
     ✅ Monitors GitHub Actions pipeline
+    ✅ Updates Homebrew formula automatically
     ✅ Opens release page when ready
 
 REQUIREMENTS:
@@ -168,6 +169,43 @@ Download DMG from GitHub Releases and right-click → Open
     log_success "Pushed tag v$version"
 }
 
+update_homebrew_formula() {
+    local version=$1
+    
+    log_info "Updating Homebrew formula..."
+    
+    if $DRY_RUN; then
+        log_info "[DRY RUN] Would update homebrew-tap/Formula/meety.rb to v$version"
+        return 0
+    fi
+    
+    if [[ ! -f "homebrew-tap/update_formula.sh" ]]; then
+        log_warning "Homebrew update script not found, skipping formula update"
+        return 0
+    fi
+    
+    # Update the formula with the new version
+    cd homebrew-tap
+    if ./update_formula.sh "v$version"; then
+        log_success "Formula updated successfully"
+        
+        # Commit and push the updated formula
+        git add Formula/meety.rb
+        if git commit -m "chore: update Meety to v$version"; then
+            log_info "Pushing formula update..."
+            git push origin main
+            log_success "Homebrew formula updated and pushed!"
+        else
+            log_warning "No changes to commit for formula (possibly already up to date)"
+        fi
+    else
+        log_warning "Failed to update Homebrew formula automatically"
+        log_info "You can update it manually later with: cd homebrew-tap && ./update_formula.sh v$version"
+    fi
+    
+    cd ..
+}
+
 monitor_pipeline() {
     local version=$1
     
@@ -197,6 +235,9 @@ monitor_pipeline() {
         
         if gh run watch "$run_id" --exit-status; then
             log_success "Pipeline completed successfully!"
+            
+            # Update Homebrew formula after successful release
+            update_homebrew_formula "$version"
             
             # Open release page
             sleep 2
@@ -230,8 +271,11 @@ show_success() {
     echo "   ✅ GitHub Actions pipeline triggered"
     echo "   ✅ DMG built and uploaded automatically"
     echo "   ✅ Release notes generated"
+    echo "   ✅ Homebrew formula updated automatically"
     echo
-    echo "🚀 Users can now download and install!"
+    echo "🚀 Users can now install via:"
+    echo "   📦 Direct download: GitHub Releases"
+    echo "   🍺 Homebrew: brew install florianchevallier/meety/meety"
     
     if $DRY_RUN; then
         echo
