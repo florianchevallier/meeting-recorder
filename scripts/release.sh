@@ -175,22 +175,26 @@ update_homebrew_formula() {
     log_info "Updating Homebrew formula..."
     
     if $DRY_RUN; then
-        log_info "[DRY RUN] Would update homebrew-tap/Formula/meety.rb to v$version"
+        log_info "[DRY RUN] Would update Casks/meety.rb to v$version"
         return 0
     fi
     
-    if [[ ! -f "homebrew-tap/update_formula.sh" ]]; then
+    if [[ ! -f "update_formula.sh" ]]; then
         log_warning "Homebrew update script not found, skipping formula update"
         return 0
     fi
     
+    if [[ ! -f "Casks/meety.rb" ]]; then
+        log_warning "Cask file not found at Casks/meety.rb, skipping formula update"
+        return 0
+    fi
+    
     # Update the formula with the new version
-    cd homebrew-tap
     if ./update_formula.sh "v$version"; then
         log_success "Formula updated successfully"
         
         # Commit and push the updated formula
-        git add Formula/meety.rb
+        git add Casks/meety.rb
         if git commit -m "chore: update Meety to v$version"; then
             log_info "Pushing formula update..."
             git push origin main
@@ -200,10 +204,8 @@ update_homebrew_formula() {
         fi
     else
         log_warning "Failed to update Homebrew formula automatically"
-        log_info "You can update it manually later with: cd homebrew-tap && ./update_formula.sh v$version"
+        log_info "You can update it manually later with: ./update_formula.sh v$version"
     fi
-    
-    cd ..
 }
 
 monitor_pipeline() {
