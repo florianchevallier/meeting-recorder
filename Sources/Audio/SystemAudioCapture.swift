@@ -26,52 +26,88 @@ class SystemAudioCapture: NSObject {
         
         Logger.shared.log("🔍 [SYSTEM_AUDIO] Starting system audio capture...")
         
-        // Configuration du stream optimisée pour macOS 15
+        // Configuration du stream selon les recommandations Apple WWDC 2022
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = true
         configuration.excludesCurrentProcessAudio = true
+        
+        // Configuration audio officielle Apple : 48kHz, 2 canaux (WWDC 2022)
         configuration.sampleRate = 48000
         configuration.channelCount = 2
-        // Pas de configuration vidéo pour audio seul
+        
+        // Configuration vidéo minimale mais valide (nécessaire même pour audio seul)
         configuration.width = 100
         configuration.height = 100
-        configuration.minimumFrameInterval = CMTime(seconds: 1, preferredTimescale: 1)
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60) // 60 FPS max
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
         
-        // Créer un filtre de contenu pour capturer tout l'écran (nécessaire pour l'audio système)
+        // Créer un filtre de contenu simple et fiable (selon exemples Apple)
         let availableContent = try await SCShareableContent.current
         guard let display = availableContent.displays.first else {
-            throw NSError(domain: "SystemAudioError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No display available"])
+            throw NSError(domain: "SystemAudioError", code: 1, 
+                         userInfo: [NSLocalizedDescriptionKey: "No display available"])
         }
         
-        // Fix pour macOS 15: utiliser includingApplications au lieu d'excludingWindows avec tableau vide
-        // qui peut causer "The stream is nil" error
+        Logger.shared.log("🖥️ [SYSTEM_AUDIO] Using display: \(display.displayID) - \(display.width)x\(display.height)")
+        
+        // Filtrage simple : exclure seulement notre propre application pour éviter la boucle audio
+        let excludedApps = availableContent.applications.filter { app in
+            app.bundleIdentifier == Bundle.main.bundleIdentifier
+        }
+        
+        Logger.shared.log("🚫 [SYSTEM_AUDIO] Excluding \(excludedApps.count) applications (self)")
+        
+        // Filtre simple : tout capturer sauf notre app
         let filter = SCContentFilter(display: display, 
-                                   including: availableContent.applications, 
+                                   excludingApplications: excludedApps, 
                                    exceptingWindows: [])
         
-        // Préparer le fichier d'enregistrement (sera créé avec le bon format lors du premier sample)
+        // Préparer le fichier d'enregistrement
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioFilename = documentsPath.appendingPathComponent("system_audio_\(Date().timeIntervalSince1970).wav")
         currentFileURL = audioFilename
         
         Logger.shared.log("🔊 [SYSTEM_AUDIO] Recording to: \(audioFilename.path)")
         
-        // Le fichier audio sera créé dynamiquement avec le format des données reçues
-        
-        // Créer et démarrer le stream avec vérification robuste
-        stream = SCStream(filter: filter, configuration: configuration, delegate: self)
-        
-        guard let stream = stream else {
-            throw NSError(domain: "SystemAudioError", code: 2, 
-                         userInfo: [NSLocalizedDescriptionKey: "Failed to create SCStream - check screen recording permissions"])
+        // Créer et démarrer le stream avec validation
+        do {
+            stream = SCStream(filter: filter, configuration: configuration, delegate: self)
+            
+            guard let stream = stream else {
+                throw NSError(domain: "SystemAudioError", code: 2, 
+                             userInfo: [NSLocalizedDescriptionKey: "Failed to create SCStream"])
+            }
+            
+            Logger.shared.log("🎬 [SYSTEM_AUDIO] Stream created successfully")
+            
+            try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
+            Logger.shared.log("🔌 [SYSTEM_AUDIO] Audio output added to stream")
+            
+            try await stream.startCapture()
+            Logger.shared.log("▶️ [SYSTEM_AUDIO] Stream capture started")
+            
+            isRecording = true
+            recordingStartTime = Date()
+            Logger.shared.log("✅ [SYSTEM_AUDIO] System audio recording started successfully")
+            
+        } catch {
+            Logger.shared.log("❌ [SYSTEM_AUDIO] Stream creation/start failed: \(error)")
+            
+            // Diagnostic détaillé de l'erreur
+            if let nsError = error as NSError? {
+                Logger.shared.log("🔍 [SYSTEM_AUDIO] Error domain: \(nsError.domain)")
+                Logger.shared.log("🔍 [SYSTEM_AUDIO] Error code: \(nsError.code)")
+                Logger.shared.log("🔍 [SYSTEM_AUDIO] Error description: \(nsError.localizedDescription)")
+                
+                // Erreur -3812 spécifique
+                if nsError.code == -3812 {
+                    Logger.shared.log("🚨 [SYSTEM_AUDIO] Error -3812: Invalid parameter detected")
+                    Logger.shared.log("💡 [SYSTEM_AUDIO] This may indicate hardware incompatibility or missing permissions")
+                }
+            }
+            
+            throw error
         }
-        
-        try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
-        try await stream.startCapture()
-        
-        isRecording = true
-        recordingStartTime = Date()
-        Logger.shared.log("✅ [SYSTEM_AUDIO] System audio recording started successfully")
     }
     
     func stopRecording() async -> URL? {
