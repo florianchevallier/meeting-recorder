@@ -32,10 +32,10 @@ class SystemAudioCapture: NSObject {
         configuration.excludesCurrentProcessAudio = true
         configuration.sampleRate = 48000
         configuration.channelCount = 2
-        // Configuration vidéo minimale pour économiser les ressources
-        configuration.width = 1
-        configuration.height = 1
-        configuration.minimumFrameInterval = CMTime(seconds: 10, preferredTimescale: 1)
+        // Pas de configuration vidéo pour audio seul
+        configuration.width = 100
+        configuration.height = 100
+        configuration.minimumFrameInterval = CMTime(seconds: 1, preferredTimescale: 1)
         
         // Créer un filtre de contenu pour capturer tout l'écran (nécessaire pour l'audio système)
         let availableContent = try await SCShareableContent.current
