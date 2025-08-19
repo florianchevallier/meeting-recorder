@@ -14,7 +14,21 @@ cask "meety" do
 
   depends_on macos: ">= :sequoia"
 
-  app "MeetingRecorder.app", target: "Meety.app"
+  app "Meety.app"
+
+  postflight do
+    puts ""
+    puts "⚠️  IMPORTANT: First launch requires manual approval"
+    puts ""
+    puts "🔧 To launch Meety:"
+    puts "   1. Go to Applications folder"
+    puts "   2. Right-click on Meety.app"
+    puts "   3. Select 'Open' from the context menu"  
+    puts "   4. Click 'Open' in the security dialog"
+    puts ""
+    puts "This is only needed for the first launch!"
+    puts ""
+  end
 
   uninstall quit: "com.meetingrecorder.meety"
 
