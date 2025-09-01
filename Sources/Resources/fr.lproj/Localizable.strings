@@ -20,13 +20,11 @@
 
 // MARK: - Quick Actions
 "action.auto_start" = "Auto Start";
-"action.auto_stop" = "Auto Stop";
 "action.permissions" = "Permissions";
 "action.folder" = "Dossier";
 "action.quit" = "Quitter";
 
 // MARK: - Teams Detection
-"teams.auto_stop_in" = "Arrêt auto dans %ds";
 "teams.meeting_active" = "Réunion Teams active";
 
 // MARK: - Audio Sources
@@ -74,5 +72,3 @@
 "log.teams_ended" = "Réunion Teams terminée";
 "log.auto_recording_enabled" = "Enregistrement automatique ACTIVÉ";
 "log.auto_recording_disabled" = "Enregistrement automatique DÉSACTIVÉ";
-"log.auto_stop_enabled" = "Arrêt automatique ACTIVÉ";
-"log.auto_stop_disabled" = "Arrêt automatique DÉSACTIVÉ";

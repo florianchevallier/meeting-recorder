@@ -103,7 +103,7 @@ class TeamsDetector: ObservableObject {
             // No log events found - use stricter window + audio detection
             Logger.shared.log("🔍 [TEAMS] No log events found - using fallback detection")
             
-            // For reliable auto-stop, require BOTH window AND microphone
+            // Require BOTH window AND microphone for accurate detection
             // This prevents false positives when Teams stays open but meeting ended
             if hasMeetingWindow && micInUse {
                 Logger.shared.log("🔍 [TEAMS] Meeting window + mic active - meeting ACTIVE")

@@ -8,6 +8,7 @@ class UnifiedScreenCapture: NSObject {
     private var isRecording = false
     private var recordingStartTime: Date?
     private var outputURL: URL?
+    private var recordingFinishedContinuation: CheckedContinuation<Void, Never>?
     
     // Queues dédiées pour chaque type de contenu
     private let screenQueue = DispatchQueue(label: "UnifiedCapture.ScreenQueue", qos: .userInitiated)
@@ -167,7 +168,22 @@ class UnifiedScreenCapture: NSObject {
             // 1. D'abord, on demande au flux de s'arrêter et ON ATTEND que ce soit terminé
             try await stream.stopCapture()
             
-            // 2. Une fois que la capture est VRAIMENT arrêtée, on peut retirer les outputs
+            // 2. Attendre que SCRecordingOutput ait complètement fini d'écrire le fichier
+            Logger.shared.log("⏳ [UNIFIED_CAPTURE] Waiting for recording output to finish...")
+            await withCheckedContinuation { continuation in
+                self.recordingFinishedContinuation = continuation
+                
+                // Timeout de sécurité au cas où le delegate ne serait jamais appelé
+                Task {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 secondes
+                    if let cont = self.recordingFinishedContinuation {
+                        self.recordingFinishedContinuation = nil
+                        cont.resume()
+                    }
+                }
+            }
+            
+            // 3. Une fois que la capture est VRAIMENT arrêtée, on peut retirer les outputs
             if let recordingOutput = self.recordingOutput {
                 try stream.removeRecordingOutput(recordingOutput)
             }
@@ -177,7 +193,7 @@ class UnifiedScreenCapture: NSObject {
             Logger.shared.log("❌ [UNIFIED_CAPTURE] Error during stream stop/cleanup: \(error)")
         }
         
-        // 3. Maintenant que tout est arrêté et nettoyé, on peut détruire les objets
+        // 4. Maintenant que tout est arrêté et nettoyé, on peut détruire les objets
         self.recordingOutput = nil
         self.stream = nil
         isRecording = false
@@ -280,7 +296,13 @@ extension UnifiedScreenCapture: SCRecordingOutputDelegate {
     }
     
     func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
-        Logger.shared.log("✅ [UNIFIED_CAPTURE] Recording output finished successfully")
+        Logger.shared.log("✅ [UNIFIED_CAPTURE] Recording output finished successfully - file is now ready")
+        
+        // Signaler que le fichier est complètement écrit sur le disque
+        if let continuation = recordingFinishedContinuation {
+            recordingFinishedContinuation = nil
+            continuation.resume()
+        }
     }
 }
 
