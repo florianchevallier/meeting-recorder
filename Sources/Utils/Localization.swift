@@ -47,15 +47,11 @@ extension L10n {
     
     // MARK: - Quick Actions
     static let actionAutoStart = "action.auto_start".localized
-    static let actionAutoStop = "action.auto_stop".localized
     static let actionPermissions = "action.permissions".localized
     static let actionFolder = "action.folder".localized
     static let actionQuit = "action.quit".localized
     
     // MARK: - Teams Detection
-    static func teamsAutoStopIn(_ seconds: Int) -> String {
-        return "teams.auto_stop_in".localized(seconds)
-    }
     static let teamsMeetingActive = "teams.meeting_active".localized
     
     // MARK: - Audio Sources
@@ -109,6 +105,4 @@ extension L10n {
     static let logTeamsEnded = "log.teams_ended".localized
     static let logAutoRecordingEnabled = "log.auto_recording_enabled".localized
     static let logAutoRecordingDisabled = "log.auto_recording_disabled".localized
-    static let logAutoStopEnabled = "log.auto_stop_enabled".localized
-    static let logAutoStopDisabled = "log.auto_stop_disabled".localized
 }

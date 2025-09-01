@@ -21,9 +21,6 @@ class StatusBarManager: ObservableObject {
     // 🔍 Teams detection
     private let teamsDetector = TeamsDetector()
     private var autoRecordingEnabled = true
-    private var autoStopEnabled = true
-    private var endingTimer: Timer?
-    private let autoStopDelay: TimeInterval = 1.0 // 1 second grace period
     
     func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -64,52 +61,15 @@ class StatusBarManager: ObservableObject {
         Logger.shared.log("🔍 [TEAMS] Meeting status changed: \(isActive ? "DETECTED" : "ENDED")")
         
         if isActive {
-            // Meeting started - cancel any pending auto-stop
-            cancelAutoStopTimer()
-            
             if autoRecordingEnabled && !isRecording {
                 Logger.shared.log("🎬 [AUTO] Starting automatic recording for Teams meeting")
                 startRecording()
             }
         } else {
-            // Meeting ended - start grace period for auto-stop
-            if autoStopEnabled && isRecording {
-                Logger.shared.log("🎬 [AUTO] Teams meeting ended, will stop recording in \(Int(autoStopDelay)) seconds...")
-                scheduleAutoStop()
-            } else {
-                Logger.shared.log("🎬 [AUTO] Teams meeting ended (auto-stop disabled, recording continues)")
-            }
+            Logger.shared.log("🎬 [AUTO] Teams meeting ended (recording continues)")
         }
     }
     
-    private func scheduleAutoStop() {
-        // Cancel any existing timer
-        cancelAutoStopTimer()
-        
-        // Schedule new auto-stop timer
-        endingTimer = Timer.scheduledTimer(withTimeInterval: autoStopDelay, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
-            
-            Task { @MainActor in
-                // Double-check that meeting is still not detected and we're still recording
-                if !self.isTeamsMeetingDetected && self.isRecording {
-                    Logger.shared.log("🎬 [AUTO] Grace period ended - stopping recording automatically")
-                    self.stopRecording()
-                } else if self.isTeamsMeetingDetected {
-                    Logger.shared.log("🎬 [AUTO] Teams meeting resumed during grace period - continuing recording")
-                } else {
-                    Logger.shared.log("🎬 [AUTO] Recording already stopped manually")
-                }
-                
-                self.endingTimer = nil
-            }
-        }
-    }
-    
-    private func cancelAutoStopTimer() {
-        endingTimer?.invalidate()
-        endingTimer = nil
-    }
     
     private func setupPopover() {
         popover = NSPopover()
@@ -397,28 +357,6 @@ class StatusBarManager: ObservableObject {
         return autoRecordingEnabled
     }
     
-    func toggleAutoStop() {
-        autoStopEnabled.toggle()
-        
-        if !autoStopEnabled {
-            // Cancel any pending auto-stop when disabled
-            cancelAutoStopTimer()
-        }
-        
-        Logger.shared.log("🔍 [AUTO] Auto-stop \(autoStopEnabled ? "ENABLED" : "DISABLED")")
-    }
-    
-    func isAutoStopEnabled() -> Bool {
-        return autoStopEnabled
-    }
-    
-    func getAutoStopDelay() -> Int {
-        return Int(autoStopDelay)
-    }
-    
-    func hasScheduledAutoStop() -> Bool {
-        return endingTimer != nil
-    }
     
     func getTeamsStatus() -> (detected: Bool, lastCheck: Date?, method: String) {
         let status = teamsDetector.getDetectionStatus()
@@ -437,7 +375,6 @@ class StatusBarManager: ObservableObject {
         
         // Stop Teams detection
         teamsDetector.stopMonitoring()
-        cancelAutoStopTimer()
         NotificationCenter.default.removeObserver(self)
         
         // Nettoyer l'API unifiée ou la capture audio système

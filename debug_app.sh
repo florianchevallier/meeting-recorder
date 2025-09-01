@@ -7,7 +7,7 @@
 set -e
 
 # Variables
-LOG_FILE="$HOME/Documents/MeetingRecorder_debug.log"
+LOG_FILE="$HOME/Documents/Meety_debug.log"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$PROJECT_DIR/.build"
 APP_NAME="MeetingRecorder"

@@ -396,8 +396,6 @@ MeetingRecorder/
 | Setting | Control | Default |
 |---------|---------|---------|
 | **Auto Recording** | Status bar menu | Enabled |
-| **Auto Stop** | Status bar menu | Enabled |
-| **Grace Period** | StatusBarManager.swift:26 | 1 second |
 | **Audio Quality** | AudioMixer.swift:47 | High (M4A/AAC) |
 
 ---

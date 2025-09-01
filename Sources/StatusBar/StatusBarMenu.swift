@@ -182,16 +182,6 @@ struct StatusBarMenu: View {
                                     .foregroundColor(.blue)
                             }
                             
-                            if statusBarManager.hasScheduledAutoStop() {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "timer")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.orange)
-                                    Text(L10n.teamsAutoStopIn(statusBarManager.getAutoStopDelay()))
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundColor(.orange)
-                                }
-                            }
                         }
                     } else {
                         HStack(spacing: 12) {
@@ -236,16 +226,6 @@ struct StatusBarMenu: View {
                     title: L10n.actionAutoStart,
                     action: { statusBarManager.toggleAutoRecording() },
                     isActive: statusBarManager.isAutoRecordingEnabled()
-                )
-                
-                Divider()
-                    .frame(height: 44)
-                
-                QuickActionButton(
-                    icon: statusBarManager.isAutoStopEnabled() ? "stop.circle.fill" : "stop.circle",
-                    title: L10n.actionAutoStop,
-                    action: { statusBarManager.toggleAutoStop() },
-                    isActive: statusBarManager.isAutoStopEnabled()
                 )
                 
                 Divider()
