@@ -18,6 +18,26 @@ class UnifiedScreenCapture: NSObject {
     // Configuration pour enregistrement direct
     private var recordingOutput: SCRecordingOutput?
     
+    // ✨ Gestion d'erreur et recovery
+    private var retryCount = 0
+    private let maxRetryCount = 3
+    private let retryDelay: TimeInterval = 2.0
+    private var lastStreamConfiguration: SCStreamConfiguration?
+    private var lastContentFilter: SCContentFilter?
+    private var isRecovering = false
+    
+    // Callback pour notifier l'application des erreurs critiques
+    var onCriticalError: ((Error) -> Void)?
+    var onRecoveryAttempt: ((Int) -> Void)?
+    var onRecoverySuccess: (() -> Void)?
+    
+    // ✨ Surveillance continue de l'état du stream
+    private var healthCheckTimer: Timer?
+    private let healthCheckInterval: TimeInterval = 5.0 // Vérifier toutes les 5 secondes
+    private var lastSampleTime: Date?
+    private var sampleCount = 0
+    private var healthCheckCounter = 0
+    
     override init() {
         super.init()
     }
@@ -31,6 +51,15 @@ class UnifiedScreenCapture: NSObject {
         
         Logger.shared.log("🚀 [UNIFIED_CAPTURE] Starting unified recording (macOS 15+)...")
         
+        // Reset retry counter pour un nouveau démarrage
+        retryCount = 0
+        isRecovering = false
+        
+        try await startDirectRecordingInternal()
+    }
+    
+    /// Implémentation interne avec retry automatique
+    private func startDirectRecordingInternal() async throws {
         // Configuration du stream
         let configuration = SCStreamConfiguration()
         
@@ -58,29 +87,31 @@ class UnifiedScreenCapture: NSObject {
             Logger.shared.log("🎤 [UNIFIED_CAPTURE] Using microphone: \(defaultMicrophone.localizedName)")
         }
         
-        // Le contenu a déjà été récupéré plus haut
-        
         // Fix pour macOS 15: utiliser includingApplications au lieu d'excludingWindows avec tableau vide
         let filter = SCContentFilter(display: display, 
                                    including: availableContent.applications, 
                                    exceptingWindows: [])
         
-        // Préparer l'URL de sortie
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let timestamp = Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let filename = "meeting_unified_\(formatter.string(from: timestamp)).mov"
-        outputURL = documentsPath.appendingPathComponent(filename)
+        // Sauvegarder la configuration pour recovery
+        lastStreamConfiguration = configuration
+        lastContentFilter = filter
         
-        Logger.shared.log("🎬 [UNIFIED_CAPTURE] Recording to: \(filename)")
+        // Préparer l'URL de sortie (seulement si pas déjà définie lors d'un retry)
+        if outputURL == nil {
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let timestamp = Date()
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+            let filename = "meeting_unified_\(formatter.string(from: timestamp)).mov"
+            outputURL = documentsPath.appendingPathComponent(filename)
+            Logger.shared.log("🎬 [UNIFIED_CAPTURE] Recording to: \(filename)")
+        }
         
         // ✨ Configuration d'enregistrement direct
         let recordingConfiguration = SCRecordingOutputConfiguration()
         recordingConfiguration.outputURL = outputURL!
         recordingConfiguration.outputFileType = .mov
         recordingConfiguration.videoCodecType = .hevc
-        // audioCodecType n'existe pas, le codec audio est géré automatiquement
         
         // Créer l'output d'enregistrement
         recordingOutput = SCRecordingOutput(configuration: recordingConfiguration, delegate: self)
@@ -100,7 +131,13 @@ class UnifiedScreenCapture: NSObject {
         try await stream.startCapture()
         
         isRecording = true
-        recordingStartTime = Date()
+        if recordingStartTime == nil {
+            recordingStartTime = Date()
+        }
+        
+        // Démarrer la surveillance de santé
+        startHealthMonitoring()
+        
         Logger.shared.log("✅ [UNIFIED_CAPTURE] Unified recording started - Screen + System Audio + Microphone")
     }
     
@@ -204,9 +241,96 @@ class UnifiedScreenCapture: NSObject {
         }
         
         recordingStartTime = nil
+        
+        // Arrêter la surveillance de santé
+        stopHealthMonitoring()
+        
         Logger.shared.log("✅ [UNIFIED_CAPTURE] Unified recording stopped successfully")
         
         return outputURL
+    }
+    
+    // MARK: - Health Monitoring
+    
+    /// Démarre la surveillance continue de l'état du stream
+    private func startHealthMonitoring() {
+        Logger.shared.log("🩺 [HEALTH_MONITOR] Starting stream health monitoring")
+        
+        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: healthCheckInterval, repeats: true) { [weak self] _ in
+            self?.performHealthCheck()
+        }
+        
+        lastSampleTime = Date()
+        sampleCount = 0
+    }
+    
+    /// Arrête la surveillance de santé
+    private func stopHealthMonitoring() {
+        Logger.shared.log("🩺 [HEALTH_MONITOR] Stopping stream health monitoring")
+        healthCheckTimer?.invalidate()
+        healthCheckTimer = nil
+        lastSampleTime = nil
+        sampleCount = 0
+    }
+    
+    /// Effectue une vérification de santé du stream
+    private func performHealthCheck() {
+        guard isRecording, let _ = self.stream else {
+            return
+        }
+        
+        // Vérifier si on reçoit des samples
+        let now = Date()
+        if let lastSample = lastSampleTime {
+            let timeSinceLastSample = now.timeIntervalSince(lastSample)
+            if timeSinceLastSample > 10.0 { // Plus de 10 secondes sans sample
+                Logger.shared.log("🩺 [HEALTH_MONITOR] ⚠️ No samples received for \(timeSinceLastSample)s - investigating...")
+                Logger.shared.log("🩺 [HEALTH_MONITOR] Total samples so far: \(sampleCount)")
+                
+                // Vérifier l'état du système seulement si problème détecté
+                checkStreamHealth()
+            }
+        }
+        
+        // Log des statistiques seulement toutes les minutes (12 checks * 5s = 60s)
+        healthCheckCounter += 1
+        if healthCheckCounter >= 12 {
+            Logger.shared.log("🩺 [HEALTH_MONITOR] Stream healthy - \(sampleCount) samples received")
+            healthCheckCounter = 0
+        }
+    }
+    
+    /// Vérifie la santé du stream en détail
+    private func checkStreamHealth() {
+        Logger.shared.log("🩺 [STREAM_HEALTH] Checking stream health in detail...")
+        
+        Task {
+            do {
+                // Vérifier que le contenu est toujours disponible
+                let content = try await SCShareableContent.current
+                Logger.shared.log("🩺 [STREAM_HEALTH] Displays available: \(content.displays.count)")
+                Logger.shared.log("🩺 [STREAM_HEALTH] Applications available: \(content.applications.count)")
+                
+                // Vérifier les permissions
+                let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+                Logger.shared.log("🩺 [STREAM_HEALTH] Microphone permission: \(micStatus.rawValue)")
+                
+                // Vérifier si le microphone est toujours disponible
+                if let defaultMic = AVCaptureDevice.default(for: .audio) {
+                    Logger.shared.log("🩺 [STREAM_HEALTH] Default microphone: \(defaultMic.localizedName)")
+                    Logger.shared.log("🩺 [STREAM_HEALTH] Microphone connected: \(defaultMic.isConnected)")
+                    
+                    if !defaultMic.isConnected {
+                        Logger.shared.log("🩺 [STREAM_HEALTH] ⚠️ MICROPHONE DISCONNECTED!")
+                    }
+                } else {
+                    Logger.shared.log("🩺 [STREAM_HEALTH] ⚠️ NO DEFAULT MICROPHONE AVAILABLE!")
+                }
+                
+            } catch {
+                Logger.shared.log("🩺 [STREAM_HEALTH] ❌ Error during health check: \(error)")
+            }
+        }
     }
     
     var recordingDuration: TimeInterval {
@@ -283,7 +407,318 @@ class UnifiedScreenCapture: NSObject {
 extension UnifiedScreenCapture: SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         Logger.shared.log("❌ [UNIFIED_CAPTURE] Stream stopped with error: \(error)")
+        
+        // Analyser l'erreur pour décider de la stratégie de recovery
+        let nsError = error as NSError
+        let errorCode = nsError.code
+        let errorDomain = nsError.domain
+        
+        Logger.shared.log("🔍 [UNIFIED_CAPTURE] Error details - Domain: \(errorDomain), Code: \(errorCode)")
+        
+        // Classifier l'erreur
+        let isRecoverableError = isErrorRecoverable(error)
+        
+        if isRecoverableError && retryCount < maxRetryCount && !isRecovering {
+            Logger.shared.log("🔄 [UNIFIED_CAPTURE] Attempting recovery (\(retryCount + 1)/\(maxRetryCount))")
+            attemptRecovery()
+        } else {
+            Logger.shared.log("🚨 [UNIFIED_CAPTURE] Critical error or max retries reached - stopping recording")
+            handleCriticalError(error)
+        }
+    }
+    
+    /// Analyse approfondie de l'erreur pour comprendre la cause
+    private func analyzeStreamError(_ error: Error) {
+        let nsError = error as NSError
+        let errorCode = nsError.code
+        let errorDomain = nsError.domain
+        let errorDescription = nsError.localizedDescription
+        
+        Logger.shared.log("🔍 [UNIFIED_CAPTURE] === ANALYSE DÉTAILLÉE DE L'ERREUR ===")
+        Logger.shared.log("🔍 [UNIFIED_CAPTURE] Domain: \(errorDomain)")
+        Logger.shared.log("🔍 [UNIFIED_CAPTURE] Code: \(errorCode)")
+        Logger.shared.log("🔍 [UNIFIED_CAPTURE] Description: \(errorDescription)")
+        Logger.shared.log("🔍 [UNIFIED_CAPTURE] UserInfo: \(nsError.userInfo)")
+        
+        // Diagnostic spécifique pour -3821
+        if errorCode == -3821 {
+            Logger.shared.log("🔍 [UNIFIED_CAPTURE] === DIAGNOSTIC -3821: DIFFUSION ARRÊTÉE PAR LE SYSTÈME ===")
+            
+            // Vérifier l'état du système
+            checkSystemState()
+            
+            // Vérifier les permissions
+            checkPermissions()
+            
+            // Vérifier les ressources
+            checkSystemResources()
+            
+            // Vérifier les changements de configuration
+            checkDisplayConfiguration()
+            
+            // Vérifier les autres apps utilisant ScreenCaptureKit
+            checkCompetingApps()
+        }
+    }
+    
+    /// Vérifie l'état général du système
+    private func checkSystemState() {
+        Logger.shared.log("🔍 [SYSTEM_CHECK] Checking system state...")
+        
+        // Vérifier la mémoire disponible
+        var memoryInfo = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
+        
+        let result = withUnsafeMutablePointer(to: &memoryInfo) { memoryInfoPtr in
+            withUnsafeMutablePointer(to: &count) { countPtr in
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), 
+                         UnsafeMutablePointer<integer_t>(OpaquePointer(memoryInfoPtr)), countPtr)
+            }
+        }
+        
+        if result == KERN_SUCCESS {
+            let memoryMB = memoryInfo.resident_size / (1024 * 1024)
+            Logger.shared.log("🔍 [SYSTEM_CHECK] App memory usage: \(memoryMB) MB")
+        }
+        
+        // Vérifier les processus système
+        let processInfo = ProcessInfo.processInfo
+        Logger.shared.log("🔍 [SYSTEM_CHECK] System uptime: \(processInfo.systemUptime)s")
+        Logger.shared.log("🔍 [SYSTEM_CHECK] Thermal state: \(processInfo.thermalState.rawValue)")
+    }
+    
+    /// Vérifie les permissions de capture
+    private func checkPermissions() {
+        Logger.shared.log("🔍 [PERMISSIONS_CHECK] Checking capture permissions...")
+        
+        Task {
+            do {
+                // Vérifier les permissions d'enregistrement d'écran
+                let content = try await SCShareableContent.current
+                Logger.shared.log("🔍 [PERMISSIONS_CHECK] Available displays: \(content.displays.count)")
+                Logger.shared.log("🔍 [PERMISSIONS_CHECK] Available applications: \(content.applications.count)")
+                Logger.shared.log("🔍 [PERMISSIONS_CHECK] Available windows: \(content.windows.count)")
+                
+                // Vérifier les permissions microphone
+                let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+                Logger.shared.log("🔍 [PERMISSIONS_CHECK] Microphone permission: \(micStatus.rawValue)")
+                
+                // Vérifier si on peut accéder au microphone par défaut
+                if let defaultMic = AVCaptureDevice.default(for: .audio) {
+                    Logger.shared.log("🔍 [PERMISSIONS_CHECK] Default microphone: \(defaultMic.localizedName)")
+                    Logger.shared.log("🔍 [PERMISSIONS_CHECK] Microphone connected: \(defaultMic.isConnected)")
+                } else {
+                    Logger.shared.log("🔍 [PERMISSIONS_CHECK] ⚠️ No default microphone available")
+                }
+                
+            } catch {
+                Logger.shared.log("🔍 [PERMISSIONS_CHECK] ❌ Error checking permissions: \(error)")
+            }
+        }
+    }
+    
+    /// Vérifie les ressources système
+    private func checkSystemResources() {
+        Logger.shared.log("🔍 [RESOURCES_CHECK] Checking system resources...")
+        
+        // Vérifier l'espace disque
+        if let outputURL = outputURL {
+            do {
+                let resourceValues = try outputURL.resourceValues(forKeys: [.volumeAvailableCapacityKey])
+                if let availableCapacity = resourceValues.volumeAvailableCapacity {
+                    let availableGB = availableCapacity / (1024 * 1024 * 1024)
+                    Logger.shared.log("🔍 [RESOURCES_CHECK] Available disk space: \(availableGB) GB")
+                }
+            } catch {
+                Logger.shared.log("🔍 [RESOURCES_CHECK] ❌ Error checking disk space: \(error)")
+            }
+        }
+        
+        // Vérifier la charge CPU
+        var cpuInfo: processor_info_array_t!
+        var numCpuInfo: mach_msg_type_number_t = 0
+        var numCpus: natural_t = 0
+        
+        let result = host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &numCpus, &cpuInfo, &numCpuInfo)
+        if result == KERN_SUCCESS {
+            Logger.shared.log("🔍 [RESOURCES_CHECK] CPU cores: \(numCpus)")
+        }
+    }
+    
+    /// Vérifie les changements de configuration d'écran
+    private func checkDisplayConfiguration() {
+        Logger.shared.log("🔍 [DISPLAY_CHECK] Checking display configuration...")
+        
+        Task {
+            do {
+                let content = try await SCShareableContent.current
+                for (index, display) in content.displays.enumerated() {
+                    Logger.shared.log("🔍 [DISPLAY_CHECK] Display \(index): \(display.width)x\(display.height)")
+                    Logger.shared.log("🔍 [DISPLAY_CHECK] Display \(index) frame: \(display.frame)")
+                }
+                
+                // Comparer avec la configuration sauvegardée
+                if let lastConfig = lastStreamConfiguration {
+                    Logger.shared.log("🔍 [DISPLAY_CHECK] Last config: \(lastConfig.width)x\(lastConfig.height)")
+                    
+                    if let currentDisplay = content.displays.first {
+                        if currentDisplay.width != lastConfig.width || currentDisplay.height != lastConfig.height {
+                            Logger.shared.log("🔍 [DISPLAY_CHECK] ⚠️ DISPLAY RESOLUTION CHANGED!")
+                            Logger.shared.log("🔍 [DISPLAY_CHECK] Previous: \(lastConfig.width)x\(lastConfig.height)")
+                            Logger.shared.log("🔍 [DISPLAY_CHECK] Current: \(currentDisplay.width)x\(currentDisplay.height)")
+                        }
+                    }
+                }
+                
+            } catch {
+                Logger.shared.log("🔍 [DISPLAY_CHECK] ❌ Error checking display config: \(error)")
+            }
+        }
+    }
+    
+    /// Vérifie les applications concurrentes utilisant ScreenCaptureKit
+    private func checkCompetingApps() {
+        Logger.shared.log("🔍 [COMPETING_APPS] Checking for competing applications...")
+        
+        let workspace = NSWorkspace.shared
+        let runningApps = workspace.runningApplications
+        
+        // Applications connues pour utiliser ScreenCaptureKit
+        let screenCapturingApps = [
+            "com.apple.QuickTimePlayerX",
+            "com.apple.screencapture",
+            "us.zoom.xos",
+            "com.microsoft.teams2",
+            "com.skype.skype",
+            "com.google.Chrome",
+            "org.mozilla.firefox",
+            "com.apple.Safari"
+        ]
+        
+        var competitorsFound: [String] = []
+        var videoConferencingApps: [String] = []
+        
+        for app in runningApps {
+            if let bundleId = app.bundleIdentifier {
+                if screenCapturingApps.contains(bundleId) {
+                    competitorsFound.append(app.localizedName ?? bundleId)
+                }
+                
+                // Vérifier les apps de visioconférence spécifiquement
+                if bundleId.contains("zoom") || bundleId.contains("teams") || bundleId.contains("meet") {
+                    videoConferencingApps.append(app.localizedName ?? bundleId)
+                }
+            }
+        }
+        
+        // Log résumé au lieu de chaque app individuellement
+        if !competitorsFound.isEmpty {
+            Logger.shared.log("🔍 [COMPETING_APPS] Potential competitors: \(competitorsFound.joined(separator: ", "))")
+        }
+        
+        if !videoConferencingApps.isEmpty {
+            Logger.shared.log("🔍 [COMPETING_APPS] ⚠️ Video conferencing apps: \(videoConferencingApps.joined(separator: ", "))")
+        }
+        
+        if competitorsFound.isEmpty && videoConferencingApps.isEmpty {
+            Logger.shared.log("🔍 [COMPETING_APPS] No known competitors detected")
+        }
+    }
+    
+    /// Détermine si l'erreur peut être récupérée automatiquement
+    private func isErrorRecoverable(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        let errorCode = nsError.code
+        
+        // D'abord analyser l'erreur en détail
+        analyzeStreamError(error)
+        
+        // Erreurs récupérables connues
+        switch errorCode {
+        case -3821: // "Diffusion arrêtée par le système"
+            Logger.shared.log("💡 [UNIFIED_CAPTURE] Error -3821 is potentially recoverable (system stopped stream)")
+            return true
+        case -3812: // Paramètre invalide (peut être temporaire)
+            Logger.shared.log("💡 [UNIFIED_CAPTURE] Error -3812 might be recoverable (invalid parameter)")
+            return true
+        case -3801: // Stream configuration error (peut être temporaire)
+            Logger.shared.log("💡 [UNIFIED_CAPTURE] Error -3801 might be recoverable (configuration error)")
+            return true
+        default:
+            Logger.shared.log("⚠️ [UNIFIED_CAPTURE] Error \(errorCode) is not in recoverable list")
+            return false
+        }
+    }
+    
+    /// Tente une récupération automatique
+    private func attemptRecovery() {
+        isRecovering = true
+        retryCount += 1
+        
+        // Notifier l'application
+        onRecoveryAttempt?(retryCount)
+        
+        Task {
+            do {
+                // Attendre avant de retry
+                Logger.shared.log("⏳ [UNIFIED_CAPTURE] Waiting \(retryDelay)s before retry...")
+                try await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
+                
+                // Nettoyer l'ancien stream
+                await cleanupStream()
+                
+                // Tenter de redémarrer
+                Logger.shared.log("🔄 [UNIFIED_CAPTURE] Attempting restart...")
+                try await startDirectRecordingInternal()
+                
+                Logger.shared.log("✅ [UNIFIED_CAPTURE] Recovery successful!")
+                retryCount = 0 // Reset counter après succès
+                isRecovering = false
+                onRecoverySuccess?()
+                
+            } catch {
+                Logger.shared.log("❌ [UNIFIED_CAPTURE] Recovery attempt \(retryCount) failed: \(error)")
+                isRecovering = false
+                
+                // Si on a atteint le max, traiter comme erreur critique
+                if retryCount >= maxRetryCount {
+                    handleCriticalError(error)
+                } else {
+                    // Sinon, le prochain didStopWithError déclenchera un autre retry
+                    Logger.shared.log("🔄 [UNIFIED_CAPTURE] Will retry again if stream fails")
+                }
+            }
+        }
+    }
+    
+    /// Nettoie le stream actuel
+    private func cleanupStream() async {
+        if let stream = self.stream {
+            do {
+                try await stream.stopCapture()
+            } catch {
+                Logger.shared.log("⚠️ [UNIFIED_CAPTURE] Error stopping stream during cleanup: \(error)")
+            }
+        }
+        
+        self.stream = nil
+        self.recordingOutput = nil
         isRecording = false
+    }
+    
+    /// Gère les erreurs critiques non récupérables
+    private func handleCriticalError(_ error: Error) {
+        isRecording = false
+        isRecovering = false
+        retryCount = 0
+        
+        // Nettoyer
+        Task {
+            await cleanupStream()
+        }
+        
+        // Notifier l'application
+        onCriticalError?(error)
     }
 }
 
@@ -323,17 +758,36 @@ extension UnifiedScreenCapture: SCStreamOutput {
     }
     
     private func handleScreenSample(_ sampleBuffer: CMSampleBuffer) {
+        // Mettre à jour les statistiques de santé
+        updateSampleStats()
+        
         // On ignore les samples vidéo pour économiser les ressources
         // L'enregistrement est configuré pour produire une vidéo minimale
     }
     
     private func handleSystemAudioSample(_ sampleBuffer: CMSampleBuffer) {
-        Logger.shared.log("🔊 [UNIFIED_CAPTURE] System audio sample received")
-        // Le traitement audio est géré automatiquement par SCRecordingOutput
+        // Mettre à jour les statistiques de santé
+        updateSampleStats()
+        
+        // Log seulement occasionnellement pour éviter le spam
+        if sampleCount % 100 == 0 {
+            Logger.shared.log("🔊 [UNIFIED_CAPTURE] System audio active (\(sampleCount) samples)")
+        }
     }
     
     private func handleMicrophoneSample(_ sampleBuffer: CMSampleBuffer) {
-        Logger.shared.log("🎤 [UNIFIED_CAPTURE] Microphone sample received")
-        // Le traitement audio est géré automatiquement par SCRecordingOutput
+        // Mettre à jour les statistiques de santé
+        updateSampleStats()
+        
+        // Log seulement occasionnellement pour éviter le spam
+        if sampleCount % 100 == 0 {
+            Logger.shared.log("🎤 [UNIFIED_CAPTURE] Microphone active (\(sampleCount) samples)")
+        }
+    }
+    
+    /// Met à jour les statistiques de samples pour la surveillance de santé
+    private func updateSampleStats() {
+        lastSampleTime = Date()
+        sampleCount += 1
     }
 }

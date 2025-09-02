@@ -178,6 +178,30 @@ class StatusBarManager: ObservableObject {
                 if #available(macOS 15.0, *) {
                     Logger.shared.log("🚀 [RECORDING] Using unified capture (macOS 15+)")
                     let unified = UnifiedScreenCapture()
+                    
+                    // Configurer les callbacks de diagnostic
+                    unified.onCriticalError = { [weak self] error in
+                        Logger.shared.log("🚨 [RECORDING] Critical error received: \(error)")
+                        Task { @MainActor in
+                            self?.errorMessage = "Erreur critique d'enregistrement: \(error.localizedDescription)"
+                            self?.isRecording = false
+                        }
+                    }
+                    
+                    unified.onRecoveryAttempt = { [weak self] attemptNumber in
+                        Logger.shared.log("🔄 [RECORDING] Recovery attempt \(attemptNumber)")
+                        Task { @MainActor in
+                            self?.errorMessage = "Tentative de récupération \(attemptNumber)/3..."
+                        }
+                    }
+                    
+                    unified.onRecoverySuccess = { [weak self] in
+                        Logger.shared.log("✅ [RECORDING] Recovery successful!")
+                        Task { @MainActor in
+                            self?.errorMessage = nil
+                        }
+                    }
+                    
                     try await unified.startDirectRecording()
                     unifiedCapture = unified
                 } else {

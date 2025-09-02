@@ -25,6 +25,10 @@ class TeamsDetector: ObservableObject {
     private var monitoringTimer: Timer?
     private let checkInterval: TimeInterval = 2.0 // Check every 2 seconds
     
+    // Compteurs pour réduire la verbosité des logs
+    private var notRunningLogCounter = 0
+    private var detectionLogCounter = 0
+    
     // Teams bundle identifiers for different versions
     private let teamsBundleIdentifiers = [
         "com.microsoft.teams2",         // New Teams
@@ -72,7 +76,12 @@ class TeamsDetector: ObservableObject {
     private func detectActiveTeamsMeeting() -> Bool {
         // 1. Check if Teams is running
         guard isTeamsRunning() else {
-            Logger.shared.log("🔍 [TEAMS] Teams not running")
+            // Log seulement occasionnellement si Teams n'est pas en cours d'exécution
+            notRunningLogCounter += 1
+            if notRunningLogCounter >= 30 { // Log toutes les minutes (30 * 2s = 60s)
+                Logger.shared.log("🔍 [TEAMS] Teams not running")
+                notRunningLogCounter = 0
+            }
             return false
         }
         
@@ -85,38 +94,59 @@ class TeamsDetector: ObservableObject {
         // 4. Check microphone usage (audio confirmation)  
         let micInUse = isMicrophoneActive()
         
-        Logger.shared.log("🔍 [TEAMS] Detection results - Logs: \(logResult.description), Windows: \(hasMeetingWindow ? "✅" : "❌"), Mic: \(micInUse ? "✅" : "❌")")
+        // Log détaillé seulement si changement d'état détecté ou toutes les minutes
+        detectionLogCounter += 1
+        let shouldLogDetails = detectionLogCounter >= 30 // Toutes les minutes (30 * 2s = 60s)
+        
+        if shouldLogDetails {
+            Logger.shared.log("🔍 [TEAMS] Detection results - Logs: \(logResult.description), Windows: \(hasMeetingWindow ? "✅" : "❌"), Mic: \(micInUse ? "✅" : "❌")")
+            detectionLogCounter = 0
+        }
         
         // Decision logic based on log state
         switch logResult {
         case .explicitEnd:
             // Logs explicitly show meeting ended - trust this over other indicators
-            Logger.shared.log("🔍 [TEAMS] Explicit END in logs - meeting INACTIVE")
+            if shouldLogDetails {
+                Logger.shared.log("🔍 [TEAMS] Explicit END in logs - meeting INACTIVE")
+            }
             return false
             
         case .explicitStart:
             // Logs explicitly show meeting started - meeting is active
-            Logger.shared.log("🔍 [TEAMS] Explicit START in logs - meeting ACTIVE")
+            if shouldLogDetails {
+                Logger.shared.log("🔍 [TEAMS] Explicit START in logs - meeting ACTIVE")
+            }
             return true
             
         case .noEvents:
             // No log events found - use stricter window + audio detection
-            Logger.shared.log("🔍 [TEAMS] No log events found - using fallback detection")
+            if shouldLogDetails {
+                Logger.shared.log("🔍 [TEAMS] No log events found - using fallback detection")
+            }
             
             // Require BOTH window AND microphone for accurate detection
             // This prevents false positives when Teams stays open but meeting ended
             if hasMeetingWindow && micInUse {
-                Logger.shared.log("🔍 [TEAMS] Meeting window + mic active - meeting ACTIVE")
+                if shouldLogDetails {
+                    Logger.shared.log("🔍 [TEAMS] Meeting window + mic active - meeting ACTIVE")
+                }
                 return true
             } else if hasMeetingWindow {
-                Logger.shared.log("🔍 [TEAMS] Meeting window found but no mic activity - meeting POSSIBLY ENDED")
+                if shouldLogDetails {
+                    Logger.shared.log("🔍 [TEAMS] Meeting window found but no mic activity - meeting POSSIBLY ENDED")
+                }
                 return false
             } else if micInUse {
-                Logger.shared.log("🔍 [TEAMS] Mic active but no meeting window - meeting POSSIBLY ENDED")
+                if shouldLogDetails {
+                    Logger.shared.log("🔍 [TEAMS] Mic active but no meeting window - meeting POSSIBLY ENDED")
+                }
                 return false
             }
             
-            Logger.shared.log("🔍 [TEAMS] No clear indicators - meeting INACTIVE")
+            if shouldLogDetails {
+                Logger.shared.log("🔍 [TEAMS] No clear indicators - meeting INACTIVE")
+            }
             return false
         }
     }
@@ -315,13 +345,15 @@ class TeamsDetector: ObservableObject {
             for (index, line) in recentLines.enumerated() {
                 // Check for meeting start indicators
                 if line.contains("eventData: s::;m::1;a::1") {
-                    Logger.shared.log("🔍 [TEAMS] Meeting START event found at line \(index)")
+                    // Log seulement lors de la découverte d'événements importants
+                    Logger.shared.log("🔍 [TEAMS] Meeting START event found")
                     foundStartIndex = index
                 }
                 
                 // Check for meeting end indicators
                 if line.contains("eventData: s::;m::1;a::3") {
-                    Logger.shared.log("🔍 [TEAMS] Meeting END event found at line \(index)")
+                    // Log seulement lors de la découverte d'événements importants
+                    Logger.shared.log("🔍 [TEAMS] Meeting END event found")
                     foundEndIndex = index
                 }
             }
