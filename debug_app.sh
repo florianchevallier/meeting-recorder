@@ -39,18 +39,8 @@ rm -rf /Applications/MeetyDebug.app
 rm -rf "$BUILD_DIR/$APP_NAME.app"
 
 # 2. Reset complet des permissions
-echo "🗑️  Resetting all permissions for $BUNDLE_ID..."
-tccutil reset Microphone "$BUNDLE_ID" 2>/dev/null || true
-tccutil reset ScreenCapture "$BUNDLE_ID" 2>/dev/null || true
-tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
-tccutil reset SystemPolicyDocumentsFolder "$BUNDLE_ID" 2>/dev/null || true
-tccutil reset SystemPolicyDownloadsFolder "$BUNDLE_ID" 2>/dev/null || true
-tccutil reset SystemPolicyDesktopFolder "$BUNDLE_ID" 2>/dev/null || true
-
-# Reset état onboarding et préférences
-echo "🔄 Resetting app preferences..."
-defaults delete "$BUNDLE_ID" hasCompletedOnboarding 2>/dev/null || true
-defaults delete "$BUNDLE_ID" 2>/dev/null || true
+echo "🗑️  Resetting all permissions using fix_permissions.sh..."
+"$PROJECT_DIR/fix_permissions.sh"
 
 # 3. Build app bundle
 echo "🔨 Building fresh app bundle..."
