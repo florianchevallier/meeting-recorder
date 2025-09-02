@@ -206,13 +206,13 @@ class UnifiedScreenCapture: NSObject {
             try await stream.stopCapture()
             
             // 2. Attendre que SCRecordingOutput ait complètement fini d'écrire le fichier
-            Logger.shared.log("⏳ [UNIFIED_CAPTURE] Waiting for recording output to finish...")
-            await withCheckedContinuation { continuation in
-                self.recordingFinishedContinuation = continuation
-                
-                // Timeout de sécurité au cas où le delegate ne serait jamais appelé
-                Task {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 secondes
+        Logger.shared.log("⏳ [UNIFIED_CAPTURE] Waiting for recording output to finish...")
+        await withCheckedContinuation { continuation in
+            self.recordingFinishedContinuation = continuation
+
+            // Timeout de sécurité au cas où le delegate ne serait jamais appelé
+            Task {
+                    try? await Task.sleep(nanoseconds: 15_000_000_000) // 15 secondes
                     if let cont = self.recordingFinishedContinuation {
                         self.recordingFinishedContinuation = nil
                         cont.resume()
@@ -340,43 +340,76 @@ class UnifiedScreenCapture: NSObject {
     
     /// Convertit un fichier MOV en M4A (audio uniquement)
     func convertMOVToM4A(sourceURL: URL) async throws -> URL {
-        // Attendre un peu pour que le fichier soit complètement finalisé
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 secondes
-        
-        // Vérifier que le fichier existe et est lisible
+        // Attendre que le fichier soit réellement prêt (jusqu'à ~15s)
+        let maxWaitSeconds: Double = 15
+        let checkIntervalSeconds: Double = 0.5
+        let deadline = Date().addingTimeInterval(maxWaitSeconds)
+        var lastSize: UInt64 = 0
+        var stableCount = 0
+
         guard FileManager.default.fileExists(atPath: sourceURL.path) else {
             throw NSError(domain: "ConversionError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Fichier source introuvable : \(sourceURL.path)"])
         }
-        
+
+        Logger.shared.log("⏳ [CONVERSION] Waiting for MOV to stabilize (max \(Int(maxWaitSeconds))s)...")
+
+        while Date() < deadline {
+            // 1) Vérifier la stabilité de la taille du fichier
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
+               let sizeNumber = attrs[.size] as? NSNumber {
+                let currentSize = sizeNumber.uint64Value
+                if currentSize > 0 && currentSize == lastSize {
+                    stableCount += 1
+                } else {
+                    stableCount = 0
+                    lastSize = currentSize
+                }
+            }
+
+            // 2) Essayer de charger la durée (dépendance AVFoundation mentionnée dans l'erreur)
+            do {
+                let probeAsset = AVURLAsset(url: sourceURL)
+                let duration = try await probeAsset.load(.duration)
+                if duration.isValid && duration.seconds > 0 && stableCount >= 2 {
+                    break // prêt
+                }
+            } catch {
+                // Ignorer et réessayer jusqu'au timeout
+            }
+
+            try? await Task.sleep(nanoseconds: UInt64(checkIntervalSeconds * 1_000_000_000))
+        }
+
+        // Procéder à la conversion
         let asset = AVURLAsset(url: sourceURL)
-        
-        // Attendre que l'asset soit chargé
+
+        // Charger la durée (va lever si encore non prêt)
         let duration = try await asset.load(.duration)
         Logger.shared.log("📹 [CONVERSION] Asset loaded, duration: \(CMTimeGetSeconds(duration))s")
-        
+
         // Vérifier qu'il y a des pistes audio
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         guard !audioTracks.isEmpty else {
             throw NSError(domain: "ConversionError", code: 5, userInfo: [NSLocalizedDescriptionKey: "Aucune piste audio trouvée dans le fichier"])
         }
         Logger.shared.log("🎵 [CONVERSION] Found \(audioTracks.count) audio track(s)")
-        
+
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
             throw NSError(domain: "ConversionError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Impossible de créer la session d'exportation."])
         }
-        
+
         let outputURL = sourceURL.deletingPathExtension().appendingPathExtension("m4a")
-        
+
         if FileManager.default.fileExists(atPath: outputURL.path) {
             try FileManager.default.removeItem(at: outputURL)
         }
-        
+
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .m4a
-        
+
         Logger.shared.log("🔄 [CONVERSION] Starting export to: \(outputURL.lastPathComponent)")
         await exportSession.export()
-        
+
         switch exportSession.status {
         case .completed:
             Logger.shared.log("✅ [CONVERSION] Fichier converti avec succès en M4A : \(outputURL.lastPathComponent)")
