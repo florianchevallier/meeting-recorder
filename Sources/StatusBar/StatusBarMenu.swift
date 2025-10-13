@@ -67,24 +67,34 @@ struct StatusBarMenu: View {
     private var statusIndicator: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(statusBarManager.isRecording ? 
-                      .linearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom) :
-                      statusBarManager.isTeamsMeetingDetected ?
-                      .linearGradient(colors: [.blue, .cyan], startPoint: .top, endPoint: .bottom) :
-                      .linearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
+                .fill(
+                    statusBarManager.isStoppingRecording ?
+                    .linearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom) :
+                    statusBarManager.isRecording ?
+                    .linearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom) :
+                    statusBarManager.isTeamsMeetingDetected ?
+                    .linearGradient(colors: [.blue, .cyan], startPoint: .top, endPoint: .bottom) :
+                    .linearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
                 )
                 .frame(width: 8, height: 8)
-                .scaleEffect(statusBarManager.isRecording || statusBarManager.isTeamsMeetingDetected ? 1.2 : 1.0)
-                .animation(statusBarManager.isRecording ? 
-                          .easeInOut(duration: 1.0).repeatForever(autoreverses: true) :
-                          statusBarManager.isTeamsMeetingDetected ?
-                          .easeInOut(duration: 2.0).repeatForever(autoreverses: true) :
-                          .default, value: statusBarManager.isRecording || statusBarManager.isTeamsMeetingDetected)
+                .scaleEffect(statusBarManager.isRecording || statusBarManager.isStoppingRecording || statusBarManager.isTeamsMeetingDetected ? 1.2 : 1.0)
+                .animation(
+                    statusBarManager.isRecording ?
+                        .easeInOut(duration: 1.0).repeatForever(autoreverses: true) :
+                    statusBarManager.isStoppingRecording ?
+                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true) :
+                    statusBarManager.isTeamsMeetingDetected ?
+                        .easeInOut(duration: 2.0).repeatForever(autoreverses: true) :
+                        .default,
+                    value: statusBarManager.isRecording || statusBarManager.isStoppingRecording || statusBarManager.isTeamsMeetingDetected
+                )
             
-            Text(statusBarManager.isRecording ? L10n.statusRecordingShort : 
+            Text(statusBarManager.isStoppingRecording ? L10n.statusFinishingShort :
+                 statusBarManager.isRecording ? L10n.statusRecordingShort :
                  statusBarManager.isTeamsMeetingDetected ? L10n.statusTeamsShort : L10n.statusIdle)
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundColor(statusBarManager.isRecording ? .red : 
+                .foregroundColor(statusBarManager.isStoppingRecording ? .orange :
+                                statusBarManager.isRecording ? .red :
                                 statusBarManager.isTeamsMeetingDetected ? .blue : .secondary)
         }
         .padding(.horizontal, 8)
@@ -116,26 +126,31 @@ struct StatusBarMenu: View {
                         .animation(.linear(duration: 1.0), value: statusBarManager.recordingDuration)
                 }
                 
-                // Center button
-                Button(action: toggleRecording) {
-                    ZStack {
-                        Circle()
-                            .fill(statusBarManager.isRecording ? 
-                                  .linearGradient(colors: [.red.opacity(0.8), .red], startPoint: .top, endPoint: .bottom) :
-                                  .linearGradient(colors: [.blue.opacity(0.8), .blue], startPoint: .top, endPoint: .bottom)
-                            )
-                            .frame(width: 80, height: 80)
-                            .scaleEffect(isHovering ? 1.05 : 1.0)
-                        
-                        Image(systemName: statusBarManager.isRecording ? "stop.fill" : "record.circle")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundColor(.white)
-                            .scaleEffect(statusBarManager.isRecording ? 0.8 : 1.0)
+                if statusBarManager.isStoppingRecording {
+                    ProgressView()
+                        .controlSize(.large)
+                        .scaleEffect(1.2)
+                } else {
+                    Button(action: toggleRecording) {
+                        ZStack {
+                            Circle()
+                                .fill(statusBarManager.isRecording ? 
+                                      .linearGradient(colors: [.red.opacity(0.8), .red], startPoint: .top, endPoint: .bottom) :
+                                      .linearGradient(colors: [.blue.opacity(0.8), .blue], startPoint: .top, endPoint: .bottom)
+                                )
+                                .frame(width: 80, height: 80)
+                                .scaleEffect(isHovering ? 1.05 : 1.0)
+                            
+                            Image(systemName: statusBarManager.isRecording ? "stop.fill" : "record.circle")
+                                .font(.system(size: 28, weight: .medium))
+                                .foregroundColor(.white)
+                                .scaleEffect(statusBarManager.isRecording ? 0.8 : 1.0)
+                        }
                     }
+                    .buttonStyle(PlainButtonStyle())
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: statusBarManager.isRecording)
                 }
-                .buttonStyle(PlainButtonStyle())
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: statusBarManager.isRecording)
             }
             
             // Recording info
@@ -165,6 +180,14 @@ struct StatusBarMenu: View {
                     insertion: .scale.combined(with: .opacity),
                     removal: .opacity
                 ))
+            } else if statusBarManager.isStoppingRecording {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(L10n.statusFinishing)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
             } else {
                 VStack(spacing: 4) {
                     Text(statusBarManager.isTeamsMeetingDetected ? L10n.statusTeamsDetected : L10n.statusReady)
@@ -313,6 +336,8 @@ struct StatusBarMenu: View {
     
     // MARK: - Helper Methods
     private func toggleRecording() {
+        guard !statusBarManager.isStoppingRecording else { return }
+        
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             if statusBarManager.isRecording {
                 statusBarManager.stopRecording()

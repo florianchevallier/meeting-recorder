@@ -9,6 +9,7 @@ class UnifiedScreenCapture: NSObject {
     private var recordingStartTime: Date?
     private var outputURL: URL?
     private var recordingFinishedContinuation: CheckedContinuation<Void, Never>?
+    private var recordingFinalizationWatcher: Task<Void, Never>?
     
     // Queues dédiées pour chaque type de contenu
     private let screenQueue = DispatchQueue(label: "UnifiedCapture.ScreenQueue", qos: .userInitiated)
@@ -210,15 +211,62 @@ class UnifiedScreenCapture: NSObject {
         await withCheckedContinuation { continuation in
             self.recordingFinishedContinuation = continuation
 
-            // Timeout de sécurité au cas où le delegate ne serait jamais appelé
-            Task {
-                    try? await Task.sleep(nanoseconds: 15_000_000_000) // 15 secondes
-                    if let cont = self.recordingFinishedContinuation {
-                        self.recordingFinishedContinuation = nil
-                        cont.resume()
+            self.recordingFinalizationWatcher?.cancel()
+            self.recordingFinalizationWatcher = Task { [weak self] in
+                guard let self else { return }
+
+                let maxWait: TimeInterval = 120
+                let checkInterval: TimeInterval = 0.5
+                var elapsed: TimeInterval = 0
+                var lastSize: UInt64 = 0
+                var stableCount = 0
+
+                while !Task.isCancelled {
+                    if self.recordingFinishedContinuation == nil {
+                        return
+                    }
+
+                    try? await Task.sleep(nanoseconds: UInt64(checkInterval * 1_000_000_000))
+                    elapsed += checkInterval
+
+                    guard let fileURL = self.outputURL else { continue }
+
+                    if FileManager.default.fileExists(atPath: fileURL.path) {
+                        if let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+                           let sizeNumber = attrs[.size] as? NSNumber {
+                            let currentSize = sizeNumber.uint64Value
+                            if currentSize > 0 && currentSize == lastSize {
+                                stableCount += 1
+                            } else {
+                                stableCount = 0
+                                lastSize = currentSize
+                            }
+                        }
+
+                        if stableCount >= 3 {
+                            Logger.shared.log("⏳ [UNIFIED_CAPTURE] Fallback detected stable MOV file, resuming completion")
+                            if let cont = self.recordingFinishedContinuation {
+                                self.recordingFinishedContinuation = nil
+                                cont.resume()
+                            }
+                            return
+                        }
+                    }
+
+                    if elapsed >= maxWait {
+                        Logger.shared.log("⚠️ [UNIFIED_CAPTURE] Timeout waiting for recording output after \(Int(maxWait))s")
+                        if let cont = self.recordingFinishedContinuation {
+                            self.recordingFinishedContinuation = nil
+                            cont.resume()
+                        }
+                        return
                     }
                 }
             }
+        }
+
+        recordingFinalizationWatcher?.cancel()
+        recordingFinalizationWatcher = nil
             
             // 3. Une fois que la capture est VRAIMENT arrêtée, on peut retirer les outputs
             if let recordingOutput = self.recordingOutput {
@@ -347,13 +395,18 @@ class UnifiedScreenCapture: NSObject {
         var lastSize: UInt64 = 0
         var stableCount = 0
 
-        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
-            throw NSError(domain: "ConversionError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Fichier source introuvable : \(sourceURL.path)"])
-        }
-
         Logger.shared.log("⏳ [CONVERSION] Waiting for MOV to stabilize (max \(Int(maxWaitSeconds))s)...")
 
+        var fileReady = false
+
         while Date() < deadline {
+            guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                stableCount = 0
+                lastSize = 0
+                try? await Task.sleep(nanoseconds: UInt64(checkIntervalSeconds * 1_000_000_000))
+                continue
+            }
+
             // 1) Vérifier la stabilité de la taille du fichier
             if let attrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
                let sizeNumber = attrs[.size] as? NSNumber {
@@ -371,6 +424,7 @@ class UnifiedScreenCapture: NSObject {
                 let probeAsset = AVURLAsset(url: sourceURL)
                 let duration = try await probeAsset.load(.duration)
                 if duration.isValid && duration.seconds > 0 && stableCount >= 2 {
+                    fileReady = true
                     break // prêt
                 }
             } catch {
@@ -378,6 +432,10 @@ class UnifiedScreenCapture: NSObject {
             }
 
             try? await Task.sleep(nanoseconds: UInt64(checkIntervalSeconds * 1_000_000_000))
+        }
+
+        guard fileReady else {
+            throw NSError(domain: "ConversionError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Fichier source introuvable ou incomplet : \(sourceURL.path)"])
         }
 
         // Procéder à la conversion
@@ -736,6 +794,9 @@ extension UnifiedScreenCapture: SCStreamDelegate {
         
         self.stream = nil
         self.recordingOutput = nil
+        recordingFinalizationWatcher?.cancel()
+        recordingFinalizationWatcher = nil
+        recordingFinishedContinuation = nil
         isRecording = false
     }
     
@@ -765,6 +826,9 @@ extension UnifiedScreenCapture: SCRecordingOutputDelegate {
     
     func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
         Logger.shared.log("✅ [UNIFIED_CAPTURE] Recording output finished successfully - file is now ready")
+        
+        recordingFinalizationWatcher?.cancel()
+        recordingFinalizationWatcher = nil
         
         // Signaler que le fichier est complètement écrit sur le disque
         if let continuation = recordingFinishedContinuation {

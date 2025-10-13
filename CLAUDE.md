@@ -2,11 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# MeetingRecorder - macOS Meeting Recording Application
+# MeetingRecorder (Meety) - macOS Meeting Recording Application
 
 ## Project Overview
 Native macOS status bar application that automatically records meetings by capturing system audio and microphone, with automatic Teams meeting detection. The application runs entirely from the status bar and produces high-quality M4A files.
 
+**Brand Name**: **Meety** (user-facing, see [Logger.swift:12](Sources/Utils/Logger.swift#L12))
 **Current Status: MVP Complete** ✅ - All core features are production-ready.
 
 ## Essential Development Commands
@@ -34,11 +35,14 @@ swift test
 ### Debugging & Troubleshooting
 ```bash
 # View real-time application logs
-tail -f ~/Documents/MeetingRecorder_debug.log
+# NOTE: Actual filename depends on bundle ID (Logger.swift:12-13)
+tail -f ~/Documents/Meety_debug.log          # Production
+tail -f ~/Documents/MeetyDev_debug.log       # Development
 
 # Reset system permissions for testing
 tccutil reset Microphone com.meetingrecorder.app
 tccutil reset ScreenCapture com.meetingrecorder.app
+tccutil reset SystemPolicyDesktopFolder com.meetingrecorder.app  # Documents access
 
 # Check generated recording files
 ls -la ~/Documents/meeting_*.m4a
@@ -81,10 +85,11 @@ The application follows a modular MVVM architecture with clear separation of con
 ## Critical Technical Details
 
 ### macOS Version Compatibility
-- **macOS 12.3+**: Required for ScreenCaptureKit
-- **macOS 13.0+**: Enhanced audio configuration options
-- **macOS 14.0+**: Modern permission handling for calendar/accessibility
-- **macOS 15.0+**: Unified capture API with direct recording (UnifiedScreenCapture)
+- **macOS 14.0+**: **ACTUAL minimum** (see [Package.swift:10](Package.swift#L10) - `platforms: [.macOS(.v14)]`)
+- **macOS 13.0+**: ScreenCaptureKit system audio capture available via legacy path
+- **macOS 15.0+**: UnifiedScreenCapture with direct .mov recording and built-in recovery
+
+**Important**: Despite ScreenCaptureKit being available since macOS 12.3, this project requires macOS 14.0+ as declared in Package.swift.
 
 ### Audio Configuration
 ```swift
@@ -100,24 +105,65 @@ format = 48kHz stereo PCM
 ```
 
 ### Recording Architecture Pattern
-The application uses a dual-path recording approach:
-1. **Legacy path (macOS < 15)**: Separate SystemAudioCapture + MicrophoneCapture → AudioMixer combines → M4A export
-2. **Unified path (macOS 15+)**: UnifiedScreenCapture records directly to .mov → converts to M4A
+The application uses a dual-path recording approach coordinated by StatusBarManager:
 
-**StatusBarManager coordinates** both approaches transparently based on OS version detection.
+#### macOS 15+ Path ([StatusBarManager.swift:188-216](Sources/StatusBar/StatusBarManager.swift#L188))
+```swift
+if #available(macOS 15.0, *) {
+    let unified = UnifiedScreenCapture()
+    try await unified.startDirectRecording()  // Direct to .mov with SCRecordingOutput
+    unifiedCapture = unified
+}
+```
+- Uses `SCRecordingOutput` for direct file writing
+- Built-in microphone capture via `configuration.captureMicrophone = true`
+- Automatic error recovery for errors -3821, -3812, -3801 ([UnifiedScreenCapture.swift:499-519](Sources/Audio/UnifiedScreenCapture.swift#L499))
+- Health monitoring every 5 seconds ([UnifiedScreenCapture.swift:301-383](Sources/Audio/UnifiedScreenCapture.swift#L301))
+- Converts `.mov` → `.m4a` after recording ([UnifiedScreenCapture.swift:390](Sources/Audio/UnifiedScreenCapture.swift#L390))
+
+#### macOS < 15 Path ([StatusBarManager.swift:218-232](Sources/StatusBar/StatusBarManager.swift#L218))
+```swift
+try micRecorder.startRecording()  // SimpleMicrophoneRecorder (AVAudioEngine)
+if #available(macOS 13.0, *) {
+    let systemCapture = SystemAudioCapture()  // ScreenCaptureKit
+    try await systemCapture.startRecording()
+}
+```
+- Separate `.wav` files for each source
+- Combined via `AudioMixer.mixAudioFiles()` ([AudioMixer.swift:6](Sources/Audio/AudioMixer.swift#L6))
+- Automatic cleanup of temporary files ([AudioMixer.swift:58-65](Sources/Audio/AudioMixer.swift#L58))
+
+**StatusBarManager** acts as the central coordinator, transparently switching between approaches.
 
 ### Teams Detection Integration
+
+**TeamsDetector** ([TeamsDetector.swift:19](Sources/Calendar/TeamsDetector.swift#L19)) uses a multi-signal approach:
+
 ```swift
-// Teams status change handling in StatusBarManager
+// Three detection signals (TeamsDetector.swift:90-102)
+let logResult = environment.readLogState()          // Parse Teams log files
+let hasMeetingWindow = environment.hasMeetingWindow()  // Accessibility API
+let micInUse = environment.isMicrophoneActive()     // System audio monitoring
+```
+
+**Decision Logic** ([TeamsMeetingDecider.swift](Sources/Calendar/TeamsMeetingDecider.swift)):
+- **Explicit START** in logs → meeting active
+- **Explicit END** in logs → meeting inactive
+- **Fallback**: Window + mic active → meeting active, otherwise → inactive
+
+**Communication** ([StatusBarManager.swift:44-55](Sources/StatusBar/StatusBarManager.swift#L44)):
+```swift
 NotificationCenter.default.addObserver(
     forName: .teamsMeetingStatusChanged,
     object: nil,
     queue: .main
 ) { [weak self] notification in
-    // Auto-recording logic triggered here
+    guard let isActive = notification.userInfo?["isActive"] as? Bool else { return }
     self?.handleTeamsMeetingStatusChange(isActive: isActive)
 }
 ```
+
+Timer-based monitoring every 2 seconds ([TeamsDetector.swift:24](Sources/Calendar/TeamsDetector.swift#L24))
 
 ## Permission Requirements
 
@@ -132,13 +178,16 @@ The application requires four system permissions, all managed by PermissionManag
 
 ## Key Code Locations
 
-| Function | File:Line | Purpose |
-|----------|-----------|---------|
-| `startRecording()` | StatusBarManager.swift:198 | Main recording workflow coordinator |
-| `mixAudioFiles()` | AudioMixer.swift:6 | Audio mixing and M4A export logic |
-| `handleTeamsMeetingStatusChange()` | StatusBarManager.swift:60 | Auto-recording decision logic |
-| `checkAllPermissions()` | PermissionManager.swift:20 | Complete permission validation |
-| `setupTeamsDetection()` | StatusBarManager.swift:41 | Teams monitoring initialization |
+| Function | File:Line | Purpose | Implementation Detail |
+|----------|-----------|---------|----------------------|
+| `startRecording()` | [StatusBarManager.swift:163](Sources/StatusBar/StatusBarManager.swift#L163) | Main recording workflow coordinator | Version-aware pipeline selection |
+| `startDirectRecording()` | [UnifiedScreenCapture.swift:47](Sources/Audio/UnifiedScreenCapture.swift#L47) | macOS 15+ unified capture | Direct .mov with recovery |
+| `mixAudioFiles()` | [AudioMixer.swift:6](Sources/Audio/AudioMixer.swift#L6) | Legacy audio mixing and M4A export | Combines mic + system audio |
+| `handleTeamsMeetingStatusChange()` | [StatusBarManager.swift:58](Sources/StatusBar/StatusBarManager.swift#L58) | Auto-recording decision logic | Triggered by NotificationCenter |
+| `detectActiveTeamsMeeting()` | [TeamsDetector.swift:90](Sources/Calendar/TeamsDetector.swift#L90) | Multi-signal Teams detection | Logs + window + mic analysis |
+| `checkAllPermissions()` | [PermissionManager.swift:20](Sources/Permissions/PermissionManager.swift#L20) | Complete permission validation | Real functional tests |
+| `testWindowAccess()` | [PermissionManager.swift:141](Sources/Permissions/PermissionManager.swift#L141) | Accessibility permission test | Uses Finder AXUIElement |
+| `convertMOVToM4A()` | [UnifiedScreenCapture.swift:390](Sources/Audio/UnifiedScreenCapture.swift#L390) | Post-recording conversion | Waits for file stability |
 
 ## Application Lifecycle
 
@@ -150,32 +199,268 @@ The application requires four system permissions, all managed by PermissionManag
 
 ## Logging and Debugging
 
-The application uses `Logger.shared` throughout for consistent logging:
-- All logs written to `~/Documents/MeetingRecorder_debug.log`
-- Structured logging with component prefixes: `[AUDIO_MIXER]`, `[TEAMS]`, `[RECORDING]`
-- Real-time log monitoring recommended during development
+The application uses `Logger.shared` ([Logger.swift:4](Sources/Utils/Logger.swift#L4)) throughout for consistent logging:
+
+**Log File Location** ([Logger.swift:11-13](Sources/Utils/Logger.swift#L11)):
+```swift
+let bundleId = Bundle.main.bundleIdentifier ?? "com.meetingrecorder.unknown"
+let appName = bundleId.contains(".dev") ? "MeetyDev" : "Meety"
+// Output: ~/Documents/Meety_debug.log OR ~/Documents/MeetyDev_debug.log
+```
+
+**Structured Logging Convention**:
+- Emoji prefixes: `🎬` Recording, `🔍` Teams, `🎤` Mic, `🔊` System, `❌` Error, `✅` Success, `⚠️` Warning
+- Component tags: `[RECORDING]`, `[TEAMS]`, `[AUDIO_MIXER]`, `[UNIFIED_CAPTURE]`, `[HEALTH_MONITOR]`
+- Timestamp format: `yyyy-MM-dd HH:mm:ss.SSS` ([Logger.swift:45](Sources/Utils/Logger.swift#L45))
+- Real-time monitoring: `tail -f ~/Documents/Meety_debug.log`
+
+**Example Log Output**:
+```
+[2025-01-27 10:30:45.123] 🔍 [TEAMS] Detection results - Logs: START, Windows: ✅, Mic: ✅
+[2025-01-27 10:30:45.456] 🎬 [AUTO] Starting automatic recording for Teams meeting
+[2025-01-27 10:30:46.012] 🚀 [RECORDING] Using unified capture (macOS 15+)
+[2025-01-27 10:30:47.234] ✅ [UNIFIED_CAPTURE] Unified recording started
+```
 
 ## Testing Strategy
 
-- **Manual Testing**: Primary validation method using debug logging
-- **Permission Testing**: Use tccutil reset commands for repeated testing
-- **Recording Validation**: Check output file quality and metadata
-- **Teams Detection**: Test with actual Teams meetings and window states
+### Unit Tests ([Tests/MeetingRecorderTests/](Tests/))
+- `TeamsDetectorTests.swift` - Teams detection logic with mock environments
+- `TeamsMeetingDeciderTests.swift` - Multi-signal decision tree validation
+- `TeamsWindowClassifierTests.swift` - Window title pattern matching
+- **Run**: `swift test`
+
+### Manual Testing Workflow
+1. **Build**: `swift build`
+2. **Run**: `./.build/debug/MeetingRecorder` (NEVER use `swift run`)
+3. **Monitor Logs**: `tail -f ~/Documents/Meety_debug.log`
+4. **Join Real Teams Meeting**: Test auto-detection and recording
+5. **Verify Output**: `ls -la ~/Documents/meeting_*.m4a`
+6. **Check Audio Quality**: Play M4A file with QuickTime/VLC
+
+### Permission Testing
+```bash
+# Reset all permissions for clean testing
+tccutil reset Microphone com.meetingrecorder.app
+tccutil reset ScreenCapture com.meetingrecorder.app
+tccutil reset SystemPolicyDesktopFolder com.meetingrecorder.app
+
+# Note: Accessibility requires manual toggle in System Preferences
+```
+
+### Debugging Common Issues
+
+**Recording not starting**:
+- Check: `❌ [RECORDING] Missing microphone permission` in logs
+- Verify: All permissions granted via PermissionManager
+
+**Teams not detected**:
+- Check: `🔍 [TEAMS]` logs (every 2 seconds when verbose)
+- Verify: Accessibility permission granted
+- Test: Manual trigger with `TeamsDetector.checkNow()`
+
+**Audio quality issues**:
+- Check: Sample rate consistency (must be 48kHz)
+- Look for: `❌ [AUDIO_MIXER]` errors during mixing
+- Verify: Both source files exist before mixing
 
 ## Common Development Patterns
 
-- **Async/Await**: Used throughout for audio operations and permission requests
-- **@MainActor**: UI updates and state management confined to main thread
-- **ObservableObject**: StatusBarManager and PermissionManager published state
-- **NotificationCenter**: Teams detection events and cross-component communication
-- **Error Handling**: Comprehensive with user-friendly messages via localization
+### Concurrency
+- **@MainActor Classes**: StatusBarManager, TeamsDetector for UI thread safety
+- **Async/Await Pattern**: Method on @MainActor → `Task {}` → `await MainActor.run {}` for UI updates
+- **Example** ([StatusBarManager.swift:163-241](Sources/StatusBar/StatusBarManager.swift#L163)):
+```swift
+func startRecording() {  // On @MainActor
+    Task {  // Async work off main thread
+        try await unified.startDirectRecording()
+        await MainActor.run {  // UI updates back on main
+            isRecording = true
+            updateStatusBarIcon()
+        }
+    }
+}
+```
+
+### State Management
+- **ObservableObject**: StatusBarManager, PermissionManager with `@Published` properties
+- **SwiftUI Integration**: StatusBarMenu observes StatusBarManager state
+- **Cross-Component**: NotificationCenter for Teams detection events
+
+### Error Handling
+- **Localized Errors**: All user-facing errors via `L10n.errorRecordingFailed()`
+- **Structured Logging**: `Logger.shared.log()` with emoji and component tags
+- **Recovery Patterns**: UnifiedScreenCapture auto-retry for recoverable errors ([UnifiedScreenCapture.swift:719-783](Sources/Audio/UnifiedScreenCapture.swift#L719))
+
+### Audio Quality Patterns
+- **bufferListNoCopy**: Use `AVAudioPCMBuffer(bufferListNoCopy:)` to avoid distortion ([SystemAudioCapture.swift:213-217](Sources/Audio/SystemAudioCapture.swift#L213))
+- **File Stability**: Wait for file size stability before conversion ([UnifiedScreenCapture.swift:397-408](Sources/Audio/UnifiedScreenCapture.swift#L397))
+- **Sample Rate Consistency**: Always 48kHz across all audio sources
 
 ## Localization
 
 - **Languages**: English (default), French
 - **Location**: `Sources/Resources/[lang].lproj/Localizable.strings`
-- **Usage**: `L10n.keyName` pattern throughout codebase
+- **Usage**: `L10n.keyName` pattern throughout codebase ([Localization.swift:29-110](Sources/Utils/Localization.swift#L29))
 - **Key Areas**: Permission descriptions, error messages, UI labels
+- **Adding Strings**:
+  1. Add property to `L10n` extension in Localization.swift
+  2. Add key/value to `en.lproj/Localizable.strings`
+  3. Add key/value to `fr.lproj/Localizable.strings`
+
+## Advanced Topics
+
+### Health Monitoring System
+
+UnifiedScreenCapture includes comprehensive health monitoring ([UnifiedScreenCapture.swift:301-383](Sources/Audio/UnifiedScreenCapture.swift#L301)):
+
+```swift
+// Checks every 5 seconds
+private func performHealthCheck() {
+    let timeSinceLastSample = now.timeIntervalSince(lastSampleTime)
+    if timeSinceLastSample > 10.0 {
+        Logger.shared.log("🩺 [HEALTH_MONITOR] ⚠️ No samples for \(timeSinceLastSample)s")
+        checkStreamHealth()  // Diagnose: mic disconnected, display changes, etc.
+    }
+}
+```
+
+**What it checks**:
+- Sample reception (audio/video streams)
+- Microphone connection status
+- Display configuration changes
+- Memory usage and thermal state
+- Competing applications (Zoom, Teams, Chrome)
+
+### Error Recovery System
+
+Automatic recovery for stream errors ([UnifiedScreenCapture.swift:499-817](Sources/Audio/UnifiedScreenCapture.swift#L499)):
+
+**Recoverable Errors**:
+- `-3821`: System stopped stream (usually system sleep/display change)
+- `-3812`: Invalid parameter (temporary configuration issue)
+- `-3801`: Stream configuration error
+
+**Recovery Process**:
+1. Detect error via `SCStreamDelegate`
+2. Classify as recoverable/non-recoverable
+3. Wait 2 seconds (exponential backoff)
+4. Clean up old stream
+5. Recreate with saved configuration
+6. Retry up to 3 times
+7. If all fail, notify user via callback
+
+**Diagnostics** ([UnifiedScreenCapture.swift:521-717](Sources/Audio/UnifiedScreenCapture.swift#L521)):
+- System state check (memory, uptime, thermal)
+- Permission validation (screen recording, microphone)
+- Resource availability (disk space, CPU)
+- Display configuration comparison
+- Competing app detection
+
+### MOV to M4A Conversion
+
+Critical for macOS 15+ ([UnifiedScreenCapture.swift:390-485](Sources/Audio/UnifiedScreenCapture.swift#L390)):
+
+```swift
+// Wait for file stability (max 15 seconds)
+while Date() < deadline {
+    if currentSize > 0 && currentSize == lastSize {
+        stableCount += 1
+        if stableCount >= 2 { break }  // Stable for 1 second
+    }
+    try? await Task.sleep(nanoseconds: UInt64(checkIntervalSeconds * 1_000_000_000))
+}
+```
+
+**Why stability check is critical**:
+- `SCRecordingOutput` writes asynchronously
+- File may exist but still being written
+- AVAssetExportSession fails on incomplete files
+- Need 2 consecutive checks with same size
+
+### Permission Testing Implementation
+
+Real functional tests instead of status checks ([PermissionManager.swift:141-174](Sources/Permissions/PermissionManager.swift#L141)):
+
+**Accessibility Test**:
+```swift
+// Test if we can access Finder windows
+let finderApp = NSRunningApplication.runningApplications(
+    withBundleIdentifier: "com.apple.finder"
+).first
+let appElement = AXUIElementCreateApplication(pid)
+var windowsValue: CFTypeRef?
+let result = AXUIElementCopyAttributeValue(
+    appElement, kAXWindowsAttribute as CFString, &windowsValue
+)
+return result == .success  // Actually try to read, don't just check status
+```
+
+**Screen Recording Test** (macOS Sequoia 2024+):
+```swift
+// Try to get shareable content - only works if permission granted
+let content = try await SCShareableContent.excludingDesktopWindows(
+    false, onScreenWindowsOnly: true
+)
+return !content.displays.isEmpty
+```
+
+### Teams Detection Deep Dive
+
+Multi-signal decision system ([TeamsMeetingDecider.swift](Sources/Calendar/TeamsMeetingDecider.swift)):
+
+**Signal Priority**:
+1. **Log Events** (highest): Explicit START/END markers
+2. **Window + Mic**: Both required for fallback detection
+3. **Window Only**: Ambiguous - could be ended meeting
+4. **Mic Only**: Ambiguous - could be other app
+
+**Environment Abstraction** ([TeamsDetectionEnvironment.swift](Sources/Calendar/TeamsDetectionEnvironment.swift)):
+- Allows testing with mock environments
+- Production implementation uses real Accessibility API
+- Test implementation uses controlled state
+
+## Important Implementation Notes
+
+### Audio Buffer Management
+
+**Critical Pattern** ([SystemAudioCapture.swift:213-217](Sources/Audio/SystemAudioCapture.swift#L213)):
+```swift
+// ✅ CORRECT - bufferListNoCopy avoids distortion
+guard let audioBuffer = AVAudioPCMBuffer(
+    pcmFormat: format,
+    bufferListNoCopy: audioBufferList.unsafePointer
+) else { return }
+
+// ❌ WRONG - CMSampleBufferCopyPCMDataIntoAudioBufferList causes distortion
+```
+
+**Why**: Copying PCM data introduces audio artifacts. Direct buffer access required.
+
+### StatusBar App Requirements
+
+**Critical Setup** ([MeetingRecorderApp.swift:28-30](Sources/MeetingRecorderApp.swift#L28)):
+```swift
+NSApp.windows.forEach { $0.orderOut(nil) }  // Hide all windows
+NSApp.setActivationPolicy(.accessory)  // No dock icon, status bar only
+```
+
+**Why direct executable required**:
+- `swift run` doesn't properly set activation policy
+- Status bar items don't appear correctly
+- Permission dialogs may not show
+
+### File Naming Conventions
+
+**Output Files**:
+- Format: `meeting_YYYY-MM-DD_HH-mm-ss.m4a` ([AudioMixer.swift:24](Sources/Audio/AudioMixer.swift#L24))
+- Unified: `meeting_unified_YYYY-MM-DD_HH-mm-ss.mov` → `.m4a` ([UnifiedScreenCapture.swift:106](Sources/Audio/UnifiedScreenCapture.swift#L106))
+- Location: `~/Documents/` (user's Documents folder)
+
+**Temporary Files**:
+- Microphone: `recording_{timestamp}.wav` ([MicrophoneCapture.swift:35](Sources/Audio/MicrophoneCapture.swift#L35))
+- System Audio: `system_audio_{timestamp}.wav` ([SystemAudioCapture.swift:67](Sources/Audio/SystemAudioCapture.swift#L67))
+- Auto-deleted after mixing ([AudioMixer.swift:58-65](Sources/Audio/AudioMixer.swift#L58))
 
 # 📋 MeetingRecorder - Project Index
 

@@ -10,6 +10,7 @@ class StatusBarManager: ObservableObject {
     @Published var recordingDuration: TimeInterval = 0
     @Published var errorMessage: String?
     @Published var isTeamsMeetingDetected = false
+    @Published var isStoppingRecording = false
     
     let permissionManager = PermissionManager.shared
     private let micRecorder = SimpleMicrophoneRecorder()
@@ -95,7 +96,9 @@ class StatusBarManager: ObservableObject {
         
         let description: String
         
-        if isRecording {
+        if isStoppingRecording {
+            description = L10n.statusFinishing
+        } else if isRecording {
             description = L10n.statusRecording
         } else if isTeamsMeetingDetected {
             description = L10n.statusTeamsDetected
@@ -106,7 +109,9 @@ class StatusBarManager: ObservableObject {
         // Fallback vers les icônes système (gardons l'existant qui fonctionne bien)
         let iconName: String
         
-        if isRecording {
+        if isStoppingRecording {
+            iconName = "hourglass.circle"
+        } else if isRecording {
             iconName = "record.circle.fill"
         } else if isTeamsMeetingDetected {
             iconName = "video.circle"
@@ -157,6 +162,11 @@ class StatusBarManager: ObservableObject {
     
     func startRecording() {
         Logger.shared.log("🎬 [RECORDING] User requested recording start")
+        
+        guard !isStoppingRecording else {
+            Logger.shared.log("⚠️ [RECORDING] Stop in progress - start request ignored")
+            return
+        }
         
         Task {
             do {
@@ -223,6 +233,7 @@ class StatusBarManager: ObservableObject {
                 
                 await MainActor.run {
                     isRecording = true
+                    isStoppingRecording = false
                     errorMessage = nil
                     updateStatusBarIcon()
                     startDurationUpdater()
@@ -240,75 +251,88 @@ class StatusBarManager: ObservableObject {
     }
     
     func stopRecording() {
+        guard !isStoppingRecording else {
+            Logger.shared.log("⚠️ [RECORDING] Stop already in progress")
+            return
+        }
+        
         Logger.shared.log("🛑 [RECORDING] User requested recording stop")
         
-        Task {
+        isStoppingRecording = true
+        stopDurationUpdater()
+        isRecording = false
+        updateStatusBarIcon()
+        
+        Task { [weak self] in
+            guard let self else { return }
             var finalFileURL: URL?
             
+            defer {
+                Task { @MainActor in
+                    self.isRecording = false
+                    self.recordingDuration = 0
+                    self.isStoppingRecording = false
+                    self.updateStatusBarIcon()
+                }
+            }
+            
             // ✨ Utiliser l'API unifiée sur macOS 15+
-            if #available(macOS 15.0, *), let unified = unifiedCapture as? UnifiedScreenCapture {
+            if #available(macOS 15.0, *), let unified = self.unifiedCapture as? UnifiedScreenCapture {
                 Logger.shared.log("🚀 [RECORDING] Stopping unified capture")
                 if let movURL = await unified.stopRecording() {
                     do {
                         Logger.shared.log("🎵 [RECORDING] Converting MOV to M4A...")
                         finalFileURL = try await unified.convertMOVToM4A(sourceURL: movURL)
                         
-                        // Optionally remove the original MOV file to save space
                         try FileManager.default.removeItem(at: movURL)
                         Logger.shared.log("🗑️ [RECORDING] Original MOV file removed")
                     } catch {
                         Logger.shared.log("❌ [RECORDING] MOV to M4A conversion failed: \(error)")
-                        // Keep the original MOV file if conversion fails
                         finalFileURL = movURL
+                        await MainActor.run {
+                            self.errorMessage = L10n.errorRecordingFailed(error.localizedDescription)
+                        }
                     }
                 }
-                unifiedCapture = nil
+                await MainActor.run {
+                    self.unifiedCapture = nil
+                }
             } else {
-                // Fallback sur l'ancienne approche pour macOS < 15
                 Logger.shared.log("🔄 [RECORDING] Stopping legacy approach")
                 
                 var microphoneFileURL: URL?
                 var systemAudioFileURL: URL?
                 
-                // Arrêter l'enregistrement microphone
-                microphoneFileURL = micRecorder.stopRecording()
+                microphoneFileURL = self.micRecorder.stopRecording()
                 
-                // Arrêter la capture audio système si elle est active
-                if #available(macOS 13.0, *), let systemCapture = systemAudioCapture as? SystemAudioCapture {
+                if #available(macOS 13.0, *), let systemCapture = self.systemAudioCapture as? SystemAudioCapture {
                     systemAudioFileURL = await systemCapture.stopRecording()
                     await MainActor.run {
                         self.systemAudioCapture = nil
                     }
                 }
                 
-                // Fusionner les fichiers audio en M4A
                 do {
                     Logger.shared.log("🎵 [RECORDING] Démarrage de la fusion audio...")
                     finalFileURL = try await AudioMixer.mixAudioFiles(microphoneURL: microphoneFileURL, systemAudioURL: systemAudioFileURL)
                 } catch {
                     Logger.shared.log("❌ [RECORDING] Erreur lors de la fusion audio: \(error)")
                     await MainActor.run {
-                        errorMessage = L10n.errorAudioMixingFailed(error.localizedDescription)
+                        self.errorMessage = L10n.errorAudioMixingFailed(error.localizedDescription)
                     }
                 }
             }
             
-            await MainActor.run {
-                isRecording = false
-                recordingDuration = 0
-                updateStatusBarIcon()
-                stopDurationUpdater()
-            }
-            
-            // Afficher le résultat final
             if let finalURL = finalFileURL {
                 Logger.shared.log("✅ [RECORDING] Enregistrement final sauvegardé: \(finalURL.lastPathComponent)")
             } else {
                 Logger.shared.log("⚠️ [RECORDING] Aucun fichier généré")
             }
+            
+            Logger.shared.log("✅ [RECORDING] Stop sequence completed")
         }
         
-        Logger.shared.log("✅ [RECORDING] Recording stopped")
+        Logger.shared.log("✅ [RECORDING] Recording stop requested")
     }
     
     private var durationTimer: Timer?
@@ -413,6 +437,7 @@ class StatusBarManager: ObservableObject {
             }
         }
         systemAudioCapture = nil
+        isStoppingRecording = false
         
         statusItem = nil
         popover = nil
