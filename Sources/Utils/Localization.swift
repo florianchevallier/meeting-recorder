@@ -37,8 +37,10 @@ extension L10n {
     static let statusTeamsDetected = "status.teams_detected".localized
     static let statusTeamsActive = "status.teams_active".localized
     static let statusIdle = "status.idle".localized
+    static let statusFinishing = "status.finishing".localized
     static let statusRecordingShort = "status.recording_short".localized
     static let statusTeamsShort = "status.teams_short".localized
+    static let statusFinishingShort = "status.finishing_short".localized
     
     // MARK: - Recording Controls
     static let recordStart = "record.start".localized

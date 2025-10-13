@@ -10,8 +10,10 @@
 "status.teams_detected" = "Teams meeting detected";
 "status.teams_active" = "Teams meeting active";
 "status.idle" = "IDLE";
+"status.finishing" = "Finalizing recording...";
 "status.recording_short" = "REC";
 "status.teams_short" = "TEAMS";
+"status.finishing_short" = "FINISH";
 
 // MARK: - Recording Controls
 "record.start" = "Start Recording";

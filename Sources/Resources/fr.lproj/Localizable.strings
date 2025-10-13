@@ -10,8 +10,10 @@
 "status.teams_detected" = "Réunion Teams détectée";
 "status.teams_active" = "Réunion Teams active";
 "status.idle" = "IDLE";
+"status.finishing" = "Finalisation de l'enregistrement...";
 "status.recording_short" = "REC";
 "status.teams_short" = "TEAMS";
+"status.finishing_short" = "FIN";
 
 // MARK: - Recording Controls
 "record.start" = "Démarrer l'enregistrement";
