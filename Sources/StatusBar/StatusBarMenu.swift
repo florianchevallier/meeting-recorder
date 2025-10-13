@@ -2,9 +2,10 @@ import SwiftUI
 
 struct StatusBarMenu: View {
     @ObservedObject var statusBarManager: StatusBarManager
+    @ObservedObject var settingsManager = SettingsManager.shared
     @State private var isHovering = false
     @State private var audioLevel: Double = 0.0
-    
+
     init(statusBarManager: StatusBarManager) {
         self.statusBarManager = statusBarManager
     }
@@ -19,7 +20,10 @@ struct StatusBarMenu: View {
             
             // Error Section (if any)
             errorSection
-            
+
+            // Transcription Section (if active)
+            transcriptionSection
+
             // Quick Actions Section
             quickActionsSection
         }
@@ -237,46 +241,101 @@ struct StatusBarMenu: View {
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: statusBarManager.isRecording)
     }
     
+    // MARK: - Transcription Section
+    @ViewBuilder
+    private var transcriptionSection: some View {
+        if statusBarManager.transcriptionManager.state.isTranscribing {
+            VStack(spacing: 0) {
+                Divider()
+                    .padding(.horizontal, 20)
+
+                HStack(spacing: 12) {
+                    // Animated icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.purple.opacity(0.1))
+                            .frame(width: 32, height: 32)
+
+                        Image(systemName: "waveform.circle")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.purple)
+                            .symbolEffect(.pulse, options: .repeating)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Transcription en cours...")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.primary)
+
+                        Text(statusBarManager.transcriptionManager.state.progress)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    // Status indicator
+                    if statusBarManager.transcriptionManager.state.status == .running {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.8)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.purple.opacity(0.05))
+            }
+        } else if let error = statusBarManager.transcriptionManager.state.error {
+            VStack(spacing: 0) {
+                Divider()
+                    .padding(.horizontal, 20)
+
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.orange)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Erreur de transcription")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.primary)
+
+                        Text(error)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.orange.opacity(0.05))
+            }
+        }
+    }
+
     // MARK: - Quick Actions Section
     private var quickActionsSection: some View {
         VStack(spacing: 0) {
             Divider()
                 .padding(.horizontal, 20)
-            
+
             HStack(spacing: 0) {
-                QuickActionButton(
-                    icon: statusBarManager.isAutoRecordingEnabled() ? "video.fill" : "video.slash",
-                    title: L10n.actionAutoStart,
-                    action: { statusBarManager.toggleAutoRecording() },
-                    isActive: statusBarManager.isAutoRecordingEnabled()
-                )
-                
-                Divider()
-                    .frame(height: 44)
-                
-                QuickActionButton(
-                    icon: "gearshape.fill",
-                    title: L10n.actionPermissions,
-                    action: { statusBarManager.showOnboarding() }
-                )
-                
-                Divider()
-                    .frame(height: 44)
-                
                 QuickActionButton(
                     icon: "folder.fill",
                     title: L10n.actionFolder,
                     action: openRecordingsFolder
                 )
-                
+
                 Divider()
                     .frame(height: 44)
-                
+
                 QuickActionButton(
-                    icon: "xmark.circle.fill",
-                    title: L10n.actionQuit,
-                    action: { NSApplication.shared.terminate(nil) },
-                    isDestructive: true
+                    icon: "gearshape.fill",
+                    title: L10n.actionSettings,
+                    action: { statusBarManager.showSettings() }
                 )
             }
             .frame(height: 44)
@@ -367,25 +426,47 @@ struct QuickActionButton: View {
     let action: () -> Void
     let isDestructive: Bool
     let isActive: Bool
-    
+    let alternateAction: (() -> Void)?
+    let alternateIcon: String?
+    let alternateTitle: String?
+
     @State private var isHovering = false
-    
-    init(icon: String, title: String, action: @escaping () -> Void, isDestructive: Bool = false, isActive: Bool = false) {
+    @State private var isOptionPressed = false
+
+    init(
+        icon: String,
+        title: String,
+        action: @escaping () -> Void,
+        isDestructive: Bool = false,
+        isActive: Bool = false,
+        alternateAction: (() -> Void)? = nil,
+        alternateIcon: String? = nil,
+        alternateTitle: String? = nil
+    ) {
         self.icon = icon
         self.title = title
         self.action = action
         self.isDestructive = isDestructive
         self.isActive = isActive
+        self.alternateAction = alternateAction
+        self.alternateIcon = alternateIcon
+        self.alternateTitle = alternateTitle
     }
-    
+
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            if isOptionPressed, let altAction = alternateAction {
+                altAction()
+            } else {
+                action()
+            }
+        }) {
             VStack(spacing: 4) {
-                Image(systemName: icon)
+                Image(systemName: isOptionPressed && alternateIcon != nil ? alternateIcon! : icon)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(isDestructive ? .red : isActive ? .blue : .primary)
-                
-                Text(title)
+
+                Text(isOptionPressed && alternateTitle != nil ? alternateTitle! : title)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(isDestructive ? .red : isActive ? .blue : .secondary)
             }
@@ -397,6 +478,12 @@ struct QuickActionButton: View {
         .buttonStyle(PlainButtonStyle())
         .onHover { hovering in
             isHovering = hovering
+        }
+        .onAppear {
+            NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+                isOptionPressed = event.modifierFlags.contains(.option)
+                return event
+            }
         }
     }
 }

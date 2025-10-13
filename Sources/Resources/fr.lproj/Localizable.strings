@@ -23,7 +23,8 @@
 // MARK: - Quick Actions
 "action.auto_start" = "Auto Start";
 "action.permissions" = "Permissions";
-"action.folder" = "Dossier";
+"action.folder" = "Dossiers";
+"action.settings" = "Paramètres";
 "action.quit" = "Quitter";
 
 // MARK: - Teams Detection
@@ -74,3 +75,37 @@
 "log.teams_ended" = "Réunion Teams terminée";
 "log.auto_recording_enabled" = "Enregistrement automatique ACTIVÉ";
 "log.auto_recording_disabled" = "Enregistrement automatique DÉSACTIVÉ";
+
+// MARK: - Settings
+"settings.tab.general" = "Général";
+"settings.tab.transcription" = "Transcription";
+"settings.tab.permissions" = "Permissions";
+
+"settings.general.header.title" = "Préférences générales";
+"settings.general.header.subtitle" = "Activez les automatisations principales de Meety";
+"settings.general.auto_recording.title" = "Enregistrement automatique";
+"settings.general.auto_recording.subtitle" = "Démarre automatiquement lors d'une réunion Teams détectée";
+"settings.general.transcription.title" = "Transcription automatique";
+"settings.general.transcription.subtitle" = "Transcrit vos réunions avec Whisper après chaque enregistrement";
+"settings.general.quit.title" = "Quitter Meety";
+"settings.general.quit.subtitle" = "Ferme l'application immédiatement";
+
+"settings.transcription.header.title" = "Configuration Whisper";
+"settings.transcription.header.subtitle" = "Paramètres du service de transcription";
+"settings.transcription.api.title" = "URL de l'API";
+"settings.transcription.api.placeholder" = "https://votre-api.com/api";
+"settings.transcription.api.help" = "Adresse de votre serveur Whisper (incluant /api)";
+"settings.transcription.model.title" = "Modèle de reconnaissance";
+"settings.transcription.model.help" = "Plus le modèle est grand, plus la transcription est précise";
+"settings.transcription.language.title" = "Langue";
+"settings.transcription.language.help" = "Choisissez la langue principale des réunions";
+"settings.transcription.language.code" = "Code : %@";
+"settings.transcription.speakers.title" = "Nombre de locuteurs";
+"settings.transcription.speakers.help" = "Aide la diarisation pour séparer les voix";
+"settings.transcription.speakers.count" = "%d locuteur%@";
+"settings.transcription.compute.title" = "Optimisation matérielle";
+"settings.transcription.compute.help" = "Sélectionnez le mode adapté à votre machine";
+"settings.transcription.reset" = "Réinitialiser";
+
+"settings.permissions.header.title" = "Autorisations système";
+"settings.permissions.header.subtitle" = "Vérifiez que toutes les permissions nécessaires sont accordées";

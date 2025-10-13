@@ -51,6 +51,7 @@ extension L10n {
     static let actionAutoStart = "action.auto_start".localized
     static let actionPermissions = "action.permissions".localized
     static let actionFolder = "action.folder".localized
+    static let actionSettings = "action.settings".localized
     static let actionQuit = "action.quit".localized
     
     // MARK: - Teams Detection
@@ -107,4 +108,41 @@ extension L10n {
     static let logTeamsEnded = "log.teams_ended".localized
     static let logAutoRecordingEnabled = "log.auto_recording_enabled".localized
     static let logAutoRecordingDisabled = "log.auto_recording_disabled".localized
+
+    // MARK: - Settings Tabs
+    static let settingsTabGeneral = "settings.tab.general".localized
+    static let settingsTabTranscription = "settings.tab.transcription".localized
+    static let settingsTabPermissions = "settings.tab.permissions".localized
+
+    // MARK: - Settings - General
+    static let settingsGeneralHeaderTitle = "settings.general.header.title".localized
+    static let settingsGeneralHeaderSubtitle = "settings.general.header.subtitle".localized
+    static let settingsGeneralAutoRecordingTitle = "settings.general.auto_recording.title".localized
+    static let settingsGeneralAutoRecordingSubtitle = "settings.general.auto_recording.subtitle".localized
+    static let settingsGeneralTranscriptionTitle = "settings.general.transcription.title".localized
+    static let settingsGeneralTranscriptionSubtitle = "settings.general.transcription.subtitle".localized
+    static let settingsGeneralQuitTitle = "settings.general.quit.title".localized
+    static let settingsGeneralQuitSubtitle = "settings.general.quit.subtitle".localized
+
+    // MARK: - Settings - Transcription
+    static let settingsTranscriptionHeaderTitle = "settings.transcription.header.title".localized
+    static let settingsTranscriptionHeaderSubtitle = "settings.transcription.header.subtitle".localized
+    static let settingsTranscriptionApiTitle = "settings.transcription.api.title".localized
+    static let settingsTranscriptionApiPlaceholder = "settings.transcription.api.placeholder".localized
+    static let settingsTranscriptionApiHelp = "settings.transcription.api.help".localized
+    static let settingsTranscriptionModelTitle = "settings.transcription.model.title".localized
+    static let settingsTranscriptionModelHelp = "settings.transcription.model.help".localized
+    static let settingsTranscriptionLanguageTitle = "settings.transcription.language.title".localized
+    static let settingsTranscriptionLanguageHelp = "settings.transcription.language.help".localized
+    static let settingsTranscriptionLanguageCodeFormat = "settings.transcription.language.code".localized
+    static let settingsTranscriptionSpeakersTitle = "settings.transcription.speakers.title".localized
+    static let settingsTranscriptionSpeakersHelp = "settings.transcription.speakers.help".localized
+    static let settingsTranscriptionSpeakersCountFormat = "settings.transcription.speakers.count".localized
+    static let settingsTranscriptionComputeTitle = "settings.transcription.compute.title".localized
+    static let settingsTranscriptionComputeHelp = "settings.transcription.compute.help".localized
+    static let settingsTranscriptionReset = "settings.transcription.reset".localized
+
+    // MARK: - Settings - Permissions
+    static let settingsPermissionsHeaderTitle = "settings.permissions.header.title".localized
+    static let settingsPermissionsHeaderSubtitle = "settings.permissions.header.subtitle".localized
 }

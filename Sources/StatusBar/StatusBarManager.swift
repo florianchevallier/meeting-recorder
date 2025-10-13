@@ -15,13 +15,16 @@ class StatusBarManager: ObservableObject {
     let permissionManager = PermissionManager.shared
     private let micRecorder = SimpleMicrophoneRecorder()
     private var systemAudioCapture: (any NSObjectProtocol)?
-    
+
     // ✨ Nouvelle API unifiée pour macOS 15+ (stored properties ne peuvent pas être @available)
     private var unifiedCapture: (any NSObjectProtocol)?
-    
+
     // 🔍 Teams detection
     private let teamsDetector = TeamsDetector()
     private var autoRecordingEnabled = true
+
+    // 🎤 Transcription manager
+    let transcriptionManager = TranscriptionManager()
     
     func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -276,14 +279,29 @@ class StatusBarManager: ObservableObject {
                 }
             }
             
+            // 🎤 Pre-indicate transcription if enabled (before conversion to show UI faster)
+            let shouldTranscribe = SettingsManager.shared.transcriptionEnabled
+            if shouldTranscribe {
+                await MainActor.run {
+                    self.transcriptionManager.state.updateProgress("⏳ Préparation de la transcription...")
+                    self.transcriptionManager.state.isTranscribing = true
+                    Logger.shared.log("🎤 [TRANSCRIPTION] Pre-indication shown to user")
+                }
+            }
+
             // ✨ Utiliser l'API unifiée sur macOS 15+
             if #available(macOS 15.0, *), let unified = self.unifiedCapture as? UnifiedScreenCapture {
                 Logger.shared.log("🚀 [RECORDING] Stopping unified capture")
                 if let movURL = await unified.stopRecording() {
                     do {
                         Logger.shared.log("🎵 [RECORDING] Converting MOV to M4A...")
+                        if shouldTranscribe {
+                            await MainActor.run {
+                                self.transcriptionManager.state.updateProgress("🔄 Conversion en cours...")
+                            }
+                        }
                         finalFileURL = try await unified.convertMOVToM4A(sourceURL: movURL)
-                        
+
                         try FileManager.default.removeItem(at: movURL)
                         Logger.shared.log("🗑️ [RECORDING] Original MOV file removed")
                     } catch {
@@ -299,21 +317,26 @@ class StatusBarManager: ObservableObject {
                 }
             } else {
                 Logger.shared.log("🔄 [RECORDING] Stopping legacy approach")
-                
+
                 var microphoneFileURL: URL?
                 var systemAudioFileURL: URL?
-                
+
                 microphoneFileURL = self.micRecorder.stopRecording()
-                
+
                 if #available(macOS 13.0, *), let systemCapture = self.systemAudioCapture as? SystemAudioCapture {
                     systemAudioFileURL = await systemCapture.stopRecording()
                     await MainActor.run {
                         self.systemAudioCapture = nil
                     }
                 }
-                
+
                 do {
                     Logger.shared.log("🎵 [RECORDING] Démarrage de la fusion audio...")
+                    if shouldTranscribe {
+                        await MainActor.run {
+                            self.transcriptionManager.state.updateProgress("🔄 Fusion audio en cours...")
+                        }
+                    }
                     finalFileURL = try await AudioMixer.mixAudioFiles(microphoneURL: microphoneFileURL, systemAudioURL: systemAudioFileURL)
                 } catch {
                     Logger.shared.log("❌ [RECORDING] Erreur lors de la fusion audio: \(error)")
@@ -322,13 +345,31 @@ class StatusBarManager: ObservableObject {
                     }
                 }
             }
-            
+
             if let finalURL = finalFileURL {
                 Logger.shared.log("✅ [RECORDING] Enregistrement final sauvegardé: \(finalURL.lastPathComponent)")
+
+                // 🎤 Start actual transcription if enabled
+                if shouldTranscribe {
+                    Logger.shared.log("🎤 [TRANSCRIPTION] Starting transcription for: \(finalURL.lastPathComponent)")
+                    await MainActor.run {
+                        self.transcriptionManager.state.updateProgress("📤 Upload vers API...")
+                    }
+                    Task {
+                        await self.transcriptionManager.transcribe(audioFileURL: finalURL)
+                    }
+                } else {
+                    Logger.shared.log("ℹ️ [TRANSCRIPTION] Transcription disabled in settings")
+                }
             } else {
                 Logger.shared.log("⚠️ [RECORDING] Aucun fichier généré")
+                if shouldTranscribe {
+                    await MainActor.run {
+                        self.transcriptionManager.state.setError("Pas de fichier audio généré")
+                    }
+                }
             }
-            
+
             Logger.shared.log("✅ [RECORDING] Stop sequence completed")
         }
         
@@ -357,48 +398,77 @@ class StatusBarManager: ObservableObject {
         durationTimer = nil
     }
     
-    func showOnboarding() {
-        // Open onboarding window
+    func showSettings(selectedTab: Int = 0) {
+        Logger.shared.log("⚙️ [SETTINGS] Opening settings window (tab: \(selectedTab))")
+
+        let tab = SettingsWindow.SettingsTab(rawValue: selectedTab) ?? .general
+
+        // Open unified settings window
         NSApp.activate(ignoringOtherApps: true)
-        
-        // Try to open onboarding window
-        if let existingWindow = NSApp.windows.first(where: { 
-            $0.title.contains("Configuration des Permissions") || 
-            $0.identifier?.rawValue == "onboarding" 
+
+        // Try to open existing settings window
+        if let existingWindow = NSApp.windows.first(where: {
+            $0.title.contains("Paramètres") ||
+            $0.identifier?.rawValue == "settingsWindow"
         }) {
+            Logger.shared.log("⚙️ [SETTINGS] Reusing existing window")
+
+            if let hostingController = existingWindow.contentViewController as? NSHostingController<SettingsWindow> {
+                hostingController.rootView = SettingsWindow(statusBarManager: self, selectedTab: tab)
+            }
+
             existingWindow.makeKeyAndOrderFront(nil)
             existingWindow.center()
         } else {
-            // Create new onboarding window with proper setup
-            DispatchQueue.main.async {
-                let onboardingView = OnboardingView()
-                let hostingController = NSHostingController(rootView: onboardingView)
-                
+            Logger.shared.log("⚙️ [SETTINGS] Creating new window")
+            // Create new settings window
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                let settingsView = SettingsWindow(statusBarManager: self, selectedTab: tab)
+                let hostingController = NSHostingController(rootView: settingsView)
+
                 let window = NSWindow(
-                    contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
-                    styleMask: [.titled, .closable, .miniaturizable],
+                    contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
+                    styleMask: [.titled, .closable, .miniaturizable, .resizable],
                     backing: .buffered,
                     defer: false
                 )
-                
-                window.title = L10n.onboardingTitle
+
+                window.title = "Meety - Paramètres"
+                window.identifier = NSUserInterfaceItemIdentifier("settingsWindow")
                 window.contentViewController = hostingController
                 window.center()
-                window.isReleasedWhenClosed = false // Éviter les crashes
+                window.minSize = NSSize(width: 500, height: 400)
+                window.maxSize = NSSize(width: 800, height: 700)
+                window.isReleasedWhenClosed = false
                 window.makeKeyAndOrderFront(nil)
-                window.level = .floating
-                
-                // Donner le focus à la fenêtre
+
+                Logger.shared.log("✅ [SETTINGS] Window created and shown")
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
     }
-    
+
+    // Convenience methods for specific tabs
+    func showOnboarding() {
+        showSettings(selectedTab: 2) // Permissions tab
+    }
+
+    func showTranscriptionSettings() {
+        showSettings(selectedTab: 1) // Transcription tab
+    }
+
     // MARK: - Teams Detection Controls
     
     func toggleAutoRecording() {
-        autoRecordingEnabled.toggle()
-        Logger.shared.log("🔍 [AUTO] Auto-recording \(autoRecordingEnabled ? "ENABLED" : "DISABLED")")
+        setAutoRecordingEnabled(!autoRecordingEnabled)
+    }
+    
+    func setAutoRecordingEnabled(_ enabled: Bool) {
+        guard autoRecordingEnabled != enabled else { return }
+        autoRecordingEnabled = enabled
+        Logger.shared.log("🔍 [AUTO] Auto-recording \(enabled ? "ENABLED" : "DISABLED")")
     }
     
     func isAutoRecordingEnabled() -> Bool {
