@@ -23,7 +23,8 @@
 // MARK: - Quick Actions
 "action.auto_start" = "Auto Start";
 "action.permissions" = "Permissions";
-"action.folder" = "Folder";
+"action.folder" = "Folders";
+"action.settings" = "Settings";
 "action.quit" = "Quit";
 
 // MARK: - Teams Detection
@@ -74,3 +75,37 @@
 "log.teams_ended" = "Teams meeting ended";
 "log.auto_recording_enabled" = "Auto-recording ENABLED";
 "log.auto_recording_disabled" = "Auto-recording DISABLED";
+
+// MARK: - Settings
+"settings.tab.general" = "General";
+"settings.tab.transcription" = "Transcription";
+"settings.tab.permissions" = "Permissions";
+
+"settings.general.header.title" = "General preferences";
+"settings.general.header.subtitle" = "Control Meety's core automations";
+"settings.general.auto_recording.title" = "Auto-record Teams recordings";
+"settings.general.auto_recording.subtitle" = "Start automatically whenever a Teams meeting is detected";
+"settings.general.transcription.title" = "Auto-transcription";
+"settings.general.transcription.subtitle" = "Send recordings to Whisper to generate transcripts";
+"settings.general.quit.title" = "Quit Meety";
+"settings.general.quit.subtitle" = "Close the app immediately";
+
+"settings.transcription.header.title" = "Whisper configuration";
+"settings.transcription.header.subtitle" = "Transcription service settings";
+"settings.transcription.api.title" = "API URL";
+"settings.transcription.api.placeholder" = "https://your-api.com/api";
+"settings.transcription.api.help" = "Address of your Whisper server including /api";
+"settings.transcription.model.title" = "Recognition model";
+"settings.transcription.model.help" = "Larger models provide better accuracy";
+"settings.transcription.language.title" = "Language";
+"settings.transcription.language.help" = "Choose the primary language of your meetings";
+"settings.transcription.language.code" = "Code: %@";
+"settings.transcription.speakers.title" = "Number of speakers";
+"settings.transcription.speakers.help" = "Helps diarization separate each voice";
+"settings.transcription.speakers.count" = "%d speaker%@";
+"settings.transcription.compute.title" = "Hardware optimization";
+"settings.transcription.compute.help" = "Pick the mode that fits your machine";
+"settings.transcription.reset" = "Reset";
+
+"settings.permissions.header.title" = "System permissions";
+"settings.permissions.header.subtitle" = "Make sure every required permission is granted";

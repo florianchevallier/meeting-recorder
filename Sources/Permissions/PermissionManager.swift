@@ -3,17 +3,36 @@ import SwiftUI
 import AVFoundation
 import ScreenCaptureKit
 import Cocoa
+import ApplicationServices
 
 class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
+    
+    private let accessibilityPromptedKey = "PermissionManager.accessibilityPrompted"
     
     @Published var microphonePermission: PermissionStatus = .notDetermined
     @Published var screenRecordingPermission: PermissionStatus = .notDetermined
     @Published var documentsPermission: PermissionStatus = .notDetermined
     @Published var accessibilityPermission: PermissionStatus = .notDetermined
     
+    private var accessibilityMonitorTask: Task<Void, Never>?
+    private var appActiveObserver: NSObjectProtocol?
+    
     private init() {
         checkAllPermissions()
+        
+        appActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.checkAccessibilityPermission()
+        }
+    }
+
+    private var hasPromptedAccessibility: Bool {
+        get { UserDefaults.standard.bool(forKey: accessibilityPromptedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: accessibilityPromptedKey) }
     }
     
     // MARK: - Check All Permissions
@@ -106,10 +125,16 @@ class PermissionManager: ObservableObject {
     
     // MARK: - Accessibility Permission
     func requestAccessibilityPermission() async {
-        // Ouvrir les préférences système pour que l'utilisateur donne la permission
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
-        checkAccessibilityPermission() // Check immediately after opening preferences
+        hasPromptedAccessibility = true
+
+        // Déclencher l'invite du système si nécessaire
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        let options = [promptKey: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+
+        openAccessibilitySettings()
+        checkAccessibilityPermission() // Mise à jour immédiate
+        startAccessibilityStatusMonitor()
     }
     
     // MARK: - Open System Preferences
@@ -129,12 +154,28 @@ class PermissionManager: ObservableObject {
     }
 
     func checkAccessibilityPermission() {
-        // Test réel : vérifier si on peut accéder aux fenêtres d'une app
-        // Exactement comme le TeamsDetector le fait !
-        let hasWindowAccess = testWindowAccess()
+        let trusted = AXIsProcessTrusted()
+        let hasWindowAccess = trusted ? true : testWindowAccess()
+
+        if trusted {
+            hasPromptedAccessibility = true
+        }
         
         DispatchQueue.main.async {
-            self.accessibilityPermission = hasWindowAccess ? .authorized : .notDetermined
+            let newStatus: PermissionStatus
+            if trusted || hasWindowAccess {
+                newStatus = .authorized
+            } else if self.hasPromptedAccessibility {
+                newStatus = .denied
+            } else {
+                newStatus = .notDetermined
+            }
+            
+            if self.accessibilityPermission != newStatus {
+                Logger.shared.log("🔐 [ACCESSIBILITY] Permission status updated to: \(newStatus.rawValue) (trusted=\(trusted), windowAccess=\(hasWindowAccess))")
+            }
+            
+            self.accessibilityPermission = newStatus
         }
     }
     
@@ -173,6 +214,41 @@ class PermissionManager: ObservableObject {
         }
     }
 
+    private func startAccessibilityStatusMonitor() {
+        accessibilityMonitorTask?.cancel()
+        accessibilityMonitorTask = Task { [weak self] in
+            guard let self else { return }
+
+            for _ in 0..<20 {
+                if Task.isCancelled { return }
+
+                if AXIsProcessTrusted() {
+                    await MainActor.run {
+                        self.accessibilityPermission = .authorized
+                    }
+                    return
+                }
+
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+
+            await MainActor.run {
+                if self.hasPromptedAccessibility {
+                    self.accessibilityPermission = .denied
+                } else {
+                    self.accessibilityPermission = .notDetermined
+                }
+            }
+        }
+    }
+    
+    deinit {
+        if let observer = appActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        accessibilityMonitorTask?.cancel()
+    }
+    
     // MARK: - Request All Permissions
     func requestAllPermissions() async {
         await requestMicrophonePermission()
@@ -250,4 +326,3 @@ enum PermissionError: Error, LocalizedError {
         }
     }
 }
-
