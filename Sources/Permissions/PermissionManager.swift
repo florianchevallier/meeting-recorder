@@ -4,6 +4,7 @@ import AVFoundation
 import ScreenCaptureKit
 import Cocoa
 import ApplicationServices
+import CoreMedia
 
 class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
@@ -26,7 +27,9 @@ class PermissionManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.checkAccessibilityPermission()
+            // Re-vérifier toutes les permissions quand l'app redevient active
+            // (utile après avoir ouvert les Préférences Système)
+            self?.checkAllPermissions()
         }
     }
 
@@ -78,19 +81,88 @@ class PermissionManager: ObservableObject {
     }
     
     func checkScreenRecordingPermission() {
-        // Méthode plus fiable pour Sequoia 2024+ 
+        // Méthode améliorée pour détecter correctement la permission d'enregistrement d'écran
+        // Nécessaire car macOS a deux types de permissions différentes
         Task {
+            var hasPermission = false
+            var lastError: Error?
+            
+            // Méthode 1: Essayer avec excludingDesktopWindows (pour compatibilité)
             do {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-                // Si on obtient du contenu, la permission est accordée
-                let hasPermission = !content.displays.isEmpty
-                DispatchQueue.main.async {
-                    self.screenRecordingPermission = hasPermission ? .authorized : .notDetermined
+                hasPermission = !content.displays.isEmpty
+                if hasPermission {
+                    Logger.shared.log("🔍 [PERMISSIONS] Screen recording permission detected via excludingDesktopWindows")
                 }
             } catch {
-                // Si erreur, permission probablement refusée
-                DispatchQueue.main.async {
-                    self.screenRecordingPermission = .denied
+                lastError = error
+                Logger.shared.log("🔍 [PERMISSIONS] excludingDesktopWindows failed: \(error.localizedDescription)")
+            }
+            
+            // Méthode 2: Essayer avec SCShareableContent.current (plus récent, macOS 15+)
+            if !hasPermission {
+                do {
+                    let content = try await SCShareableContent.current
+                    hasPermission = !content.displays.isEmpty
+                    if hasPermission {
+                        Logger.shared.log("🔍 [PERMISSIONS] Screen recording permission detected via SCShareableContent.current")
+                    }
+                } catch {
+                    if lastError == nil {
+                        lastError = error
+                    }
+                    Logger.shared.log("🔍 [PERMISSIONS] SCShareableContent.current failed: \(error.localizedDescription)")
+                }
+            }
+            
+            // Méthode 3: Essayer de créer un stream minimal pour confirmer la permission
+            if !hasPermission {
+                do {
+                    let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                    if let display = content.displays.first {
+                        let config = SCStreamConfiguration()
+                        config.width = 1
+                        config.height = 1
+                        config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+                        let filter = SCContentFilter(display: display, excludingWindows: [])
+                        let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+                        try await stream.startCapture()
+                        try await stream.stopCapture()
+                        hasPermission = true
+                        Logger.shared.log("🔍 [PERMISSIONS] Screen recording permission confirmed via test stream")
+                    }
+                } catch {
+                    Logger.shared.log("🔍 [PERMISSIONS] Test stream creation failed: \(error.localizedDescription)")
+                    // Analyser le code d'erreur pour déterminer si c'est vraiment un refus de permission
+                    let nsError = error as NSError
+                    if nsError.domain == "com.apple.ScreenCaptureKit" && nsError.code == -3801 {
+                        // Code d'erreur spécifique pour permission refusée
+                        Logger.shared.log("🔍 [PERMISSIONS] Permission explicitly denied (error code -3801)")
+                    } else {
+                        // Autre erreur, peut-être temporaire - ne pas considérer comme refusé
+                        Logger.shared.log("🔍 [PERMISSIONS] Unknown error - assuming permission may be granted but API call failed")
+                    }
+                }
+            }
+            
+            DispatchQueue.main.async {
+                if hasPermission {
+                    self.screenRecordingPermission = .authorized
+                    Logger.shared.log("✅ [PERMISSIONS] Screen recording permission: AUTHORIZED")
+                } else if let error = lastError {
+                    let nsError = error as NSError
+                    // Seulement marquer comme refusé si c'est vraiment une erreur de permission
+                    if nsError.domain == "com.apple.ScreenCaptureKit" && (nsError.code == -3801 || nsError.code == -3804) {
+                        self.screenRecordingPermission = .denied
+                        Logger.shared.log("❌ [PERMISSIONS] Screen recording permission: DENIED")
+                    } else {
+                        // Erreur inconnue, ne pas marquer comme refusé mais comme non déterminé
+                        self.screenRecordingPermission = .notDetermined
+                        Logger.shared.log("⚠️ [PERMISSIONS] Screen recording permission: UNCLEAR (error: \(error.localizedDescription))")
+                    }
+                } else {
+                    self.screenRecordingPermission = .notDetermined
+                    Logger.shared.log("⚠️ [PERMISSIONS] Screen recording permission: NOT DETERMINED")
                 }
             }
         }
@@ -141,6 +213,18 @@ class PermissionManager: ObservableObject {
     func openScreenRecordingSettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
         NSWorkspace.shared.open(url)
+        
+        // Programmer une re-vérification après un délai pour laisser macOS appliquer les changements
+        Task {
+            // Attendre que l'utilisateur ferme les Préférences Système
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 secondes
+            
+            // Re-vérifier la permission plusieurs fois avec des délais
+            for _ in 0..<5 {
+                checkScreenRecordingPermission()
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 seconde entre chaque vérification
+            }
+        }
     }
     
     func openMicrophoneSettings() {
@@ -149,8 +233,46 @@ class PermissionManager: ObservableObject {
     }
     
     func openAccessibilitySettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
+        // Sur macOS Ventura+ (13.0+), l'Accessibilité est une section principale
+        // Sur macOS Sequoia (15.0+), utilise System Settings avec navigation
+        
+        if #available(macOS 15.0, *) {
+            // macOS Sequoia+: Ouvrir System Settings et naviguer vers Accessibilité
+            // Utiliser AppleScript pour ouvrir directement la bonne section
+            let script = """
+                tell application "System Settings"
+                    activate
+                    reveal anchor "Privacy_Accessibility" of pane id "com.apple.preference.security"
+                end tell
+            """
+            
+            if let appleScript = NSAppleScript(source: script) {
+                var error: NSDictionary?
+                appleScript.executeAndReturnError(&error)
+                if error != nil {
+                    // Fallback: Ouvrir System Settings normalement
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                }
+            }
+        } else if #available(macOS 13.0, *) {
+            // macOS Ventura: Essayer d'ouvrir directement la section Accessibilité
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess") {
+                NSWorkspace.shared.open(url)
+            } else {
+                // Fallback vers Confidentialité et sécurité
+                let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                NSWorkspace.shared.open(url)
+            }
+        } else {
+            // macOS Monterey et antérieur: Utiliser le prefPane
+            let prefPanePath = "/System/Library/PreferencePanes/UniversalAccessPref.prefPane"
+            if FileManager.default.fileExists(atPath: prefPanePath) {
+                NSWorkspace.shared.openFile(prefPanePath, withApplication: "System Preferences")
+            } else {
+                let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 
     func checkAccessibilityPermission() {

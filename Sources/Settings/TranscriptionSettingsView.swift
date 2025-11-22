@@ -158,6 +158,6 @@ struct TranscriptionSettingsView: View {
     }
 }
 
-#Preview {
-    TranscriptionSettingsView()
-}
+// #Preview {
+//     TranscriptionSettingsView()
+// }
