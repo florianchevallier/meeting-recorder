@@ -17,11 +17,20 @@ jobs:
       with:
         xcode-version: '16.0'
     
+    - name: Get Package.swift hash
+      id: package-hash
+      run: |
+        if [ -f Package.swift ]; then
+          echo "hash=$(shasum -a 256 Package.swift | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+        else
+          echo "hash=no-package" >> $GITHUB_OUTPUT
+        fi
+    
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
       with:
         path: .build
-        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.swift') }}
+        key: ${{ runner.os }}-spm-${{ steps.package-hash.outputs.hash }}
         restore-keys: |
           ${{ runner.os }}-spm-
     
@@ -54,11 +63,20 @@ jobs:
       with:
         xcode-version: '16.0'
     
+    - name: Get Package.swift hash
+      id: package-hash
+      run: |
+        if [ -f Package.swift ]; then
+          echo "hash=$(shasum -a 256 Package.swift | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+        else
+          echo "hash=no-package" >> $GITHUB_OUTPUT
+        fi
+    
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
       with:
         path: .build
-        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.swift') }}
+        key: ${{ runner.os }}-spm-${{ steps.package-hash.outputs.hash }}
         restore-keys: |
           ${{ runner.os }}-spm-
     
