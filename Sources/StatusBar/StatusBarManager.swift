@@ -3,7 +3,7 @@ import SwiftUI
 import AVFoundation
 
 @MainActor
-class StatusBarManager: ObservableObject {
+final class StatusBarManager: ObservableObject {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
     @Published var isRecording = false
@@ -355,7 +355,9 @@ class StatusBarManager: ObservableObject {
                     await MainActor.run {
                         self.transcriptionManager.state.updateProgress("📤 Upload vers API...")
                     }
-                    Task {
+                    // Note: Utiliser [weak self] explicitement pour éviter les captures fortes
+                    Task { [weak self] in
+                        guard let self else { return }
                         await self.transcriptionManager.transcribe(audioFileURL: finalURL)
                     }
                 } else {

@@ -8,7 +8,7 @@
 import Foundation
 
 /// Client for interacting with Whisper transcription API
-class WhisperAPIClient {
+final class WhisperAPIClient {
 
     // MARK: - Properties
 

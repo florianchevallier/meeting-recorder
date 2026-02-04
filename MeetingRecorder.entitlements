@@ -2,20 +2,57 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Permet à l'app de fonctionner même signée ad-hoc -->
+    <!-- ============================================ -->
+    <!-- PRODUCTION ENTITLEMENTS FOR PUBLIC DISTRIBUTION -->
+    <!-- Team: in-Tact (42BB3NJ35Q) -->
+    <!-- Bundle ID: com.meetingrecorder.meety -->
+    <!-- ============================================ -->
+
+    <!-- DEBUGGING (MUST BE FALSE FOR PRODUCTION) -->
     <key>com.apple.security.get-task-allow</key>
+    <false/>
+
+    <!-- HARDENED RUNTIME (REQUIRED FOR NOTARIZATION) -->
+    <!-- Disable library validation to allow ScreenCaptureKit to work -->
+    <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
-    
-    <!-- Permissions pour ScreenCaptureKit -->
-    <key>com.apple.security.device.screen-capture</key>
+
+    <!-- Allow DYLD environment variables for audio plugins -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
-    
-    <!-- Permissions pour microphone -->
-    <key>com.apple.security.device.microphone</key>
+
+    <!-- Allow unsigned executable memory for AVFoundation -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
-    
-    <!-- Permissions pour Accessibility API -->
+
+    <!-- DEVICE ACCESS PERMISSIONS -->
+    <!-- Microphone access for voice recording -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <!-- Camera access (not currently used, but may be needed for future features) -->
+    <key>com.apple.security.device.camera</key>
+    <false/>
+
+    <!-- FILE ACCESS PERMISSIONS -->
+    <!-- User-selected file access for saving recordings -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Documents folder access -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+
+    <!-- AUTOMATION PERMISSIONS -->
+    <!-- Apple Events for Teams detection via Accessibility API -->
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+
+    <!-- NETWORK (for future features like cloud sync) -->
+    <key>com.apple.security.network.client</key>
+    <false/>
+
+    <key>com.apple.security.network.server</key>
+    <false/>
 </dict>
 </plist>

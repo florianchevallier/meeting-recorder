@@ -9,7 +9,7 @@ import Foundation
 
 /// Manages application settings with UserDefaults persistence
 @MainActor
-class SettingsManager: ObservableObject {
+final class SettingsManager: ObservableObject {
 
     // MARK: - Singleton
 

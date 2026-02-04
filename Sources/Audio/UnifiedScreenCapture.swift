@@ -3,7 +3,7 @@ import ScreenCaptureKit
 import AVFoundation
 
 @available(macOS 15.0, *)
-class UnifiedScreenCapture: NSObject {
+final class UnifiedScreenCapture: NSObject {
     private var stream: SCStream?
     private var isRecording = false
     private var recordingStartTime: Date?
@@ -109,24 +109,30 @@ class UnifiedScreenCapture: NSObject {
         }
         
         // ✨ Configuration d'enregistrement direct
+        guard let safeOutputURL = outputURL else {
+            throw NSError(domain: "UnifiedCaptureError", code: 2,
+                         userInfo: [NSLocalizedDescriptionKey: "Output URL not configured"])
+        }
+
         let recordingConfiguration = SCRecordingOutputConfiguration()
-        recordingConfiguration.outputURL = outputURL!
+        recordingConfiguration.outputURL = safeOutputURL
         recordingConfiguration.outputFileType = .mov
         recordingConfiguration.videoCodecType = .hevc
-        
+
         // Créer l'output d'enregistrement
-        recordingOutput = SCRecordingOutput(configuration: recordingConfiguration, delegate: self)
-        
+        let newRecordingOutput = SCRecordingOutput(configuration: recordingConfiguration, delegate: self)
+        recordingOutput = newRecordingOutput
+
         // Créer et configurer le stream
         stream = SCStream(filter: filter, configuration: configuration, delegate: self)
-        
+
         guard let stream = stream else {
-            throw NSError(domain: "UnifiedCaptureError", code: 3, 
+            throw NSError(domain: "UnifiedCaptureError", code: 3,
                          userInfo: [NSLocalizedDescriptionKey: "Failed to create SCStream - check screen recording permissions"])
         }
-        
+
         // Ajouter l'output d'enregistrement au stream
-        try stream.addRecordingOutput(recordingOutput!)
+        try stream.addRecordingOutput(newRecordingOutput)
         
         // Démarrer la capture
         try await stream.startCapture()
@@ -485,10 +491,18 @@ class UnifiedScreenCapture: NSObject {
     }
     
     deinit {
+        // Arrêter le timer de surveillance de santé (synchrone, safe dans deinit)
+        healthCheckTimer?.invalidate()
+        healthCheckTimer = nil
+
+        // Annuler les tâches en cours
+        recordingFinalizationWatcher?.cancel()
+        recordingFinalizationWatcher = nil
+
+        // Note: Ne pas appeler de méthodes async dans deinit car l'objet sera déjà désalloué
+        // Le cleanup async doit être fait explicitement via stopRecording() avant de libérer l'objet
         if isRecording {
-            Task { [weak self] in
-                await self?.stopRecording()
-            }
+            Logger.shared.log("⚠️ [UNIFIED_CAPTURE] deinit appelé pendant l'enregistrement - le fichier peut être incomplet")
         }
     }
 }

@@ -16,7 +16,7 @@ enum LogDetectionResult: CustomStringConvertible {
 }
 
 @MainActor
-class TeamsDetector: ObservableObject {
+final class TeamsDetector: ObservableObject {
     @Published var isTeamsMeetingActive = false
     @Published var lastDetectionTime: Date?
 

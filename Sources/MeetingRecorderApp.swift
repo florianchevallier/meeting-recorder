@@ -18,6 +18,7 @@ struct MeetingRecorderApp: App {
     }
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarManager: StatusBarManager?
     private let permissionManager = PermissionManager.shared

@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 
 @MainActor
-class OnboardingViewModel: ObservableObject {
+final class OnboardingViewModel: ObservableObject {
     @Published var isRequesting = false
     
     @Published var microphoneStatus: PermissionStatus = .notDetermined
@@ -17,26 +17,35 @@ class OnboardingViewModel: ObservableObject {
     
     init() {
         // S'abonner aux changements de permissions du manager
+        // Note: Utiliser .sink avec [weak self] au lieu de .assign pour éviter les cycles de rétention
         permissionManager.$microphonePermission
             .receive(on: DispatchQueue.main)
-            .assign(to: \.microphoneStatus, on: self)
+            .sink { [weak self] status in
+                self?.microphoneStatus = status
+            }
             .store(in: &cancellables)
-        
+
         permissionManager.$screenRecordingPermission
             .receive(on: DispatchQueue.main)
-            .assign(to: \.screenRecordingStatus, on: self)
+            .sink { [weak self] status in
+                self?.screenRecordingStatus = status
+            }
             .store(in: &cancellables)
-        
+
         permissionManager.$documentsPermission
             .receive(on: DispatchQueue.main)
-            .assign(to: \.documentsStatus, on: self)
+            .sink { [weak self] status in
+                self?.documentsStatus = status
+            }
             .store(in: &cancellables)
-        
+
         permissionManager.$accessibilityPermission
             .receive(on: DispatchQueue.main)
-            .assign(to: \.accessibilityStatus, on: self)
+            .sink { [weak self] status in
+                self?.accessibilityStatus = status
+            }
             .store(in: &cancellables)
-        
+
         // S'abonner à tous les changements pour mettre à jour `allPermissionsGranted`
         $microphoneStatus.merge(with: $screenRecordingStatus, $documentsStatus, $accessibilityStatus)
             .receive(on: DispatchQueue.main)
@@ -44,7 +53,7 @@ class OnboardingViewModel: ObservableObject {
                 self?.updateAllPermissionsGranted()
             }
             .store(in: &cancellables)
-        
+
         // Vérifier l'état initial
         checkCurrentPermissions()
     }

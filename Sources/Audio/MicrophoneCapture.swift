@@ -1,7 +1,7 @@
 import Foundation
 import AVFoundation
 
-class SimpleMicrophoneRecorder: NSObject {
+final class SimpleMicrophoneRecorder: NSObject {
     private var audioEngine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     private var isRecording = false

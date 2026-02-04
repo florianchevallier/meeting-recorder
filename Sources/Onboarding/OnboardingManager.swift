@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 
 @MainActor
-class OnboardingManager: ObservableObject {
+final class OnboardingManager: ObservableObject {
     static let shared = OnboardingManager()
     
     @Published var shouldShowOnboarding = false
