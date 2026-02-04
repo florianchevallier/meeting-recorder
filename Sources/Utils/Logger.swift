@@ -1,6 +1,6 @@
 import Foundation
 
-class Logger {
+final class Logger {
     static let shared = Logger()
     private let logFile: URL
     

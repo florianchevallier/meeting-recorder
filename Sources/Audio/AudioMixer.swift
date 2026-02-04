@@ -1,7 +1,7 @@
 import Foundation
 import AVFoundation
 
-class AudioMixer {
+final class AudioMixer {
     
     static func mixAudioFiles(microphoneURL: URL?, systemAudioURL: URL?) async throws -> URL? {
         // Vérifier qu'au moins un fichier existe

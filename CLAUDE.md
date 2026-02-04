@@ -2,6 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ IMPORTANT RULES FOR CLAUDE
+
+**DO NOT CREATE NEW MARKDOWN FILES**
+
+- ❌ **NEVER** create files like `SETUP_GUIDE.md`, `DEPLOYMENT_GUIDE.md`, `TROUBLESHOOTING.md`, etc.
+- ❌ **NEVER** create "helpful documentation files" that pollute the repository
+- ✅ **ALWAYS** put documentation directly in `CLAUDE.md` (this file)
+- ✅ **ONLY** create files when explicitly requested by the user
+
+**Why?** The project already has comprehensive documentation in:
+- `CLAUDE.md` - Complete technical reference for AI assistants
+- `README.md` - User-facing project overview
+- `AGENTS.md` - AI agent guidelines
+- Existing specific guides (e.g., `INSTALLATION_GUIDE.md`, `DEPLOYMENT.md`)
+
+**If you need to document something new**: Add a section to `CLAUDE.md`, don't create a new file.
+
+---
+
 # MeetingRecorder (Meety) - macOS Meeting Recording Application
 
 ## Project Overview
@@ -47,6 +66,164 @@ tccutil reset SystemPolicyDesktopFolder com.meetingrecorder.app  # Documents acc
 # Check generated recording files
 ls -la ~/Documents/meeting_*.m4a
 ```
+
+## Code Signing & Distribution
+
+### Automated GitHub Actions Workflow ✅ CONFIGURED
+
+The project uses **GitHub Actions** for automated build, signing, and notarization:
+
+```
+git push tag → GitHub Actions → Signed & Notarized DMG → GitHub Release
+```
+
+**What happens automatically**:
+1. ✅ Build universal binary (arm64 + x86_64)
+2. ✅ Sign with Developer ID Application certificate
+3. ✅ Create and sign DMG
+4. ✅ Submit to Apple for notarization
+5. ✅ Staple notarization ticket
+6. ✅ Create GitHub Release with DMG attached
+
+**To create a release**:
+```bash
+./scripts/release.sh 0.1.17
+```
+
+See [`RELEASE_WORKFLOW.md`](RELEASE_WORKFLOW.md) for complete guide.
+
+### Apple Certificate Types
+
+The project requires proper code signing for distribution. There are **three different certificate types** with distinct purposes:
+
+| Certificate Type | Purpose | Usage | Current Status |
+|-----------------|---------|-------|----------------|
+| **Apple Development** | Local development & testing | Debug builds on your devices | Not needed for CI |
+| **Apple Distribution** | App Store submission | Submit via App Store Connect | Not used (direct distribution) |
+| **Developer ID Application** | Direct distribution | DMG, website downloads, notarization | ✅ **Used in GitHub Actions** |
+
+**IMPORTANT**:
+- GitHub Actions uses **Developer ID Application** certificate stored as secret
+- Local builds use ad-hoc signing (for testing only)
+- Production releases are **fully automated** via GitHub Actions
+
+### Setting Up GitHub Actions Secrets (One-Time Setup)
+
+**7 secrets required** in GitHub repository settings:
+
+| Secret | Value | How to Get |
+|--------|-------|------------|
+| `DEVELOPER_ID_CERTIFICATE` | Base64-encoded P12 | Export from Keychain → `base64 -i Certificates.p12` |
+| `CERTIFICATE_PASSWORD` | P12 password | Set when exporting from Keychain |
+| `KEYCHAIN_PASSWORD` | Random password | Generate: `openssl rand -base64 32` |
+| `SIGNING_IDENTITY` | Full identity string | `Developer ID Application: in-Tact (42BB3NJ35Q)` |
+| `APPLE_ID` | Apple Developer email | Your account email |
+| `APPLE_TEAM_ID` | Team identifier | `42BB3NJ35Q` |
+| `APPLE_APP_PASSWORD` | App-specific password | Generate at appleid.apple.com |
+
+**Step-by-step setup**:
+
+#### 1. Create Developer ID Certificate
+
+```bash
+# Open Keychain Access
+open "/Applications/Utilities/Keychain Access.app"
+
+# Menu: Keychain Access → Certificate Assistant → Request Certificate from CA
+# - Email: your Apple Developer email
+# - Common Name: in-Tact Developer ID
+# - Save to disk
+```
+
+Then:
+1. Go to https://developer.apple.com/account/resources/certificates/add
+2. Select **Developer ID Application**
+3. Upload your `.certSigningRequest` file
+4. Download the `.cer` certificate
+5. Double-click to install in Keychain
+
+#### 2. Export Certificate as P12
+
+```bash
+# In Keychain Access:
+# 1. Select "login" → "My Certificates"
+# 2. Find "Developer ID Application: in-Tact (42BB3NJ35Q)"
+# 3. Right-click → Export
+# 4. Format: Personal Information Exchange (.p12)
+# 5. Set a strong password (save for CERTIFICATE_PASSWORD)
+
+# Convert to base64
+base64 -i Certificates.p12 -o certificate_base64.txt
+
+# Copy the output (one line)
+cat certificate_base64.txt | pbcopy
+
+# IMPORTANT: Delete these files after setup!
+rm Certificates.p12 certificate_base64.txt
+```
+
+#### 3. Generate App-Specific Password
+
+```bash
+# 1. Go to https://appleid.apple.com/account/manage
+# 2. Sign in with your Apple ID
+# 3. Security → App-Specific Passwords
+# 4. Generate password (name: "GitHub Actions Notarization")
+# 5. Copy the password (format: xxxx-xxxx-xxxx-xxxx)
+```
+
+#### 4. Add Secrets to GitHub
+
+```bash
+# Go to: https://github.com/florianchevallier/meeting-recorder/settings/secrets/actions
+# Click "New repository secret" for each:
+
+DEVELOPER_ID_CERTIFICATE → paste base64 certificate
+CERTIFICATE_PASSWORD → paste P12 password
+KEYCHAIN_PASSWORD → generate with: openssl rand -base64 32
+SIGNING_IDENTITY → Developer ID Application: in-Tact (42BB3NJ35Q)
+APPLE_ID → your email
+APPLE_TEAM_ID → 42BB3NJ35Q
+APPLE_APP_PASSWORD → paste app-specific password
+```
+
+**Verification**:
+```bash
+# All 7 secrets should appear in:
+# GitHub → Settings → Secrets and variables → Actions
+```
+
+### Local Development (No Signing Required)
+
+For local testing, use ad-hoc signing:
+
+```bash
+# Build and run locally
+swift build
+./.build/debug/MeetingRecorder
+
+# Create local app bundle for testing
+./debug_app.sh
+```
+
+**Note**: Local builds are **NOT notarized** and will show security warnings on other Macs. Use GitHub Actions for production releases.
+
+### Manual Signing (Advanced)
+
+If you need to sign locally (not recommended - use GitHub Actions instead):
+
+```bash
+# Sign and package locally
+./sign_and_package.sh
+
+# Notarize manually
+./notarize_and_staple.sh
+
+# Verify
+spctl --assess --type install --verbose dist/Meety-Installer.dmg
+```
+
+See [`sign_and_package.sh`](sign_and_package.sh) and [`notarize_and_staple.sh`](notarize_and_staple.sh) for implementation details.
 
 ## Architecture Overview
 

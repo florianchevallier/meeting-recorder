@@ -30,22 +30,30 @@
 
 ## 🛠 Installation
 
-### From Source
+### For Users (Recommended)
+
+**Download the latest release** from [GitHub Releases](https://github.com/florianchevallier/meeting-recorder/releases/latest)
+
+1. Download `Meety-X.X.X.dmg`
+2. Double-click to mount the DMG
+3. Drag `Meety.app` to your Applications folder
+4. Launch the app (no security warnings - fully signed and notarized!)
+5. Grant permissions when requested
+
+✅ **No "right-click → Open" needed** - the app is notarized by Apple!
+
+### For Developers
 
 ```bash
 # Clone repository
 git clone https://github.com/florianchevallier/meeting-recorder.git
 cd meeting-recorder
 
-# Build and run
+# Build and run locally
 swift build
-swift run MeetingRecorder
-```
+./.build/debug/MeetingRecorder  # IMPORTANT: Use direct executable, not swift run
 
-### Build for Distribution
-
-```bash
-# Create app bundle
+# Create a local app bundle for testing
 ./debug_app.sh
 
 # App will be available at .build/MeetingRecorder.app

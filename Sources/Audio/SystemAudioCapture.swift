@@ -3,7 +3,7 @@ import ScreenCaptureKit
 import AVFoundation
 
 @available(macOS 13.0, *)
-class SystemAudioCapture: NSObject {
+final class SystemAudioCapture: NSObject {
     private var stream: SCStream?
     private var audioFile: AVAudioFile?
     private var isRecording = false
@@ -144,10 +144,14 @@ class SystemAudioCapture: NSObject {
     }
     
     deinit {
+        // Note: Ne pas appeler de méthodes async dans deinit car l'objet sera déjà désalloué
+        // Le cleanup async doit être fait explicitement via stopRecording() avant de libérer l'objet
         if isRecording {
-            Task { [weak self] in
-                await self?.stopRecording()
-            }
+            Logger.shared.log("⚠️ [SYSTEM_AUDIO] deinit appelé pendant l'enregistrement - le fichier peut être incomplet")
+            // Cleanup synchrone minimal
+            stream = nil
+            audioFile = nil
+            isRecording = false
         }
     }
 }

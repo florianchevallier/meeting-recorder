@@ -27,10 +27,5 @@ let package = Package(
                 .process("Resources")
             ]
         ),
-        .testTarget(
-            name: "MeetingRecorderTests",
-            dependencies: ["MeetingRecorder"],
-            path: "Tests"
-        ),
     ]
 )

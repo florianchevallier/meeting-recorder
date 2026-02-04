@@ -6,7 +6,8 @@ import Cocoa
 import ApplicationServices
 import CoreMedia
 
-class PermissionManager: ObservableObject {
+@MainActor
+final class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
     
     private let accessibilityPromptedKey = "PermissionManager.accessibilityPrompted"
@@ -29,7 +30,9 @@ class PermissionManager: ObservableObject {
         ) { [weak self] _ in
             // Re-vérifier toutes les permissions quand l'app redevient active
             // (utile après avoir ouvert les Préférences Système)
-            self?.checkAllPermissions()
+            Task { @MainActor in
+                self?.checkAllPermissions()
+            }
         }
     }
 
@@ -57,9 +60,7 @@ class PermissionManager: ObservableObject {
     
     func checkMicrophonePermission() {
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
-        DispatchQueue.main.async {
-            self.microphonePermission = PermissionStatus(from: status)
-        }
+        microphonePermission = PermissionStatus(from: status)
     }
     
     // MARK: - Screen Recording Permission
@@ -145,25 +146,23 @@ class PermissionManager: ObservableObject {
                 }
             }
             
-            DispatchQueue.main.async {
-                if hasPermission {
-                    self.screenRecordingPermission = .authorized
-                    Logger.shared.log("✅ [PERMISSIONS] Screen recording permission: AUTHORIZED")
-                } else if let error = lastError {
-                    let nsError = error as NSError
-                    // Seulement marquer comme refusé si c'est vraiment une erreur de permission
-                    if nsError.domain == "com.apple.ScreenCaptureKit" && (nsError.code == -3801 || nsError.code == -3804) {
-                        self.screenRecordingPermission = .denied
-                        Logger.shared.log("❌ [PERMISSIONS] Screen recording permission: DENIED")
-                    } else {
-                        // Erreur inconnue, ne pas marquer comme refusé mais comme non déterminé
-                        self.screenRecordingPermission = .notDetermined
-                        Logger.shared.log("⚠️ [PERMISSIONS] Screen recording permission: UNCLEAR (error: \(error.localizedDescription))")
-                    }
+            if hasPermission {
+                self.screenRecordingPermission = .authorized
+                Logger.shared.log("✅ [PERMISSIONS] Screen recording permission: AUTHORIZED")
+            } else if let error = lastError {
+                let nsError = error as NSError
+                // Seulement marquer comme refusé si c'est vraiment une erreur de permission
+                if nsError.domain == "com.apple.ScreenCaptureKit" && (nsError.code == -3801 || nsError.code == -3804) {
+                    self.screenRecordingPermission = .denied
+                    Logger.shared.log("❌ [PERMISSIONS] Screen recording permission: DENIED")
                 } else {
+                    // Erreur inconnue, ne pas marquer comme refusé mais comme non déterminé
                     self.screenRecordingPermission = .notDetermined
-                    Logger.shared.log("⚠️ [PERMISSIONS] Screen recording permission: NOT DETERMINED")
+                    Logger.shared.log("⚠️ [PERMISSIONS] Screen recording permission: UNCLEAR (error: \(error.localizedDescription))")
                 }
+            } else {
+                self.screenRecordingPermission = .notDetermined
+                Logger.shared.log("⚠️ [PERMISSIONS] Screen recording permission: NOT DETERMINED")
             }
         }
     }
@@ -190,9 +189,7 @@ class PermissionManager: ObservableObject {
             hasPermission = false
         }
         
-        DispatchQueue.main.async {
-            self.documentsPermission = hasPermission ? .authorized : .denied
-        }
+        documentsPermission = hasPermission ? .authorized : .denied
     }
     
     // MARK: - Accessibility Permission
@@ -283,22 +280,20 @@ class PermissionManager: ObservableObject {
             hasPromptedAccessibility = true
         }
         
-        DispatchQueue.main.async {
-            let newStatus: PermissionStatus
-            if trusted || hasWindowAccess {
-                newStatus = .authorized
-            } else if self.hasPromptedAccessibility {
-                newStatus = .denied
-            } else {
-                newStatus = .notDetermined
-            }
-            
-            if self.accessibilityPermission != newStatus {
-                Logger.shared.log("🔐 [ACCESSIBILITY] Permission status updated to: \(newStatus.rawValue) (trusted=\(trusted), windowAccess=\(hasWindowAccess))")
-            }
-            
-            self.accessibilityPermission = newStatus
+        let newStatus: PermissionStatus
+        if trusted || hasWindowAccess {
+            newStatus = .authorized
+        } else if hasPromptedAccessibility {
+            newStatus = .denied
+        } else {
+            newStatus = .notDetermined
         }
+
+        if accessibilityPermission != newStatus {
+            Logger.shared.log("🔐 [ACCESSIBILITY] Permission status updated to: \(newStatus.rawValue) (trusted=\(trusted), windowAccess=\(hasWindowAccess))")
+        }
+
+        accessibilityPermission = newStatus
     }
     
     /// Test si on peut vraiment accéder aux infos fenêtres (comme TeamsDetector)
@@ -339,27 +334,21 @@ class PermissionManager: ObservableObject {
     private func startAccessibilityStatusMonitor() {
         accessibilityMonitorTask?.cancel()
         accessibilityMonitorTask = Task { [weak self] in
-            guard let self else { return }
-
             for _ in 0..<20 {
                 if Task.isCancelled { return }
 
                 if AXIsProcessTrusted() {
-                    await MainActor.run {
-                        self.accessibilityPermission = .authorized
-                    }
+                    self?.accessibilityPermission = .authorized
                     return
                 }
 
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
 
-            await MainActor.run {
-                if self.hasPromptedAccessibility {
-                    self.accessibilityPermission = .denied
-                } else {
-                    self.accessibilityPermission = .notDetermined
-                }
+            if self?.hasPromptedAccessibility == true {
+                self?.accessibilityPermission = .denied
+            } else {
+                self?.accessibilityPermission = .notDetermined
             }
         }
     }

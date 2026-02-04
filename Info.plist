@@ -11,11 +11,17 @@
     <key>CFBundleDisplayName</key>
     <string>Meety</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>1</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>0.1.17</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+
+    <!-- Developer Information -->
+    <key>DTPlatformName</key>
+    <string>macosx</string>
+    <key>DTCompiler</key>
+    <string>com.apple.compilers.llvm.clang.1_0</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.3</string>
     <key>LSUIElement</key>
@@ -34,18 +40,53 @@
         <string>fr</string>
     </array>
     
-    <!-- Permissions -->
+    <!-- ============================================ -->
+    <!-- PRIVACY USAGE DESCRIPTIONS (English - Default Language) -->
+    <!-- Clear, honest descriptions for user transparency -->
+    <!-- ============================================ -->
+
+    <!-- Microphone Access -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>Cette application a besoin d'accéder au microphone pour enregistrer vos réunions</string>
+    <string>Meety records your voice during meetings. Your recordings are stored locally on your Mac and are never uploaded to any server.</string>
+
+    <!-- Screen Recording (for System Audio Capture) -->
     <key>NSScreenRecordingUsageDescription</key>
-    <string>Cette application a besoin d'enregistrer l'écran pour capturer l'audio système lors des réunions</string>
+    <string>Meety captures system audio from your meetings (like Teams, Zoom). This permission does not capture screen content, only audio. All recordings stay on your Mac.</string>
+
+    <!-- Documents Folder Access -->
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>Cette application sauvegarde vos enregistrements de réunion dans le dossier Documents</string>
+    <string>Meety saves your meeting recordings as M4A files in your Documents folder for easy access. You have full control over these files.</string>
+
+    <!-- Apple Events (for Teams Detection) -->
     <key>NSAppleEventsUsageDescription</key>
-    <string>Cette application a besoin d'accéder aux événements système pour détecter automatiquement les réunions Teams</string>
-    
-    <!-- Accessibility Access (requis pour la détection automatique) -->
+    <string>Meety uses system events to detect when Microsoft Teams meetings start and end, enabling automatic recording. No personal data is collected.</string>
+
+    <!-- Accessibility (for Teams Window Detection) -->
     <key>NSAccessibilityUsageDescription</key>
-    <string>Cette application utilise l'accessibilité pour détecter automatiquement le début et la fin des réunions</string>
+    <string>Meety monitors Teams application windows to automatically detect when you join or leave meetings. This enables hands-free recording without collecting any personal information.</string>
+
+    <!-- ============================================ -->
+    <!-- PRIVACY & SECURITY -->
+    <!-- ============================================ -->
+
+    <!-- Privacy Policy (required for distribution) -->
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2025 in-Tact. All rights reserved.</string>
+
+    <!-- App Category -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+
+    <!-- High Resolution Capable -->
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!-- Supports Automatic Termination -->
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+
+    <!-- Sudden Termination Disabled (audio recording app) -->
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
 </dict>
 </plist>

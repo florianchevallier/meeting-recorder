@@ -9,7 +9,7 @@ import Foundation
 
 /// Manages the complete transcription workflow
 @MainActor
-class TranscriptionManager: ObservableObject {
+final class TranscriptionManager: ObservableObject {
 
     // MARK: - Properties
 

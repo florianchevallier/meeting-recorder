@@ -99,7 +99,7 @@ struct APIErrorResponse: Codable {
 
 /// Internal model for tracking transcription state
 @MainActor
-class TranscriptionState: ObservableObject {
+final class TranscriptionState: ObservableObject {
     @Published var isTranscribing: Bool = false
     @Published var currentJobId: String?
     @Published var status: JobStatus = .pending
