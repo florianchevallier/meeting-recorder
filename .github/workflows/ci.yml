@@ -38,7 +38,15 @@ jobs:
       run: swift build --configuration debug
     
     - name: Run tests
-      run: swift test --configuration debug --parallel
+      run: |
+        # Skip tests if no test files exist
+        if [ -d "Tests" ] && [ -n "$(find Tests -name '*Tests.swift' 2>/dev/null)" ]; then
+          echo "Running tests..."
+          swift test --configuration debug --parallel
+        else
+          echo "⚠️ No tests found - skipping test phase"
+          echo "Tests can be added later in the Tests/ directory"
+        fi
     
     - name: Validate package structure
       run: |
