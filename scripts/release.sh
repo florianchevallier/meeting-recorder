@@ -119,10 +119,17 @@ check_requirements() {
 }
 
 run_tests() {
-    log_info "Running tests..."
+    log_info "Checking tests..."
     
     if $DRY_RUN; then
         log_info "[DRY RUN] Would run: swift test"
+        return 0
+    fi
+    
+    # Check if Tests directory exists and has test files
+    if [ ! -d "Tests" ] || [ -z "$(find Tests -name '*Tests.swift' 2>/dev/null)" ]; then
+        log_warning "No tests found - skipping test phase"
+        log_info "Tests will run in GitHub Actions CI pipeline"
         return 0
     fi
     
