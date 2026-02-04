@@ -30,7 +30,37 @@
 
 ## 🛠 Installation
 
-### For Users (Recommended)
+### Option 1: Homebrew (Recommended) 🍺
+
+The easiest way to install Meety on macOS:
+
+```bash
+# Add the Meety tap
+brew tap florianchevallier/meety
+
+# Install Meety
+brew install --cask meety
+
+# Launch Meety
+open /Applications/Meety.app
+```
+
+**That's it!** Meety is now installed and ready to use. Look for the 🎤 icon in your menu bar.
+
+#### Homebrew Commands
+
+```bash
+# Update to the latest version
+brew upgrade --cask meety
+
+# Uninstall
+brew uninstall --cask meety
+
+# Reinstall (if needed)
+brew reinstall --cask meety
+```
+
+### Option 2: Direct Download
 
 **Download the latest release** from [GitHub Releases](https://github.com/florianchevallier/meeting-recorder/releases/latest)
 
@@ -62,19 +92,40 @@ open .build/MeetingRecorder.app
 
 ## 🎯 Usage
 
-1. **First Launch**: App requests necessary permissions
-2. **Status Bar Interface**: Click the 🎤 icon in the status bar
-3. **Manual Recording**: 
-   - "Start Recording" to begin
-   - "Stop Recording" to finish
-4. **Files**: Automatically saved to `~/Documents/`
+### First Launch Setup
 
-### Required Permissions
+When you launch Meety for the first time, it will guide you through granting the necessary permissions:
 
-The application automatically requests:
-- **🎤 Microphone**: Capture your voice
-- **📺 Screen Recording**: Capture system audio (Teams, Zoom, etc.)
-- **📅 Calendar**: Automatic meeting detection (optional)
+1. **Microphone** 🎤 - To record your voice during meetings
+2. **Screen Recording** 📺 - To capture system audio (Teams, Zoom, etc.)
+3. **Documents Folder** 📁 - To save your recordings
+4. **Accessibility** ♿ - To detect Teams meetings automatically
+
+**Note**: All permissions can be granted through the onboarding flow. If you skip any, you can grant them later in **System Settings → Privacy & Security**.
+
+### Daily Usage
+
+1. **Status Bar Interface**: Click the 🎤 icon in the menu bar
+2. **Manual Recording**: 
+   - Click "Start Recording" to begin
+   - Click "Stop Recording" to finish
+3. **Auto Recording**: Enable in settings to automatically record Teams meetings
+4. **Files**: Recordings are saved to `~/Documents/meeting_YYYY-MM-DD_HH-mm-ss.m4a`
+
+### Troubleshooting Permissions
+
+If recording doesn't work, check your permissions:
+
+```bash
+# Open System Settings directly to Privacy & Security
+open "x-apple.systempreferences:com.apple.preference.security?Privacy"
+```
+
+Then verify that Meety has access to:
+- **Privacy → Microphone** ✅
+- **Privacy → Screen Recording** ✅
+- **Privacy → Files and Folders → Documents Folder** ✅
+- **Privacy → Accessibility** ✅ (for Teams detection)
 
 ## 📁 Architecture
 
@@ -114,18 +165,71 @@ Sources/
 - **macOS 13.0+**: Advanced audio configuration
 - **macOS 14.0+**: Modern calendar permissions
 
+## ❓ FAQ
+
+### How do I know if Meety is recording?
+
+Look for the 🎤 icon in your menu bar. When recording:
+- The icon animates with a red dot
+- A timer shows the recording duration
+- Click the icon to see recording status
+
+### Where are my recordings saved?
+
+All recordings are saved to your **Documents folder** with automatic naming:
+```
+~/Documents/meeting_2026-02-04_14-30-00.m4a
+```
+
+### Can I use Meety with Zoom, Google Meet, etc.?
+
+Yes! Meety captures **all system audio**, so it works with:
+- Microsoft Teams
+- Zoom
+- Google Meet
+- Slack Huddles
+- Any other video conferencing app
+
+### Is my data private?
+
+**100% private!** Meety:
+- ✅ Stores all recordings **locally** on your Mac
+- ✅ **Never uploads** anything to the cloud
+- ✅ **No analytics** or tracking
+- ✅ Open source - you can verify the code
+
+### How do I uninstall Meety?
+
+**If installed via Homebrew:**
+```bash
+brew uninstall --cask meety
+```
+
+**If installed manually:**
+1. Quit Meety from the menu bar
+2. Delete `/Applications/Meety.app`
+3. (Optional) Remove recordings from `~/Documents/meeting_*.m4a`
+
+### The app won't open / shows security warning
+
+This shouldn't happen with Homebrew installation, but if it does:
+1. Right-click on `Meety.app` in Applications
+2. Select "Open"
+3. Click "Open" in the dialog
+4. This is only needed once
+
 ## 🧪 Testing & Debug
 
 ```bash
-# Run tests
-swift test
+# View real-time logs
+tail -f ~/Documents/Meety_debug.log
 
-# Debug logs
-tail -f ~/Documents/MeetingRecorder_debug.log
+# Reset permissions (for testing)
+tccutil reset Microphone com.meetingrecorder.meety
+tccutil reset ScreenCapture com.meetingrecorder.meety
 
-# Reset permissions
-tccutil reset Microphone com.meetingrecorder.app
-tccutil reset ScreenCapture com.meetingrecorder.app
+# Check if Meety is running
+ps aux | grep Meety
 ```
 
 ## 🛣 Roadmap
