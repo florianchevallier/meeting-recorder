@@ -2,6 +2,17 @@
 
 **README for AI Agents** - This file provides guidance when working with this codebase, based on deep code analysis.
 
+## ⚠️ CRITICAL RULES FOR AI AGENTS
+
+### Git Commit Attribution
+
+- ❌ **NEVER** add `Co-authored-by: Cursor <cursoragent@cursor.com>` to commit messages
+- ❌ **NEVER** add `Co-authored-by: Claude <noreply@anthropic.com>` to commit messages
+- ❌ **NEVER** add any AI assistant as co-author in commits
+- ✅ **ALWAYS** keep commits attributed to the human developer only (Florian Chevallier)
+
+**Why**: AI assistants are tools, not contributors. The project has a single human maintainer. Adding co-authors pollutes the contributor list on GitHub and misrepresents project ownership.
+
 ## Project Identity
 
 - **Public Name**: MeetingRecorder

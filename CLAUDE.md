@@ -11,6 +11,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **ALWAYS** put documentation directly in `CLAUDE.md` (this file)
 - ✅ **ONLY** create files when explicitly requested by the user
 
+**DO NOT ADD CO-AUTHORS TO GIT COMMITS**
+
+- ❌ **NEVER** add `Co-authored-by: Cursor <cursoragent@cursor.com>` to commit messages
+- ❌ **NEVER** add `Co-authored-by: Claude <noreply@anthropic.com>` to commit messages
+- ❌ **NEVER** add any AI assistant as co-author in commits
+- ✅ **ALWAYS** keep commits attributed to the human developer only
+
+**Why?** The project has a single human maintainer (Florian Chevallier). AI assistants are tools, not contributors. Adding co-authors pollutes the contributor list on GitHub and misrepresents project ownership.
+
 **Why?** The project already has comprehensive documentation in:
 - `CLAUDE.md` - Complete technical reference for AI assistants
 - `README.md` - User-facing project overview
