@@ -2,7 +2,7 @@ cask "meety" do
   version "0.1.18"
   sha256 "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5"
 
-  url "https://github.com/florianchevallier/meeting-recorder/releases/download/v#{version}/MeetingRecorder-#{version}.dmg"
+  url "https://github.com/florianchevallier/meeting-recorder/releases/download/v#{version}/Meety-#{version}.dmg"
   name "Meety"
   desc "Native macOS meeting recorder with Teams detection and system audio capture"
   homepage "https://github.com/florianchevallier/meeting-recorder"
