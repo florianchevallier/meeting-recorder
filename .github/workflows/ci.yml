@@ -381,46 +381,30 @@ jobs:
       with:
         name: Meety-${{ needs.build.outputs.version }}
         path: release-artifacts/
-    
-    - name: Generate release notes
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install Python dependencies
+      run: |
+        pip install -r .github/scripts/requirements.txt
+
+    - name: Generate AI-powered release notes
       id: release-notes
+      env:
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: |
         VERSION="${{ needs.build.outputs.version }}"
-        
-        cat > release-notes.md << EOF
-        # Meety v$VERSION
-        
-        ## 🎉 Fonctionnalités
-        - ✅ Enregistrement automatique des réunions Microsoft Teams
-        - ✅ Interface dans la barre de menu macOS
-        - ✅ Capture simultanée audio système et microphone
-        - ✅ Gestion complète des permissions macOS
-        - ✅ Mélangeur audio temps réel sans feedback
-        - ✅ Sauvegarde haute qualité (AAC 48kHz)
-        - ✅ Nommage automatique intelligent
-        
-        ## 🔧 Installation
-        1. Télécharger le DMG ci-dessous
-        2. Double-cliquer pour monter le DMG
-        3. Glisser Meety.app vers le dossier Applications
-        4. Lancer l'application (pas d'avertissement de sécurité !)
-        5. Accorder les permissions demandées
-        
-        ## 📋 Configuration Requise
-        - macOS 14.0 ou supérieur
-        - Permissions : microphone, enregistrement d'écran, documents, accessibilité
-        
-        ## 🚀 Utilisation
-        Cherchez l'icône microphone dans votre barre de menu après installation !
-        
-        ## 🔒 Sécurité
-        - ✅ Signé avec Developer ID Application
-        - ✅ Notarisé par Apple
-        - ✅ Code source disponible sur GitHub
-        - ✅ Build automatisé via GitHub Actions
-        - ✅ Données 100% locales sur votre Mac
-        EOF
-        
+
+        echo "🤖 Generating release notes with Claude API..."
+        python .github/scripts/generate-release-notes.py "v$VERSION" > release-notes.md
+
+        echo "📄 Generated release notes:"
+        cat release-notes.md
+
         echo "release-notes-file=release-notes.md" >> $GITHUB_OUTPUT
     
     - name: Create GitHub Release
