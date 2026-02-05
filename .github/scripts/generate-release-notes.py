@@ -14,6 +14,15 @@ def get_commits_since_last_tag(target_version: str) -> List[Dict[str, str]]:
     """Get all commits since the last tag up to target version"""
     target_ref = f"v{target_version}" if not target_version.startswith('v') else target_version
 
+    # Check if target tag exists
+    tag_exists = subprocess.run(
+        ["git", "rev-parse", "--verify", target_ref],
+        capture_output=True
+    ).returncode == 0
+
+    # If tag doesn't exist, use HEAD (for testing future versions)
+    target_ref = target_ref if tag_exists else "HEAD"
+
     try:
         result = subprocess.run(
             ["git", "describe", "--tags", "--abbrev=0", f"{target_ref}^"],
