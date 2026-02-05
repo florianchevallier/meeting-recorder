@@ -1,103 +1,121 @@
-***
+# Meety
 
-# MeetingRecorder (Meety)
-
-> Native macOS application for meeting recording. Captures system audio and microphone input simultaneously.
+> Meety est une application macOS native qui enregistre vos réunions en capturant simultanément l'audio système et votre microphone. Simple, efficace, et entièrement locale.
 
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org)
-[![Platform](https://img.shields.io/badge/Platform-macOS%2012.3+-blue.svg)](https://www.apple.com/macos/)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2014.0+-blue.svg)](https://www.apple.com/macos/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## Features
+## Pourquoi Meety ?
 
-### Current Functionality
-- **Menu Bar Application**: Runs in the background with a visual status indicator.
-- **Dual Audio Capture**: Records system output (Teams, Zoom, etc.) and microphone input.
-- **Audio Mixing**: Combines sources in real-time without echo or feedback.
-- **Export Format**: Saves files as high-quality AAC `.m4a`.
-- **Automatic Naming**: Files are saved with the current date and time.
+J'avais besoin d'une solution fiable pour enregistrer mes réunions Teams sans jongler entre plusieurs applications. Meety fonctionne discrètement depuis votre barre de menu, capture l'audio système (Teams, Zoom, Meet) et votre microphone en même temps, puis exporte un fichier M4A de qualité.
 
-### In Development
-- **Teams Detection**: Automatic recording triggers when Teams launches.
-- **Calendar Integration**: Scheduled recording based on calendar events.
-- **System Notifications**: Alerts for recording status changes.
+L'application mixe les deux sources audio en temps réel sans écho ni feedback. Vous obtenez un enregistrement propre, automatiquement nommé avec la date et l'heure, sauvegardé dans votre dossier Documents.
 
-## Requirements
+## Fonctionnalités principales
 
-- **macOS 12.3** or later (Required for ScreenCaptureKit).
-- **Swift 5.9** (For building from source).
+L'application détecte automatiquement quand vous rejoignez une réunion Teams et peut démarrer l'enregistrement sans intervention. L'audio est exporté en AAC 48kHz stéréo, offrant un bon équilibre entre qualité et taille de fichier.
+
+Sur macOS 15 et versions ultérieures, Meety utilise la version optimisée de ScreenCaptureKit avec un système de récupération automatique. Si votre Mac se met en veille pendant un enregistrement, l'application tente de reprendre automatiquement au réveil. Ce système de récupération a demandé beaucoup de travail mais il s'avère précieux pour les longues réunions.
+
+Les fichiers sont nommés automatiquement selon le format `meeting_YYYY-MM-DD_HH-mm-ss.m4a` et sauvegardés directement dans votre dossier Documents. L'interface dans la barre de menu affiche un indicateur rouge et un timer pendant l'enregistrement, rendant le statut très visible.
+
+## À venir
+
+Plusieurs améliorations sont prévues : intégration avec le calendrier pour préparer automatiquement les enregistrements planifiés, notifications discrètes pour les changements de statut, et des préférences avancées permettant de personnaliser la qualité audio et le dossier de destination.
+
+## Configuration requise
+
+Meety nécessite macOS 14.0 minimum. Cette version est requise pour bénéficier des fonctionnalités optimisées de ScreenCaptureKit. L'application est distribuée sous forme de binaire universel, compatible avec les Mac Apple Silicon (M1, M2, M3) et Intel.
+
+Pour compiler depuis les sources, Swift 5.9 ou ultérieur est nécessaire. Cela dit, pour un usage standard, l'installation de la version précompilée est recommandée.
 
 ## Installation
 
-### Option 1: Homebrew (Recommended)
+### Via Homebrew (recommandé)
 
-Run the following commands in Terminal:
+Homebrew simplifie l'installation et les mises à jour futures :
 
 ```bash
 brew tap florianchevallier/meety
 brew install --cask meety
 ```
 
-### Option 2: Manual Download
+Une fois installée, lancez l'application avec `open /Applications/Meety.app` ou depuis votre dossier Applications.
 
-1. Download the latest release from the [GitHub Releases page](https://github.com/florianchevallier/meeting-recorder/releases/latest).
-2. Open the disk image (`.dmg`) and drag the application to your Applications folder.
-3. Open the application. It is notarized by Apple, so no security overrides are required.
+### Téléchargement direct
 
-## Usage
+Téléchargez le dernier DMG depuis la [page des releases GitHub](https://github.com/florianchevallier/meeting-recorder/releases/latest). Ouvrez le fichier, glissez Meety.app dans votre dossier Applications, et lancez l'application.
 
-### Initial Setup
-Upon first launch, the application requires specific permissions to function:
+L'application est signée et notarisée par Apple, vous ne rencontrerez donc aucun avertissement de sécurité au premier lancement.
 
-1.  **Microphone**: To record your voice.
-2.  **Screen Recording**: Required to capture audio from other applications via ScreenCaptureKit. Video is not recorded.
-3.  **Documents Folder**: To save the audio files.
+## Mise à jour
 
-If permissions are denied during setup, enable them later in **System Settings > Privacy & Security**.
+### Installation Homebrew
 
-### Recording
-1.  Click the application icon in the menu bar.
-2.  Select **Start Recording**.
-3.  To finish, select **Stop Recording**.
-4.  The file is automatically saved to your Documents folder.
+Pour mettre à jour vers la dernière version :
 
-## Frequently Asked Questions
+```bash
+brew update
+brew upgrade --cask meety
+```
 
-**How do I verify recording status?**
-The menu bar icon displays a red indicator and a timer while recording is active.
+Homebrew vérifie et installe automatiquement les nouvelles versions disponibles.
 
-**Where are recordings stored?**
-Files are saved in the `~/Documents` folder with the naming convention `meeting_YYYY-MM-DD...m4a`.
+### Installation manuelle
 
-**Does this support Zoom/Google Meet?**
-Yes. The application captures system-wide audio, making it compatible with any conferencing software.
+Retournez sur [GitHub Releases](https://github.com/florianchevallier/meeting-recorder/releases/latest), téléchargez le nouveau DMG, et remplacez l'application existante dans votre dossier Applications. Relancez ensuite Meety.
 
-**Is data private?**
-Yes. All processing occurs locally on the device. No data is uploaded to the cloud or collected for analytics.
+Vous pouvez vérifier votre version actuelle en cliquant sur l'icône dans la barre de menu et en sélectionnant "About Meety".
 
-## Development
+## Utilisation
 
-To build the project locally:
+### Premier lancement
+
+Au premier démarrage, macOS demande quatre permissions nécessaires au fonctionnement de Meety :
+
+Le microphone pour enregistrer votre voix. L'enregistrement d'écran pour capturer l'audio système via ScreenCaptureKit (seul l'audio est capturé, jamais la vidéo). L'accès au dossier Documents pour sauvegarder les fichiers audio. Et l'API d'accessibilité pour détecter automatiquement les réunions Teams.
+
+Si vous refusez une permission par inadvertance, vous pouvez l'activer ultérieurement dans Réglages Système > Confidentialité et sécurité. Les quatre permissions sont nécessaires pour un fonctionnement optimal.
+
+### Enregistrer une réunion
+
+Cliquez sur l'icône microphone dans votre barre de menu et sélectionnez "Démarrer l'enregistrement". L'icône devient rouge et affiche un timer. Pour arrêter, cliquez à nouveau et choisissez "Arrêter l'enregistrement". Le fichier est automatiquement sauvegardé dans Documents.
+
+Si la détection automatique Teams est activée, l'application démarre l'enregistrement dès que vous rejoignez une réunion. Pratique pour ne jamais oublier d'enregistrer les échanges importants.
+
+## Questions fréquentes
+
+**Comment vérifier que l'enregistrement est actif ?**
+L'icône dans la barre de menu passe au rouge et affiche un timer en temps réel pendant l'enregistrement.
+
+**Où sont sauvegardés les enregistrements ?**
+Dans votre dossier `~/Documents` avec la convention de nommage `meeting_YYYY-MM-DD_HH-mm-ss.m4a`. Par exemple, un enregistrement du 5 février 2025 à 14h30 produira `meeting_2025-02-05_14-30-15.m4a`.
+
+**Meety fonctionne-t-il avec Zoom et Google Meet ?**
+Oui. L'application capture l'audio système complet, ce qui la rend compatible avec toutes les solutions de visioconférence : Teams, Zoom, Meet, Discord, Slack, etc.
+
+**Les données sont-elles privées ?**
+Absolument. Tout le traitement s'effectue localement sur votre Mac. Aucune donnée n'est transmise vers le cloud, aucune télémétrie n'est collectée. Les fichiers restent dans votre dossier Documents.
+
+**Que se passe-t-il si je ferme le couvercle pendant un enregistrement ?**
+Sur macOS 15 et versions ultérieures, Meety tente de récupérer automatiquement l'enregistrement au réveil de la machine. Sur les versions antérieures, l'enregistrement peut s'interrompre. Pour les réunions importantes, il est préférable de garder votre Mac actif.
+
+## Développement
+
+Pour compiler le projet localement :
 
 ```bash
 git clone https://github.com/florianchevallier/meeting-recorder.git
 cd meeting-recorder
-
-# Build and run
 swift build
 ./.build/debug/MeetingRecorder
 ```
 
-### Architecture Overview
-- **Audio/**: Handles AVAudioEngine and ScreenCaptureKit integration.
-- **StatusBar/**: Manages the menu bar interface.
-- **Calendar/**: Logic for meeting detection (WIP).
-- **Permissions/**: Handles system permission requests.
+Le code est organisé en modules : `Audio/` gère la capture et le mixage audio avec AVAudioEngine et ScreenCaptureKit, `StatusBar/` contrôle l'interface dans la barre de menu, `Calendar/` implémente la détection des réunions Teams, et `Permissions/` coordonne les demandes d'autorisation système.
 
-## Contributing
+Les contributions sont bienvenues. Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour les directives. Les pull requests doivent être testées et ne pas introduire de régressions.
 
-Contributions are welcome. Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+## Licence
 
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+Meety est distribué sous licence MIT. Vous pouvez utiliser, modifier et distribuer le code librement, à condition de conserver la notice de licence. Détails complets dans le fichier [LICENSE](LICENSE).

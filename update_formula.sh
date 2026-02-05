@@ -23,17 +23,17 @@ fi
 echo "Updating $CASK_FILE to version $VERSION..."
 
 # Download the DMG to calculate SHA256
-DMG_URL="https://github.com/florianchevallier/meeting-recorder/releases/download/${VERSION_TAG}/MeetingRecorder-${VERSION}.dmg"
+DMG_URL="https://github.com/florianchevallier/meeting-recorder/releases/download/${VERSION_TAG}/Meety-${VERSION}.dmg"
 
 echo "Downloading DMG to calculate SHA256..."
-if ! curl -sL "$DMG_URL" -o "/tmp/MeetingRecorder-${VERSION}.dmg"; then
+if ! curl -sL "$DMG_URL" -o "/tmp/Meety-${VERSION}.dmg"; then
     echo "Error: Failed to download DMG from $DMG_URL"
     echo "Make sure the release is published first"
     exit 1
 fi
 
-NEW_SHA256=$(shasum -a 256 "/tmp/MeetingRecorder-${VERSION}.dmg" | awk '{print $1}')
-rm -f "/tmp/MeetingRecorder-${VERSION}.dmg"
+NEW_SHA256=$(shasum -a 256 "/tmp/Meety-${VERSION}.dmg" | awk '{print $1}')
+rm -f "/tmp/Meety-${VERSION}.dmg"
 
 echo "New SHA256: $NEW_SHA256"
 
