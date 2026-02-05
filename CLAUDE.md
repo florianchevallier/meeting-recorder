@@ -20,6 +20,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Why?** The project has a single human maintainer (Florian Chevallier). AI assistants are tools, not contributors. Adding co-authors pollutes the contributor list on GitHub and misrepresents project ownership.
 
+**NEVER COMMIT ON BEHALF OF THE USER**
+
+- ❌ **NEVER** run `git commit` commands without explicit user instruction
+- ❌ **NEVER** automatically commit changes, even if they seem "ready"
+- ❌ **NEVER** commit after making changes, even with a good commit message
+- ✅ **ALWAYS** stage changes with `git add` and show status
+- ✅ **ALWAYS** let the user decide when and how to commit
+- ✅ **ONLY** commit if the user explicitly asks "commit this" or "make a commit"
+
+**Why?** The user wants full control over when commits happen. Claude should prepare changes and show what's ready to commit, but the final `git commit` command must come from explicit user instruction, not automatic assistant behavior.
+
 **Why?** The project already has comprehensive documentation in:
 - `CLAUDE.md` - Complete technical reference for AI assistants
 - `README.md` - User-facing project overview
