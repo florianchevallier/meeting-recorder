@@ -31,7 +31,7 @@ Use **GitHub Issues** with the bug template:
 - **Clear description** of the problem
 - **Detailed reproduction steps**
 - **Environment**: macOS version, Xcode, Swift
-- **Logs** if available (`~/Documents/MeetingRecorder_debug.log`)
+- **Logs** if available (use `log show --predicate 'subsystem == "com.meetingrecorder.app"' --last 100` or Console.app)
 
 ### ✨ Feature Requests
 - **Use case**: Why is this feature needed?

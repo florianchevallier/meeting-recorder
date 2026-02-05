@@ -1,130 +1,84 @@
 import Foundation
-
-// MARK: - Log Level
-
-/// Defines the severity level of log messages
-enum LogLevel: Int, Comparable, CustomStringConvertible {
-    case debug = 0
-    case info = 1
-    case warning = 2
-    case error = 3
-
-    var description: String {
-        switch self {
-        case .debug: return "DEBUG"
-        case .info: return "INFO"
-        case .warning: return "WARNING"
-        case .error: return "ERROR"
-        }
-    }
-
-    var emoji: String {
-        switch self {
-        case .debug: return "🔍"
-        case .info: return "ℹ️"
-        case .warning: return "⚠️"
-        case .error: return "❌"
-        }
-    }
-
-    static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
-        return lhs.rawValue < rhs.rawValue
-    }
-}
+import os.log
 
 // MARK: - Logger
 
+/// Unified logging system using Apple's os_log framework
+/// - Debug logs: Only visible during development, automatically filtered in production
+/// - Info logs: General information, persisted in system logs
+/// - Warning logs: Potential issues, persisted in system logs
+/// - Error logs: Errors requiring attention, persisted in system logs
+///
+/// Logs are accessible via Console.app (search for "Meety" or subsystem "com.meetingrecorder.app")
 final class Logger {
     static let shared = Logger()
 
-    private let logFile: URL
-    private let logQueue = DispatchQueue(label: "com.meetingrecorder.logger", qos: .utility)
+    private let osLog: os.Logger
     private var throttleCache: [String: Date] = [:]
     private let throttleLock = NSLock()
-
-    // MARK: - Configuration
-
-    /// Minimum log level to record (default: .debug)
-    /// Set to .info for production to reduce noise
-    var minimumLogLevel: LogLevel = .debug
-
-    /// Enable/disable console output (default: true)
-    var consoleOutputEnabled: Bool = true
-
-    /// Enable/disable file output (default: true)
-    var fileOutputEnabled: Bool = true
 
     // MARK: - Initialization
 
     private init() {
-        // Use different log files for dev vs prod
-        let bundleId = Bundle.main.bundleIdentifier ?? "com.meetingrecorder.unknown"
-        let appName = bundleId.contains(".dev") ? "MeetyDev" : "Meety"
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.meetingrecorder.app"
 
-        // Safe access to Documents directory with fallback to temporary directory
-        let documentsURL = FileSystemUtilities.getDocumentsDirectory(
-            fallback: FileSystemUtilities.getTemporaryDirectory()
-        )
+        // Create os_log Logger with subsystem and category
+        // Subsystem: Reverse DNS identifier (standard Apple convention)
+        // Category: General for main logger (components can create specific categories if needed)
+        osLog = os.Logger(subsystem: bundleId, category: "general")
 
-        logFile = documentsURL.appendingPathComponent("\(appName)_debug.log")
-
-        // Clear previous log on startup
-        let header = """
-        ================================================================================
-        \(appName) Debug Log
-        Started: \(DateFormatter.logFormatter.string(from: Date()))
-        Build: \(bundleId)
-        ================================================================================
-
-        """
-        try? header.write(to: logFile, atomically: true, encoding: .utf8)
+        // Log startup info
+        osLog.info("🚀 Meety started - Build: \(bundleId)")
     }
 
     // MARK: - Public Logging Methods
 
-    /// Log a message with specified level
+    /// Log a debug message (filtered out in production builds automatically)
     /// - Parameters:
     ///   - message: The message to log
-    ///   - level: The severity level (default: .info)
     ///   - component: Optional component name for categorization
-    func log(_ message: String, level: LogLevel = .info, component: String? = nil) {
-        guard level >= minimumLogLevel else { return }
-
-        logQueue.async { [weak self] in
-            self?.writeLog(message: message, level: level, component: component)
-        }
-    }
-
-    /// Log a debug message (only in debug builds or when minimumLogLevel <= .debug)
     func debug(_ message: String, component: String? = nil) {
-        log(message, level: .debug, component: component)
+        let formattedMessage = formatMessage(message, component: component, emoji: "🔍")
+        osLog.debug("\(formattedMessage)")
     }
 
-    /// Log an info message
+    /// Log an info message (persisted in system logs)
+    /// - Parameters:
+    ///   - message: The message to log
+    ///   - component: Optional component name for categorization
     func info(_ message: String, component: String? = nil) {
-        log(message, level: .info, component: component)
+        let formattedMessage = formatMessage(message, component: component, emoji: "ℹ️")
+        osLog.info("\(formattedMessage)")
     }
 
-    /// Log a warning message
+    /// Log a warning message (persisted in system logs)
+    /// - Parameters:
+    ///   - message: The message to log
+    ///   - component: Optional component name for categorization
     func warning(_ message: String, component: String? = nil) {
-        log(message, level: .warning, component: component)
+        let formattedMessage = formatMessage(message, component: component, emoji: "⚠️")
+        osLog.warning("\(formattedMessage)")
     }
 
-    /// Log an error message
+    /// Log an error message (persisted in system logs)
+    /// - Parameters:
+    ///   - message: The message to log
+    ///   - component: Optional component name for categorization
     func error(_ message: String, component: String? = nil) {
-        log(message, level: .error, component: component)
+        let formattedMessage = formatMessage(message, component: component, emoji: "❌")
+        osLog.error("\(formattedMessage)")
     }
 
     /// Log a message with throttling to prevent spam
     /// - Parameters:
     ///   - message: The message to log
-    ///   - level: The severity level
+    ///   - level: The severity level (debug, info, warning, error)
     ///   - component: Optional component name
     ///   - throttleInterval: Minimum time between identical messages (default: 30 seconds)
     ///   - throttleKey: Custom key for throttling (default: uses message)
     func logThrottled(
         _ message: String,
-        level: LogLevel = .info,
+        level: LogLevelForThrottling = .info,
         component: String? = nil,
         throttleInterval: TimeInterval = 30.0,
         throttleKey: String? = nil
@@ -143,44 +97,38 @@ final class Logger {
         }
 
         throttleCache[key] = now
-        log(message, level: level, component: component)
+
+        // Call appropriate logging method based on level
+        switch level {
+        case .debug:
+            debug(message, component: component)
+        case .info:
+            info(message, component: component)
+        case .warning:
+            warning(message, component: component)
+        case .error:
+            error(message, component: component)
+        }
+    }
+
+    /// Legacy log method for backward compatibility
+    /// - Parameters:
+    ///   - message: The message to log
+    func log(_ message: String) {
+        info(message)
     }
 
     // MARK: - Private Methods
 
-    private func writeLog(message: String, level: LogLevel, component: String?) {
-        let timestamp = DateFormatter.logFormatter.string(from: Date())
-        let componentPrefix = component.map { "[\($0)] " } ?? ""
-        let logEntry = "[\(timestamp)] \(level.emoji) [\(level.description)] \(componentPrefix)\(message)\n"
-
-        // Console output
-        if consoleOutputEnabled {
-            print(logEntry.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-
-        // File output
-        if fileOutputEnabled {
-            writeToFile(logEntry)
-        }
-    }
-
-    private func writeToFile(_ entry: String) {
-        guard let data = entry.data(using: .utf8) else { return }
-
-        if let fileHandle = try? FileHandle(forWritingTo: logFile) {
-            fileHandle.seekToEndOfFile()
-            fileHandle.write(data)
-            fileHandle.closeFile()
+    private func formatMessage(_ message: String, component: String?, emoji: String) -> String {
+        if let component = component {
+            return "\(emoji) [\(component)] \(message)"
         } else {
-            try? data.write(to: logFile)
+            return "\(emoji) \(message)"
         }
     }
 
     // MARK: - Utility Methods
-
-    func getLogFileURL() -> URL {
-        return logFile
-    }
 
     /// Clear the throttle cache (useful for testing or manual reset)
     func clearThrottleCache() {
@@ -190,13 +138,12 @@ final class Logger {
     }
 }
 
-// MARK: - DateFormatter Extension
+// MARK: - Log Level for Throttling
 
-extension DateFormatter {
-    static let logFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter
-    }()
+/// Log level enum for throttled logging
+enum LogLevelForThrottling {
+    case debug
+    case info
+    case warning
+    case error
 }

@@ -73,10 +73,15 @@ swift test
 
 ### Debugging & Troubleshooting
 ```bash
-# View real-time application logs
-# NOTE: Actual filename depends on bundle ID (Logger.swift:12-13)
-tail -f ~/Documents/Meety_debug.log          # Production
-tail -f ~/Documents/MeetyDev_debug.log       # Development
+# View real-time application logs (uses macOS Unified Logging System)
+# Open Console.app and search for "Meety" or subsystem "com.meetingrecorder.app"
+open -a Console
+
+# Or use command line to stream logs
+log stream --predicate 'subsystem == "com.meetingrecorder.app"' --level debug
+
+# Show last 100 log entries
+log show --predicate 'subsystem == "com.meetingrecorder.app"' --last 100
 
 # Reset system permissions for testing
 tccutil reset Microphone com.meetingrecorder.app
@@ -396,27 +401,50 @@ The application requires four system permissions, all managed by PermissionManag
 
 ## Logging and Debugging
 
-The application uses `Logger.shared` ([Logger.swift:4](Sources/Utils/Logger.swift#L4)) throughout for consistent logging:
+The application uses Apple's **Unified Logging System (os_log)** via `Logger.shared` for professional, system-integrated logging.
 
-**Log File Location** ([Logger.swift:11-13](Sources/Utils/Logger.swift#L11)):
-```swift
-let bundleId = Bundle.main.bundleIdentifier ?? "com.meetingrecorder.unknown"
-let appName = bundleId.contains(".dev") ? "MeetyDev" : "Meety"
-// Output: ~/Documents/Meety_debug.log OR ~/Documents/MeetyDev_debug.log
-```
+**Key Features**:
+- ✅ **Smart filtering**: Debug logs automatically filtered in production builds
+- ✅ **No visible files**: Logs managed by macOS, accessible via Console.app
+- ✅ **Performance optimized**: Apple's native logging framework
+- ✅ **Privacy-first**: Follows macOS logging standards
+
+**Accessing Logs**:
+
+1. **Console.app** (GUI):
+   ```bash
+   open -a Console
+   # Search for: "Meety" or subsystem "com.meetingrecorder.app"
+   ```
+
+2. **Command Line** (real-time):
+   ```bash
+   # Stream logs as they happen
+   log stream --predicate 'subsystem == "com.meetingrecorder.app"' --level debug
+
+   # Show last 100 entries
+   log show --predicate 'subsystem == "com.meetingrecorder.app"' --last 100
+
+   # Filter by component
+   log show --predicate 'subsystem == "com.meetingrecorder.app" AND category == "general"'
+   ```
+
+**Logging Levels**:
+- `debug()` - Development details (filtered in production)
+- `info()` - General information (always persisted)
+- `warning()` - Potential issues (always persisted)
+- `error()` - Critical errors (always persisted)
 
 **Structured Logging Convention**:
 - Emoji prefixes: `🎬` Recording, `🔍` Teams, `🎤` Mic, `🔊` System, `❌` Error, `✅` Success, `⚠️` Warning
 - Component tags: `[RECORDING]`, `[TEAMS]`, `[AUDIO_MIXER]`, `[UNIFIED_CAPTURE]`, `[HEALTH_MONITOR]`
-- Timestamp format: `yyyy-MM-dd HH:mm:ss.SSS` ([Logger.swift:45](Sources/Utils/Logger.swift#L45))
-- Real-time monitoring: `tail -f ~/Documents/Meety_debug.log`
 
-**Example Log Output**:
+**Example Log Output** (in Console.app):
 ```
-[2025-01-27 10:30:45.123] 🔍 [TEAMS] Detection results - Logs: START, Windows: ✅, Mic: ✅
-[2025-01-27 10:30:45.456] 🎬 [AUTO] Starting automatic recording for Teams meeting
-[2025-01-27 10:30:46.012] 🚀 [RECORDING] Using unified capture (macOS 15+)
-[2025-01-27 10:30:47.234] ✅ [UNIFIED_CAPTURE] Unified recording started
+🔍 [TEAMS] Detection results - Logs: START, Windows: ✅, Mic: ✅
+🎬 [AUTO] Starting automatic recording for Teams meeting
+🚀 [RECORDING] Using unified capture (macOS 15+)
+✅ [UNIFIED_CAPTURE] Unified recording started
 ```
 
 ## Testing Strategy
@@ -430,7 +458,7 @@ let appName = bundleId.contains(".dev") ? "MeetyDev" : "Meety"
 ### Manual Testing Workflow
 1. **Build**: `swift build`
 2. **Run**: `./.build/debug/MeetingRecorder` (NEVER use `swift run`)
-3. **Monitor Logs**: `tail -f ~/Documents/Meety_debug.log`
+3. **Monitor Logs**: `log stream --predicate 'subsystem == "com.meetingrecorder.app"' --level debug`
 4. **Join Real Teams Meeting**: Test auto-detection and recording
 5. **Verify Output**: `ls -la ~/Documents/meeting_*.m4a`
 6. **Check Audio Quality**: Play M4A file with QuickTime/VLC
@@ -895,8 +923,11 @@ MeetingRecorder/
 ### 🐛 Debugging
 
 ```bash
-# View real-time logs
-tail -f ~/Documents/MeetingRecorder_debug.log
+# View real-time logs (macOS Unified Logging)
+log stream --predicate 'subsystem == "com.meetingrecorder.app"' --level debug
+
+# Or open Console.app
+open -a Console  # Search for "Meety"
 
 # Reset permissions for testing
 tccutil reset Microphone com.meetingrecorder.app
