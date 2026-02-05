@@ -10,11 +10,13 @@ import json
 import subprocess
 from typing import List, Dict
 
-def get_commits_since_last_tag() -> List[Dict[str, str]]:
-    """Get all commits since the last tag"""
+def get_commits_since_last_tag(target_version: str) -> List[Dict[str, str]]:
+    """Get all commits since the last tag up to target version"""
+    target_ref = f"v{target_version}" if not target_version.startswith('v') else target_version
+
     try:
         result = subprocess.run(
-            ["git", "describe", "--tags", "--abbrev=0", "HEAD^"],
+            ["git", "describe", "--tags", "--abbrev=0", f"{target_ref}^"],
             capture_output=True,
             text=True,
             check=True
@@ -25,7 +27,7 @@ def get_commits_since_last_tag() -> List[Dict[str, str]]:
         prev_tag = ""
         print("📊 No previous tag found, analyzing all commits...", file=sys.stderr)
 
-    git_range = f"{prev_tag}..HEAD" if prev_tag else "HEAD"
+    git_range = f"{prev_tag}..{target_ref}" if prev_tag else target_ref
     result = subprocess.run(
         ["git", "log", git_range, "--pretty=format:%H|%s|%b|%an", "--no-merges"],
         capture_output=True,
@@ -97,25 +99,25 @@ Instructions:
 2. Structure en sections: "Nouveautés", "Corrections", "Améliorations techniques"
 3. Explique les bénéfices utilisateur, pas juste les changements techniques
 4. Sois concis mais informatif
-5. Utilise des emojis avec parcimonie (1-2 par section)
+5. N'utilise AUCUN emoji
 6. Ignore les commits chore/ci sauf s'ils sont significatifs pour l'utilisateur
 
 Format attendu:
 # Meety v{version}
 
-## 🎯 Résumé
+## Résumé
 [1-2 phrases sur ce que cette version apporte]
 
-## ✨ Nouveautés
+## Nouveautés
 [Liste des nouvelles fonctionnalités avec bénéfices utilisateur]
 
-## 🐛 Corrections
+## Corrections
 [Liste des bugs corrigés]
 
-## 🔧 Améliorations techniques
+## Améliorations techniques
 [Améliorations de performance, stabilité, etc.]
 
-## 📦 Installation
+## Installation
 - Via Homebrew: `brew upgrade --cask meety`
 - Téléchargement direct: [lien vers la release]
 
@@ -159,42 +161,46 @@ def generate_with_gemini(prompt: str) -> str:
         raise ValueError("GOOGLE_API_KEY not found")
 
     try:
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=api_key)
+        client = genai.Client(api_key=api_key)
 
         print("🤖 Generating release notes with Google Gemini...", file=sys.stderr)
 
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-flash-latest',
+            contents=prompt
+        )
 
         return response.text
 
     except ImportError:
-        raise ImportError("google-generativeai package not found. Install with: pip install google-generativeai")
+        raise ImportError("google-genai package not found. Install with: pip install google-genai")
 
 def generate_with_ai(version: str, categories: Dict[str, List[Dict[str, str]]]) -> str:
     """Generate release notes using available AI provider"""
 
     prompt = create_prompt(version, categories)
+    content = None
 
-    # Try OpenAI first
+    # Try OpenAI first (if available)
     if os.environ.get('OPENAI_API_KEY'):
         try:
             content = generate_with_openai(prompt)
         except Exception as e:
             print(f"⚠️  OpenAI error: {e}", file=sys.stderr)
             content = None
-    # Try Gemini second
-    elif os.environ.get('GOOGLE_API_KEY'):
+
+    # Try Gemini if OpenAI failed or not available
+    if not content and os.environ.get('GOOGLE_API_KEY'):
         try:
             content = generate_with_gemini(prompt)
         except Exception as e:
             print(f"⚠️  Gemini error: {e}", file=sys.stderr)
             content = None
-    else:
-        print("⚠️  No API key found (OPENAI_API_KEY or GOOGLE_API_KEY)", file=sys.stderr)
-        content = None
+
+    if not content:
+        print("⚠️  No API key found or all providers failed", file=sys.stderr)
 
     if not content:
         print("⚠️  Falling back to basic format", file=sys.stderr)
@@ -203,17 +209,17 @@ def generate_with_ai(version: str, categories: Dict[str, List[Dict[str, str]]]) 
     # Add security and installation info
     content += f"""
 
-## 🔒 Sécurité
-- ✅ Signé avec Developer ID Application
-- ✅ Notarisé par Apple - aucun avertissement de sécurité
-- ✅ Code source ouvert sur GitHub
-- ✅ Données 100% locales sur votre Mac
+## Sécurité
+- Signé avec Developer ID Application
+- Notarisé par Apple - aucun avertissement de sécurité
+- Code source ouvert sur GitHub
+- Données 100% locales sur votre Mac
 
-## 📋 Configuration requise
+## Configuration requise
 - macOS 14.0 ou supérieur
 - Permissions : microphone, enregistrement d'écran, documents, accessibilité
 
-## 🔗 Liens utiles
+## Liens utiles
 - [Code source](https://github.com/florianchevallier/meeting-recorder)
 - [Documentation](https://github.com/florianchevallier/meeting-recorder#readme)
 - [Signaler un bug](https://github.com/florianchevallier/meeting-recorder/issues)
@@ -228,41 +234,41 @@ def generate_basic_notes(version: str, categories: Dict[str, List[Dict[str, str]
 
     # Features
     if categories['feat']:
-        notes.append("\n## ✨ Nouvelles fonctionnalités\n")
+        notes.append("\n## Nouvelles fonctionnalités\n")
         for commit in categories['feat']:
             subject = commit['subject'].replace('feat:', '').replace('feat(', '(').strip()
             notes.append(f"- {subject}")
 
     # Fixes
     if categories['fix']:
-        notes.append("\n## 🐛 Corrections\n")
+        notes.append("\n## Corrections\n")
         for commit in categories['fix']:
             subject = commit['subject'].replace('fix:', '').replace('fix(', '(').strip()
             notes.append(f"- {subject}")
 
     # Performance
     if categories['perf']:
-        notes.append("\n## ⚡ Performance\n")
+        notes.append("\n## Performance\n")
         for commit in categories['perf']:
             subject = commit['subject'].replace('perf:', '').replace('perf(', '(').strip()
             notes.append(f"- {subject}")
 
     # Refactoring
     if categories['refactor']:
-        notes.append("\n## 🔧 Améliorations techniques\n")
+        notes.append("\n## Améliorations techniques\n")
         for commit in categories['refactor']:
             subject = commit['subject'].replace('refactor:', '').replace('refactor(', '(').strip()
             notes.append(f"- {subject}")
 
     # Documentation
     if categories['docs']:
-        notes.append("\n## 📚 Documentation\n")
+        notes.append("\n## Documentation\n")
         for commit in categories['docs']:
             subject = commit['subject'].replace('docs:', '').replace('docs(', '(').strip()
             notes.append(f"- {subject}")
 
     notes.append(f"""
-## 📦 Installation
+## Installation
 
 ### Via Homebrew (recommandé)
 ```bash
@@ -272,13 +278,13 @@ brew upgrade --cask meety
 ### Téléchargement direct
 Téléchargez le DMG ci-dessous et glissez Meety.app dans votre dossier Applications.
 
-## 🔒 Sécurité
-- ✅ Signé avec Developer ID Application
-- ✅ Notarisé par Apple
-- ✅ Code source disponible sur GitHub
-- ✅ Données 100% locales sur votre Mac
+## Sécurité
+- Signé avec Developer ID Application
+- Notarisé par Apple
+- Code source disponible sur GitHub
+- Données 100% locales sur votre Mac
 
-## 📋 Configuration requise
+## Configuration requise
 - macOS 14.0 ou supérieur
 - Permissions : microphone, enregistrement d'écran, documents, accessibilité
 """)
@@ -294,7 +300,7 @@ def main():
 
     print(f"🚀 Generating release notes for v{version}...", file=sys.stderr)
 
-    commits = get_commits_since_last_tag()
+    commits = get_commits_since_last_tag(version)
     print(f"📝 Found {len(commits)} commits", file=sys.stderr)
 
     if not commits:

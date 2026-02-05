@@ -1,2 +1,2 @@
-google-generativeai>=0.8.0
+google-genai>=0.3.0
 openai>=1.54.0  # Optional: fallback if you want to support both
