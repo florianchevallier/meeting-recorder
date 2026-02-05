@@ -62,22 +62,22 @@ final class StatusBarManager: ObservableObject {
         isTeamsMeetingDetected = isActive
         updateStatusBarIcon()
         
-        Logger.shared.log("🔍 [TEAMS] Meeting status changed: \(isActive ? "DETECTED" : "ENDED")")
+        Logger.shared.info("Meeting status changed: \(isActive ? "DETECTED" : "ENDED")", component: "TEAMS")
         
         if isActive {
             if autoRecordingEnabled && !isRecording {
-                Logger.shared.log("🎬 [AUTO] Starting automatic recording for Teams meeting")
+                Logger.shared.info("Starting automatic recording for Teams meeting", component: "AUTO")
                 startRecording()
             }
         } else {
-            Logger.shared.log("🎬 [AUTO] Teams meeting ended (recording continues)")
+            Logger.shared.info("Teams meeting ended (recording continues)", component: "AUTO")
         }
     }
     
     
     private func setupPopover() {
         popover = NSPopover()
-        popover?.contentSize = NSSize(width: 280, height: 360)
+        popover?.contentSize = NSSize(width: Constants.UI.menuWidth, height: Constants.UI.menuHeight)
         popover?.behavior = .transient
         popover?.animates = true
         popover?.contentViewController = NSHostingController(rootView: StatusBarMenu(statusBarManager: self))
@@ -164,23 +164,23 @@ final class StatusBarManager: ObservableObject {
     }
     
     func startRecording() {
-        Logger.shared.log("🎬 [RECORDING] User requested recording start")
+        Logger.shared.info("User requested recording start", component: "RECORDING")
         
         guard !isStoppingRecording else {
-            Logger.shared.log("⚠️ [RECORDING] Stop in progress - start request ignored")
+            Logger.shared.warning("Stop in progress - start request ignored", component: "RECORDING")
             return
         }
         
         Task {
             do {
-                Logger.shared.log("🔍 [RECORDING] Checking permissions...")
+                Logger.shared.debug("Checking permissions...", component: "RECORDING")
                 
                 // Quick permission check
                 let microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
                 let hasMicPermission = microphoneStatus == .authorized
                 
                 if !hasMicPermission {
-                    Logger.shared.log("❌ [RECORDING] Missing microphone permission")
+                    Logger.shared.error("Missing microphone permission", component: "RECORDING")
                     await MainActor.run {
                         errorMessage = L10n.errorMicrophonePermission
                     }
@@ -189,12 +189,12 @@ final class StatusBarManager: ObservableObject {
                 
                 // ✨ Utiliser l'API unifiée sur macOS 15+
                 if #available(macOS 15.0, *) {
-                    Logger.shared.log("🚀 [RECORDING] Using unified capture (macOS 15+)")
+                    Logger.shared.info("Using unified capture (macOS 15+)", component: "RECORDING")
                     let unified = UnifiedScreenCapture()
                     
                     // Configurer les callbacks de diagnostic
                     unified.onCriticalError = { [weak self] error in
-                        Logger.shared.log("🚨 [RECORDING] Critical error received: \(error)")
+                        Logger.shared.error("Critical error received: \(error)", component: "RECORDING")
                         Task { @MainActor in
                             self?.errorMessage = "Erreur critique d'enregistrement: \(error.localizedDescription)"
                             self?.isRecording = false
@@ -202,14 +202,14 @@ final class StatusBarManager: ObservableObject {
                     }
                     
                     unified.onRecoveryAttempt = { [weak self] attemptNumber in
-                        Logger.shared.log("🔄 [RECORDING] Recovery attempt \(attemptNumber)")
+                        Logger.shared.info("Recovery attempt \(attemptNumber)", component: "RECORDING")
                         Task { @MainActor in
                             self?.errorMessage = "Tentative de récupération \(attemptNumber)/3..."
                         }
                     }
                     
                     unified.onRecoverySuccess = { [weak self] in
-                        Logger.shared.log("✅ [RECORDING] Recovery successful!")
+                        Logger.shared.info("Recovery successful!", component: "RECORDING")
                         Task { @MainActor in
                             self?.errorMessage = nil
                         }
@@ -219,18 +219,18 @@ final class StatusBarManager: ObservableObject {
                     unifiedCapture = unified
                 } else {
                     // Fallback sur l'ancienne approche pour macOS < 15
-                    Logger.shared.log("🔄 [RECORDING] Using legacy approach (macOS < 15)")
+                    Logger.shared.info("Using legacy approach (macOS < 15)", component: "RECORDING")
                     
-                    Logger.shared.log("🎙️ [RECORDING] Starting microphone recording...")
+                    Logger.shared.info("Starting microphone recording...", component: "RECORDING")
                     try micRecorder.startRecording()
                     
                     // Démarrer la capture audio système si disponible (macOS 13+)
                     if #available(macOS 13.0, *) {
-                        Logger.shared.log("🔊 [RECORDING] Starting system audio capture...")
+                        Logger.shared.info("Starting system audio capture...", component: "RECORDING")
                         let systemCapture = SystemAudioCapture()
                         try await systemCapture.startRecording()
                         systemAudioCapture = systemCapture
-                        Logger.shared.log("✅ [RECORDING] System audio capture started")
+                        Logger.shared.info("System audio capture started", component: "RECORDING")
                     }
                 }
                 
@@ -241,10 +241,10 @@ final class StatusBarManager: ObservableObject {
                     updateStatusBarIcon()
                     startDurationUpdater()
                 }
-                Logger.shared.log("✅ [RECORDING] Recording started successfully")
+                Logger.shared.info("Recording started successfully", component: "RECORDING")
                 
             } catch {
-                Logger.shared.log("❌ [RECORDING] Recording start failed: \(error)")
+                Logger.shared.error("Recording start failed: \(error)", component: "RECORDING")
                 
                 await MainActor.run {
                     errorMessage = L10n.errorRecordingFailed(error.localizedDescription)
@@ -255,11 +255,11 @@ final class StatusBarManager: ObservableObject {
     
     func stopRecording() {
         guard !isStoppingRecording else {
-            Logger.shared.log("⚠️ [RECORDING] Stop already in progress")
+            Logger.shared.warning("Stop already in progress", component: "RECORDING")
             return
         }
         
-        Logger.shared.log("🛑 [RECORDING] User requested recording stop")
+        Logger.shared.info("User requested recording stop", component: "RECORDING")
         
         isStoppingRecording = true
         stopDurationUpdater()
@@ -285,16 +285,16 @@ final class StatusBarManager: ObservableObject {
                 await MainActor.run {
                     self.transcriptionManager.state.updateProgress("⏳ Préparation de la transcription...")
                     self.transcriptionManager.state.isTranscribing = true
-                    Logger.shared.log("🎤 [TRANSCRIPTION] Pre-indication shown to user")
+                    Logger.shared.debug("Pre-indication shown to user", component: "TRANSCRIPTION")
                 }
             }
 
             // ✨ Utiliser l'API unifiée sur macOS 15+
             if #available(macOS 15.0, *), let unified = self.unifiedCapture as? UnifiedScreenCapture {
-                Logger.shared.log("🚀 [RECORDING] Stopping unified capture")
+                Logger.shared.info("Stopping unified capture", component: "RECORDING")
                 if let movURL = await unified.stopRecording() {
                     do {
-                        Logger.shared.log("🎵 [RECORDING] Converting MOV to M4A...")
+                        Logger.shared.info("Converting MOV to M4A...", component: "RECORDING")
                         if shouldTranscribe {
                             await MainActor.run {
                                 self.transcriptionManager.state.updateProgress("🔄 Conversion en cours...")
@@ -303,9 +303,9 @@ final class StatusBarManager: ObservableObject {
                         finalFileURL = try await unified.convertMOVToM4A(sourceURL: movURL)
 
                         try FileManager.default.removeItem(at: movURL)
-                        Logger.shared.log("🗑️ [RECORDING] Original MOV file removed")
+                        Logger.shared.debug("Original MOV file removed", component: "RECORDING")
                     } catch {
-                        Logger.shared.log("❌ [RECORDING] MOV to M4A conversion failed: \(error)")
+                        Logger.shared.error("MOV to M4A conversion failed: \(error)", component: "RECORDING")
                         finalFileURL = movURL
                         await MainActor.run {
                             self.errorMessage = L10n.errorRecordingFailed(error.localizedDescription)
@@ -316,7 +316,7 @@ final class StatusBarManager: ObservableObject {
                     self.unifiedCapture = nil
                 }
             } else {
-                Logger.shared.log("🔄 [RECORDING] Stopping legacy approach")
+                Logger.shared.info("Stopping legacy approach", component: "RECORDING")
 
                 var microphoneFileURL: URL?
                 var systemAudioFileURL: URL?
@@ -331,7 +331,7 @@ final class StatusBarManager: ObservableObject {
                 }
 
                 do {
-                    Logger.shared.log("🎵 [RECORDING] Démarrage de la fusion audio...")
+                    Logger.shared.info("Starting audio mixing...", component: "RECORDING")
                     if shouldTranscribe {
                         await MainActor.run {
                             self.transcriptionManager.state.updateProgress("🔄 Fusion audio en cours...")
@@ -339,7 +339,7 @@ final class StatusBarManager: ObservableObject {
                     }
                     finalFileURL = try await AudioMixer.mixAudioFiles(microphoneURL: microphoneFileURL, systemAudioURL: systemAudioFileURL)
                 } catch {
-                    Logger.shared.log("❌ [RECORDING] Erreur lors de la fusion audio: \(error)")
+                    Logger.shared.error("Audio mixing failed: \(error)", component: "RECORDING")
                     await MainActor.run {
                         self.errorMessage = L10n.errorAudioMixingFailed(error.localizedDescription)
                     }
@@ -347,11 +347,11 @@ final class StatusBarManager: ObservableObject {
             }
 
             if let finalURL = finalFileURL {
-                Logger.shared.log("✅ [RECORDING] Enregistrement final sauvegardé: \(finalURL.lastPathComponent)")
+                Logger.shared.info("Final recording saved: \(finalURL.lastPathComponent)", component: "RECORDING")
 
                 // 🎤 Start actual transcription if enabled
                 if shouldTranscribe {
-                    Logger.shared.log("🎤 [TRANSCRIPTION] Starting transcription for: \(finalURL.lastPathComponent)")
+                    Logger.shared.info("Starting transcription for: \(finalURL.lastPathComponent)", component: "TRANSCRIPTION")
                     await MainActor.run {
                         self.transcriptionManager.state.updateProgress("📤 Upload vers API...")
                     }
@@ -361,10 +361,10 @@ final class StatusBarManager: ObservableObject {
                         await self.transcriptionManager.transcribe(audioFileURL: finalURL)
                     }
                 } else {
-                    Logger.shared.log("ℹ️ [TRANSCRIPTION] Transcription disabled in settings")
+                    Logger.shared.debug("Transcription disabled in settings", component: "TRANSCRIPTION")
                 }
             } else {
-                Logger.shared.log("⚠️ [RECORDING] Aucun fichier généré")
+                Logger.shared.warning("No file generated", component: "RECORDING")
                 if shouldTranscribe {
                     await MainActor.run {
                         self.transcriptionManager.state.setError("Pas de fichier audio généré")
@@ -372,10 +372,10 @@ final class StatusBarManager: ObservableObject {
                 }
             }
 
-            Logger.shared.log("✅ [RECORDING] Stop sequence completed")
+            Logger.shared.info("Stop sequence completed", component: "RECORDING")
         }
         
-        Logger.shared.log("✅ [RECORDING] Recording stop requested")
+        Logger.shared.info("Recording stop requested", component: "RECORDING")
     }
     
     private var durationTimer: Timer?
@@ -401,7 +401,7 @@ final class StatusBarManager: ObservableObject {
     }
     
     func showSettings(selectedTab: Int = 0) {
-        Logger.shared.log("⚙️ [SETTINGS] Opening settings window (tab: \(selectedTab))")
+        Logger.shared.info("Opening settings window (tab: \(selectedTab))", component: "SETTINGS")
 
         let tab = SettingsWindow.SettingsTab(rawValue: selectedTab) ?? .general
 
@@ -413,7 +413,7 @@ final class StatusBarManager: ObservableObject {
             $0.title.contains("Paramètres") ||
             $0.identifier?.rawValue == "settingsWindow"
         }) {
-            Logger.shared.log("⚙️ [SETTINGS] Reusing existing window")
+            Logger.shared.debug("Reusing existing window", component: "SETTINGS")
 
             if let hostingController = existingWindow.contentViewController as? NSHostingController<SettingsWindow> {
                 hostingController.rootView = SettingsWindow(statusBarManager: self, selectedTab: tab)
@@ -422,7 +422,7 @@ final class StatusBarManager: ObservableObject {
             existingWindow.makeKeyAndOrderFront(nil)
             existingWindow.center()
         } else {
-            Logger.shared.log("⚙️ [SETTINGS] Creating new window")
+            Logger.shared.debug("Creating new window", component: "SETTINGS")
             // Create new settings window
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
@@ -431,7 +431,11 @@ final class StatusBarManager: ObservableObject {
                 let hostingController = NSHostingController(rootView: settingsView)
 
                 let window = NSWindow(
-                    contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
+                    contentRect: NSRect(
+                        x: 0, y: 0,
+                        width: Constants.UI.windowInitialWidth,
+                        height: Constants.UI.windowInitialHeight
+                    ),
                     styleMask: [.titled, .closable, .miniaturizable, .resizable],
                     backing: .buffered,
                     defer: false
@@ -441,12 +445,18 @@ final class StatusBarManager: ObservableObject {
                 window.identifier = NSUserInterfaceItemIdentifier("settingsWindow")
                 window.contentViewController = hostingController
                 window.center()
-                window.minSize = NSSize(width: 500, height: 400)
-                window.maxSize = NSSize(width: 800, height: 700)
+                window.minSize = NSSize(
+                    width: Constants.UI.windowMinWidth,
+                    height: Constants.UI.windowMinHeight
+                )
+                window.maxSize = NSSize(
+                    width: Constants.UI.windowMaxWidth,
+                    height: Constants.UI.windowMaxHeight
+                )
                 window.isReleasedWhenClosed = false
                 window.makeKeyAndOrderFront(nil)
 
-                Logger.shared.log("✅ [SETTINGS] Window created and shown")
+                Logger.shared.info("Window created and shown", component: "SETTINGS")
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
@@ -470,7 +480,7 @@ final class StatusBarManager: ObservableObject {
     func setAutoRecordingEnabled(_ enabled: Bool) {
         guard autoRecordingEnabled != enabled else { return }
         autoRecordingEnabled = enabled
-        Logger.shared.log("🔍 [AUTO] Auto-recording \(enabled ? "ENABLED" : "DISABLED")")
+        Logger.shared.info("Auto-recording \(enabled ? "ENABLED" : "DISABLED")", component: "AUTO")
     }
     
     func isAutoRecordingEnabled() -> Bool {

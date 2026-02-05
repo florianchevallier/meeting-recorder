@@ -20,11 +20,11 @@ final class SystemAudioCapture: NSObject {
     
     func startRecording() async throws {
         guard !isRecording else {
-            Logger.shared.log("⚠️ [SYSTEM_AUDIO] Already recording")
+            Logger.shared.warning("Already recording", component: "SYSTEM_AUDIO")
             return
         }
         
-        Logger.shared.log("🔍 [SYSTEM_AUDIO] Starting system audio capture...")
+        Logger.shared.info("Starting system audio capture...", component: "SYSTEM_AUDIO")
         
         // Configuration du stream selon les recommandations Apple WWDC 2022
         let configuration = SCStreamConfiguration()
@@ -48,26 +48,30 @@ final class SystemAudioCapture: NSObject {
                          userInfo: [NSLocalizedDescriptionKey: "No display available"])
         }
         
-        Logger.shared.log("🖥️ [SYSTEM_AUDIO] Using display: \(display.displayID) - \(display.width)x\(display.height)")
+        Logger.shared.debug("Using display: \(display.displayID) - \(display.width)x\(display.height)", component: "SYSTEM_AUDIO")
         
         // Filtrage simple : exclure seulement notre propre application pour éviter la boucle audio
         let excludedApps = availableContent.applications.filter { app in
             app.bundleIdentifier == Bundle.main.bundleIdentifier
         }
         
-        Logger.shared.log("🚫 [SYSTEM_AUDIO] Excluding \(excludedApps.count) applications (self)")
+        Logger.shared.debug("Excluding \(excludedApps.count) applications (self)", component: "SYSTEM_AUDIO")
         
         // Filtre simple : tout capturer sauf notre app
         let filter = SCContentFilter(display: display, 
                                    excludingApplications: excludedApps, 
                                    exceptingWindows: [])
         
-        // Préparer le fichier d'enregistrement
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        // Prepare recording file
+        guard let documentsPath = FileSystemUtilities.getDocumentsDirectory() else {
+            throw NSError(domain: "SystemAudioError", code: 3,
+                         userInfo: [NSLocalizedDescriptionKey: "Documents directory unavailable"])
+        }
+
         let audioFilename = documentsPath.appendingPathComponent("system_audio_\(Date().timeIntervalSince1970).wav")
         currentFileURL = audioFilename
-        
-        Logger.shared.log("🔊 [SYSTEM_AUDIO] Recording to: \(audioFilename.path)")
+
+        Logger.shared.info("Recording to: \(audioFilename.path)", component: "SYSTEM_AUDIO")
         
         // Créer et démarrer le stream avec validation
         do {
@@ -78,31 +82,30 @@ final class SystemAudioCapture: NSObject {
                              userInfo: [NSLocalizedDescriptionKey: "Failed to create SCStream"])
             }
             
-            Logger.shared.log("🎬 [SYSTEM_AUDIO] Stream created successfully")
+            Logger.shared.debug("Stream created successfully", component: "SYSTEM_AUDIO")
             
             try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
-            Logger.shared.log("🔌 [SYSTEM_AUDIO] Audio output added to stream")
+            Logger.shared.debug("Audio output added to stream", component: "SYSTEM_AUDIO")
             
             try await stream.startCapture()
-            Logger.shared.log("▶️ [SYSTEM_AUDIO] Stream capture started")
+            Logger.shared.debug("Stream capture started", component: "SYSTEM_AUDIO")
             
             isRecording = true
             recordingStartTime = Date()
-            Logger.shared.log("✅ [SYSTEM_AUDIO] System audio recording started successfully")
+            Logger.shared.info("System audio recording started successfully", component: "SYSTEM_AUDIO")
             
         } catch {
-            Logger.shared.log("❌ [SYSTEM_AUDIO] Stream creation/start failed: \(error)")
+            Logger.shared.error("Stream creation/start failed: \(error)", component: "SYSTEM_AUDIO")
             
             // Diagnostic détaillé de l'erreur
             if let nsError = error as NSError? {
-                Logger.shared.log("🔍 [SYSTEM_AUDIO] Error domain: \(nsError.domain)")
-                Logger.shared.log("🔍 [SYSTEM_AUDIO] Error code: \(nsError.code)")
-                Logger.shared.log("🔍 [SYSTEM_AUDIO] Error description: \(nsError.localizedDescription)")
+                Logger.shared.debug("Error domain: \(nsError.domain)", component: "SYSTEM_AUDIO")
+                Logger.shared.debug("Error code: \(nsError.code)", component: "SYSTEM_AUDIO")
+                Logger.shared.debug("Error description: \(nsError.localizedDescription)", component: "SYSTEM_AUDIO")
                 
                 // Erreur -3812 spécifique
                 if nsError.code == -3812 {
-                    Logger.shared.log("🚨 [SYSTEM_AUDIO] Error -3812: Invalid parameter detected")
-                    Logger.shared.log("💡 [SYSTEM_AUDIO] This may indicate hardware incompatibility or missing permissions")
+                    Logger.shared.warning("Error -3812: Invalid parameter detected - may indicate hardware incompatibility or missing permissions", component: "SYSTEM_AUDIO")
                 }
             }
             
@@ -112,14 +115,14 @@ final class SystemAudioCapture: NSObject {
     
     func stopRecording() async -> URL? {
         guard isRecording else {
-            Logger.shared.log("⚠️ [SYSTEM_AUDIO] Not currently recording")
+            Logger.shared.warning("Not currently recording", component: "SYSTEM_AUDIO")
             return nil
         }
         
         do {
             try await stream?.stopCapture()
         } catch {
-            Logger.shared.log("❌ [SYSTEM_AUDIO] Error stopping stream: \(error)")
+            Logger.shared.error("Error stopping stream: \(error)", component: "SYSTEM_AUDIO")
         }
         
         stream = nil
@@ -129,11 +132,11 @@ final class SystemAudioCapture: NSObject {
         
         if let startTime = recordingStartTime {
             let duration = Date().timeIntervalSince(startTime)
-            Logger.shared.log("🎬 [SYSTEM_AUDIO] Recording stopped. Duration: \(String(format: "%.1f", duration))s")
+            Logger.shared.info("Recording stopped. Duration: \(String(format: "%.1f", duration))s", component: "SYSTEM_AUDIO")
         }
         
         recordingStartTime = nil
-        Logger.shared.log("✅ [SYSTEM_AUDIO] System audio recording stopped successfully")
+        Logger.shared.info("System audio recording stopped successfully", component: "SYSTEM_AUDIO")
         
         return currentFileURL
     }
@@ -147,7 +150,7 @@ final class SystemAudioCapture: NSObject {
         // Note: Ne pas appeler de méthodes async dans deinit car l'objet sera déjà désalloué
         // Le cleanup async doit être fait explicitement via stopRecording() avant de libérer l'objet
         if isRecording {
-            Logger.shared.log("⚠️ [SYSTEM_AUDIO] deinit appelé pendant l'enregistrement - le fichier peut être incomplet")
+            Logger.shared.warning("deinit called during recording - file may be incomplete", component: "SYSTEM_AUDIO")
             // Cleanup synchrone minimal
             stream = nil
             audioFile = nil
@@ -160,7 +163,7 @@ final class SystemAudioCapture: NSObject {
 @available(macOS 13.0, *)
 extension SystemAudioCapture: SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        Logger.shared.log("❌ [SYSTEM_AUDIO] Stream stopped with error: \(error)")
+        Logger.shared.error("Stream stopped with error: \(error)", component: "SYSTEM_AUDIO")
         isRecording = false
     }
 }
@@ -188,7 +191,7 @@ extension SystemAudioCapture: SCStreamOutput {
             try sampleBuffer.withAudioBufferList { audioBufferList, blockBuffer in
                 guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
                       let description = formatDescription.audioStreamBasicDescription else {
-                    Logger.shared.log("❌ [SYSTEM_AUDIO] Invalid audio format description")
+                    Logger.shared.error("Invalid audio format description", component: "SYSTEM_AUDIO")
                     return
                 }
                 
@@ -199,24 +202,24 @@ extension SystemAudioCapture: SCStreamOutput {
                 // Créer le fichier audio dynamiquement avec le format réel des données
                 if audioFile == nil {
                     guard let fileURL = currentFileURL else {
-                        Logger.shared.log("❌ [SYSTEM_AUDIO] No file URL available")
+                        Logger.shared.error("No file URL available", component: "SYSTEM_AUDIO")
                         return
                     }
                     
                     audioFileFormat = format
                     audioFile = try AVAudioFile(forWriting: fileURL, settings: format.settings)
-                    Logger.shared.log("✅ [SYSTEM_AUDIO] Audio file created with format: \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch")
+                    Logger.shared.info("Audio file created with format: \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch", component: "SYSTEM_AUDIO")
                 }
                 
                 guard let audioFile = audioFile else {
-                    Logger.shared.log("❌ [SYSTEM_AUDIO] Audio file not available")
+                    Logger.shared.error("Audio file not available", component: "SYSTEM_AUDIO")
                     return
                 }
                 
                 // Utiliser bufferListNoCopy pour éviter les distorsions de CMSampleBufferCopyPCMDataIntoAudioBufferList
                 guard let audioBuffer = AVAudioPCMBuffer(pcmFormat: format, 
                                                        bufferListNoCopy: audioBufferList.unsafePointer) else {
-                    Logger.shared.log("❌ [SYSTEM_AUDIO] Failed to create PCM buffer with bufferListNoCopy")
+                    Logger.shared.error("Failed to create PCM buffer with bufferListNoCopy", component: "SYSTEM_AUDIO")
                     return
                 }
                 
@@ -225,13 +228,17 @@ extension SystemAudioCapture: SCStreamOutput {
                 // Écriture directe sans copie supplémentaire (évite la distorsion)
                 try audioFile.write(from: audioBuffer)
                 
-                // Log périodique pour diagnostic
-                if frameCount > 0 {
-                    Logger.shared.log("🔊 System Audio: \(frameCount) frames @ \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch")
-                }
+                // Throttled log for audio data (high frequency)
+                Logger.shared.logThrottled(
+                    "System Audio: \(frameCount) frames @ \(description.mSampleRate)Hz, \(description.mChannelsPerFrame)ch",
+                    level: .debug,
+                    component: "SYSTEM_AUDIO",
+                    throttleInterval: 5.0,
+                    throttleKey: "system_audio_buffer_log"
+                )
             }
         } catch {
-            Logger.shared.log("❌ [SYSTEM_AUDIO] Audio processing error: \(error)")
+            Logger.shared.error("Audio processing error: \(error)", component: "SYSTEM_AUDIO")
         }
     }
 } 

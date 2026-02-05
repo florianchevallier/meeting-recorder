@@ -97,13 +97,14 @@ final class UnifiedScreenCapture: NSObject {
         lastStreamConfiguration = configuration
         lastContentFilter = filter
         
-        // Préparer l'URL de sortie (seulement si pas déjà définie lors d'un retry)
+        // Prepare output URL (only if not already set during retry)
         if outputURL == nil {
-            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let timestamp = Date()
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-            let filename = "meeting_unified_\(formatter.string(from: timestamp)).mov"
+            guard let documentsPath = FileSystemUtilities.getDocumentsDirectory() else {
+                throw NSError(domain: "UnifiedCaptureError", code: 1,
+                             userInfo: [NSLocalizedDescriptionKey: "Documents directory unavailable"])
+            }
+
+            let filename = FileSystemUtilities.createTimestampedFilename(prefix: "meeting_unified", extension: "mov")
             outputURL = documentsPath.appendingPathComponent(filename)
             Logger.shared.log("🎬 [UNIFIED_CAPTURE] Recording to: \(filename)")
         }

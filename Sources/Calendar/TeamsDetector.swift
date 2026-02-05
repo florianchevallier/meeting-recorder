@@ -21,9 +21,9 @@ final class TeamsDetector: ObservableObject {
     @Published var lastDetectionTime: Date?
 
     private var monitoringTimer: Timer?
-    private let checkInterval: TimeInterval = 2.0 // Check every 2 seconds
+    private let checkInterval: TimeInterval = Constants.TeamsDetection.checkInterval
 
-    // Compteurs pour réduire la verbosité des logs
+    // Counters to reduce log verbosity
     private var notRunningLogCounter = 0
     private var detectionLogCounter = 0
 
@@ -90,7 +90,7 @@ final class TeamsDetector: ObservableObject {
     private func detectActiveTeamsMeeting() -> Bool {
         guard environment.isTeamsRunning() else {
             notRunningLogCounter += 1
-            if notRunningLogCounter >= 30 {
+            if notRunningLogCounter >= Constants.TeamsDetection.logThrottleCount {
                 logger.log("🔍 [TEAMS] Teams not running")
                 notRunningLogCounter = 0
             }
@@ -102,7 +102,7 @@ final class TeamsDetector: ObservableObject {
         let micInUse = environment.isMicrophoneActive()
 
         detectionLogCounter += 1
-        let shouldLogDetails = detectionLogCounter >= 30
+        let shouldLogDetails = detectionLogCounter >= Constants.TeamsDetection.logThrottleCount
 
         if shouldLogDetails {
             logger.log("🔍 [TEAMS] Detection results - Logs: \(logResult.description), Windows: \(hasMeetingWindow ? "✅" : "❌"), Mic: \(micInUse ? "✅" : "❌")")

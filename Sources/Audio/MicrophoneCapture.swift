@@ -23,7 +23,7 @@ final class SimpleMicrophoneRecorder: NSObject {
         }
         
         guard !isRecording else {
-            Logger.shared.log("⚠️ [AUDIO] Already recording")
+            Logger.shared.warning("Already recording", component: "AUDIO")
             return
         }
         
@@ -31,44 +31,57 @@ final class SimpleMicrophoneRecorder: NSObject {
         let inputFormat = inputNode.outputFormat(forBus: 0)
         
         // Create recording file
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let documentsPath = FileSystemUtilities.getDocumentsDirectory() else {
+            Logger.shared.error("Documents directory unavailable", component: "AUDIO")
+            throw NSError(domain: "MicrophoneError", code: 1,
+                         userInfo: [NSLocalizedDescriptionKey: "Documents directory unavailable"])
+        }
+
         let audioFilename = documentsPath.appendingPathComponent("recording_\(Date().timeIntervalSince1970).wav")
         currentFileURL = audioFilename
-        
-        Logger.shared.log("🎤 [AUDIO] Recording to: \(audioFilename.path)")
+
+        Logger.shared.info("Recording to: \(audioFilename.path)", component: "AUDIO")
         
         do {
             audioFile = try AVAudioFile(forWriting: audioFilename, settings: inputFormat.settings)
         } catch {
-            Logger.shared.log("❌ [AUDIO] Failed to create audio file: \(error)")
+            Logger.shared.error("Failed to create audio file: \(error)", component: "AUDIO")
             throw error
         }
         
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, time in
+        inputNode.installTap(
+            onBus: 0,
+            bufferSize: Constants.Audio.bufferSize,
+            format: inputFormat
+        ) { [weak self] buffer, time in
             guard let self = self, let audioFile = self.audioFile else { return }
             
             do {
                 try audioFile.write(from: buffer)
                 
-                // Log audio data received
-                let frameCount = buffer.frameLength
-                let channels = buffer.format.channelCount
-                Logger.shared.log("🎤 Recording: \(frameCount) frames, \(channels) channels")
+                // Throttled log for audio data (high frequency)
+                Logger.shared.logThrottled(
+                    "Recording: \(buffer.frameLength) frames, \(buffer.format.channelCount) channels",
+                    level: .debug,
+                    component: "AUDIO",
+                    throttleInterval: 5.0,
+                    throttleKey: "mic_buffer_log"
+                )
                 
             } catch {
-                Logger.shared.log("❌ [AUDIO] Failed to write audio: \(error)")
+                Logger.shared.error("Failed to write audio: \(error)", component: "AUDIO")
             }
         }
         
         try audioEngine.start()
         isRecording = true
         recordingStartTime = Date()
-        Logger.shared.log("✅ [AUDIO] Recording started successfully")
+        Logger.shared.info("Recording started successfully", component: "AUDIO")
     }
     
     func stopRecording() -> URL? {
         guard isRecording else {
-            Logger.shared.log("⚠️ [AUDIO] Not currently recording")
+            Logger.shared.warning("Not currently recording", component: "AUDIO")
             return nil
         }
         
@@ -79,11 +92,11 @@ final class SimpleMicrophoneRecorder: NSObject {
         
         if let startTime = recordingStartTime {
             let duration = Date().timeIntervalSince(startTime)
-            Logger.shared.log("🎬 [AUDIO] Recording stopped. Duration: \(String(format: "%.1f", duration))s")
+            Logger.shared.info("Recording stopped. Duration: \(String(format: "%.1f", duration))s", component: "AUDIO")
         }
         
         recordingStartTime = nil
-        Logger.shared.log("✅ [AUDIO] Recording stopped successfully")
+        Logger.shared.info("Recording stopped successfully", component: "AUDIO")
         
         return currentFileURL
     }

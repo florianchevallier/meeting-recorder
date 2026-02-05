@@ -28,7 +28,7 @@ struct StatusBarMenu: View {
             quickActionsSection
         }
         .background(VisualEffectView())
-        .frame(width: 280)
+        .frame(width: Constants.UI.menuWidth)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
@@ -115,17 +115,36 @@ struct StatusBarMenu: View {
                 // Background circle
                 Circle()
                     .stroke(Color(.separatorColor), lineWidth: 1)
-                    .frame(width: 120, height: 120)
-                
+                    .frame(
+                        width: Constants.UI.controlCircleSize,
+                        height: Constants.UI.controlCircleSize
+                    )
+
                 // Progress ring (when recording)
                 if statusBarManager.isRecording {
                     Circle()
-                        .trim(from: 0, to: min(statusBarManager.recordingDuration / 3600, 1.0)) // Max 1 hour
-                        .stroke(
-                            .linearGradient(colors: [.red, .orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing),
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                        .trim(
+                            from: 0,
+                            to: min(
+                                statusBarManager.recordingDuration / Constants.UI.maxRecordingDurationForProgress,
+                                1.0
+                            )
                         )
-                        .frame(width: 120, height: 120)
+                        .stroke(
+                            .linearGradient(
+                                colors: [.red, .orange, .yellow],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            style: StrokeStyle(
+                                lineWidth: Constants.UI.progressRingLineWidth,
+                                lineCap: .round
+                            )
+                        )
+                        .frame(
+                            width: Constants.UI.controlCircleSize,
+                            height: Constants.UI.controlCircleSize
+                        )
                         .rotationEffect(.degrees(-90))
                         .animation(.linear(duration: 1.0), value: statusBarManager.recordingDuration)
                 }
@@ -138,11 +157,22 @@ struct StatusBarMenu: View {
                     Button(action: toggleRecording) {
                         ZStack {
                             Circle()
-                                .fill(statusBarManager.isRecording ? 
-                                      .linearGradient(colors: [.red.opacity(0.8), .red], startPoint: .top, endPoint: .bottom) :
-                                      .linearGradient(colors: [.blue.opacity(0.8), .blue], startPoint: .top, endPoint: .bottom)
+                                .fill(statusBarManager.isRecording ?
+                                      .linearGradient(
+                                        colors: [.red.opacity(0.8), .red],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                      ) :
+                                      .linearGradient(
+                                        colors: [.blue.opacity(0.8), .blue],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                      )
                                 )
-                                .frame(width: 80, height: 80)
+                                .frame(
+                                    width: Constants.UI.controlButtonSize,
+                                    height: Constants.UI.controlButtonSize
+                                )
                                 .scaleEffect(isHovering ? 1.05 : 1.0)
                             
                             Image(systemName: statusBarManager.isRecording ? "stop.fill" : "record.circle")
@@ -330,7 +360,7 @@ struct StatusBarMenu: View {
                 )
 
                 Divider()
-                    .frame(height: 44)
+                    .frame(height: Constants.UI.quickActionHeight)
 
                 QuickActionButton(
                     icon: "gearshape.fill",
@@ -338,7 +368,7 @@ struct StatusBarMenu: View {
                     action: { statusBarManager.showSettings() }
                 )
             }
-            .frame(height: 44)
+            .frame(height: Constants.UI.quickActionHeight)
         }
         .background(Color(.controlBackgroundColor).opacity(0.3))
     }
@@ -407,7 +437,10 @@ struct StatusBarMenu: View {
     }
     
     private func openRecordingsFolder() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsURL = FileSystemUtilities.getDocumentsDirectory() else {
+            Logger.shared.error("Unable to open Documents directory - directory unavailable", component: "UI")
+            return
+        }
         NSWorkspace.shared.open(documentsURL)
     }
     

@@ -4,39 +4,40 @@ import AVFoundation
 final class AudioMixer {
     
     static func mixAudioFiles(microphoneURL: URL?, systemAudioURL: URL?) async throws -> URL? {
-        // Vérifier qu'au moins un fichier existe
+        // Verify that at least one file exists
         let hasMicrophoneFile = microphoneURL != nil && FileManager.default.fileExists(atPath: microphoneURL!.path)
         let hasSystemAudioFile = systemAudioURL != nil && FileManager.default.fileExists(atPath: systemAudioURL!.path)
         
         guard hasMicrophoneFile || hasSystemAudioFile else {
-            Logger.shared.log("❌ [AUDIO_MIXER] Aucun fichier audio valide trouvé")
+            Logger.shared.error("No valid audio files found", component: "AUDIO_MIXER")
             return nil
         }
         
-        Logger.shared.log("🎵 [AUDIO_MIXER] Début de la fusion audio...")
-        
-        // Créer le nom du fichier de sortie M4A
-        let documentsPath = FileManager.default.urls(for: FileManager.SearchPathDirectory.documentDirectory, in: FileManager.SearchPathDomainMask.userDomainMask)[0]
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        formatter.locale = Locale(identifier: "fr_FR")
-        let timestamp = formatter.string(from: Date())
-        let outputURL = documentsPath.appendingPathComponent("meeting_\(timestamp).m4a")
-        
-        // Configuration du format de sortie M4A (configuré automatiquement par AVAssetExportPresetAppleM4A)
-        
-        let composition = AVMutableComposition()
-        
-        // Track audio pour microphone (canal gauche principalement)
-        if hasMicrophoneFile, let microphoneURL = microphoneURL {
-            Logger.shared.log("🎤 [AUDIO_MIXER] Ajout piste microphone: \(microphoneURL.lastPathComponent)")
-            try await addAudioTrack(from: microphoneURL, to: composition, channelLayout: .microphone)
+        Logger.shared.info("Starting audio mixing...", component: "AUDIO_MIXER")
+
+        // Create output M4A filename
+        guard let documentsPath = FileSystemUtilities.getDocumentsDirectory() else {
+            throw NSError(domain: "AudioMixerError", code: 1,
+                         userInfo: [NSLocalizedDescriptionKey: "Documents directory unavailable"])
         }
-        
-        // Track audio pour audio système (canal droit principalement)
+
+        let filename = FileSystemUtilities.createTimestampedFilename(prefix: "meeting", extension: "m4a")
+        let outputURL = documentsPath.appendingPathComponent(filename)
+
+        // M4A output format configuration (automatically configured by AVAssetExportPresetAppleM4A)
+
+        let composition = AVMutableComposition()
+
+        // Audio track for microphone (primarily left channel)
+        if hasMicrophoneFile, let microphoneURL = microphoneURL {
+            Logger.shared.info("Adding microphone track: \(microphoneURL.lastPathComponent)", component: "AUDIO_MIXER")
+            try await addAudioTrack(from: microphoneURL, to: composition)
+        }
+
+        // Audio track for system audio (primarily right channel)
         if hasSystemAudioFile, let systemAudioURL = systemAudioURL {
-            Logger.shared.log("🔊 [AUDIO_MIXER] Ajout piste audio système: \(systemAudioURL.lastPathComponent)")
-            try await addAudioTrack(from: systemAudioURL, to: composition, channelLayout: .system)
+            Logger.shared.info("Adding system audio track: \(systemAudioURL.lastPathComponent)", component: "AUDIO_MIXER")
+            try await addAudioTrack(from: systemAudioURL, to: composition)
         }
         
         // Exporter la composition en M4A
@@ -47,35 +48,44 @@ final class AudioMixer {
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .m4a
         
-        Logger.shared.log("📦 [AUDIO_MIXER] Export vers: \(outputURL.lastPathComponent)")
+        Logger.shared.info("Exporting to: \(outputURL.lastPathComponent)", component: "AUDIO_MIXER")
         
         await exportSession.export()
         
         if exportSession.status == .completed {
-            Logger.shared.log("✅ [AUDIO_MIXER] Fusion terminée avec succès!")
+            Logger.shared.info("Audio mixing completed successfully", component: "AUDIO_MIXER")
             
-            // Nettoyer les fichiers temporaires
+            // Clean up temporary files
             if let microphoneURL = microphoneURL {
-                try? FileManager.default.removeItem(at: microphoneURL)
-                Logger.shared.log("🗑️ [AUDIO_MIXER] Fichier microphone temporaire supprimé")
+                do {
+                    try FileManager.default.removeItem(at: microphoneURL)
+                    Logger.shared.debug("Temporary microphone file deleted", component: "AUDIO_MIXER")
+                } catch {
+                    Logger.shared.warning("Failed to delete temporary microphone file: \(error.localizedDescription)", component: "AUDIO_MIXER")
+                }
             }
             if let systemAudioURL = systemAudioURL {
-                try? FileManager.default.removeItem(at: systemAudioURL)
-                Logger.shared.log("🗑️ [AUDIO_MIXER] Fichier audio système temporaire supprimé")
+                do {
+                    try FileManager.default.removeItem(at: systemAudioURL)
+                    Logger.shared.debug("Temporary system audio file deleted", component: "AUDIO_MIXER")
+                } catch {
+                    Logger.shared.warning("Failed to delete temporary system audio file: \(error.localizedDescription)", component: "AUDIO_MIXER")
+                }
             }
             
             return outputURL
         } else {
-            Logger.shared.log("❌ [AUDIO_MIXER] Échec de l'export: \(exportSession.error?.localizedDescription ?? "Erreur inconnue")")
+            let errorDescription = exportSession.error?.localizedDescription ?? "Unknown error"
+            Logger.shared.error("Export failed: \(errorDescription)", component: "AUDIO_MIXER")
             throw AudioMixerError.exportFailed(exportSession.error)
         }
     }
     
-    private static func addAudioTrack(from sourceURL: URL, to composition: AVMutableComposition, channelLayout: ChannelLayout) async throws {
+    private static func addAudioTrack(from sourceURL: URL, to composition: AVMutableComposition) async throws {
         let asset = AVAsset(url: sourceURL)
         
         guard let audioTrack = try await asset.loadTracks(withMediaType: .audio).first else {
-            Logger.shared.log("⚠️ [AUDIO_MIXER] Aucune piste audio trouvée dans \(sourceURL.lastPathComponent)")
+            Logger.shared.warning("No audio track found in \(sourceURL.lastPathComponent)", component: "AUDIO_MIXER")
             return
         }
         
@@ -86,14 +96,10 @@ final class AudioMixer {
         
         try compositionTrack?.insertTimeRange(timeRange, of: audioTrack, at: .zero)
         
-        Logger.shared.log("🎵 [AUDIO_MIXER] Piste ajoutée - Durée: \(CMTimeGetSeconds(duration))s")
+        Logger.shared.debug("Track added - Duration: \(CMTimeGetSeconds(duration))s", component: "AUDIO_MIXER")
     }
 }
 
-enum ChannelLayout {
-    case microphone
-    case system
-}
 
 enum AudioMixerError: Error, LocalizedError {
     case exportSessionCreationFailed

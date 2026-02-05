@@ -77,7 +77,9 @@ final class PermissionManager: ObservableObject {
                 try await stream.startCapture()
                 try await stream.stopCapture()
             }
-        } catch {}
+        } catch {
+            Logger.shared.debug("Screen recording test stream creation failed: \(error.localizedDescription)", component: "PERMISSIONS")
+        }
         checkScreenRecordingPermission()
     }
     
@@ -176,19 +178,25 @@ final class PermissionManager: ObservableObject {
     }
     
     func checkDocumentsPermission() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsURL = FileSystemUtilities.getDocumentsDirectory() else {
+            Logger.shared.log("❌ [PERMISSIONS] Documents directory unavailable")
+            documentsPermission = .denied
+            return
+        }
+
         let testFileURL = documentsURL.appendingPathComponent("permission_test.tmp")
-        
+
         var hasPermission = false
         do {
-            // Essayer d'écrire et de supprimer un fichier temporaire
+            // Try to write and delete a temporary file
             try "test".write(to: testFileURL, atomically: true, encoding: .utf8)
             try FileManager.default.removeItem(at: testFileURL)
             hasPermission = true
         } catch {
+            Logger.shared.log("⚠️ [PERMISSIONS] Documents write test failed: \(error.localizedDescription)")
             hasPermission = false
         }
-        
+
         documentsPermission = hasPermission ? .authorized : .denied
     }
     
