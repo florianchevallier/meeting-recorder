@@ -23,7 +23,7 @@
     <key>DTCompiler</key>
     <string>com.apple.compilers.llvm.clang.1_0</string>
     <key>LSMinimumSystemVersion</key>
-    <string>12.3</string>
+    <string>15.0</string>
     <key>LSUIElement</key>
     <true/>
     

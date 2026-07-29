@@ -3,7 +3,7 @@
 > Meety est une application macOS native qui enregistre vos réunions en capturant simultanément l'audio système et votre microphone. Simple, efficace, et entièrement locale.
 
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org)
-[![Platform](https://img.shields.io/badge/Platform-macOS%2014.0+-blue.svg)](https://www.apple.com/macos/)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2015.0+-blue.svg)](https://www.apple.com/macos/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Pourquoi Meety ?
@@ -26,7 +26,7 @@ Plusieurs améliorations sont prévues : intégration avec le calendrier pour pr
 
 ## Configuration requise
 
-Meety nécessite macOS 14.0 minimum. Cette version est requise pour bénéficier des fonctionnalités optimisées de ScreenCaptureKit. L'application est distribuée sous forme de binaire universel, compatible avec les Mac Apple Silicon (M1, M2, M3) et Intel.
+Meety nécessite macOS 15.0 minimum. Cette version est requise pour bénéficier des fonctionnalités optimisées de ScreenCaptureKit (enregistrement unifié écran + audio système + microphone). L'application est distribuée sous forme de binaire universel, compatible avec les Mac Apple Silicon (M1, M2, M3) et Intel.
 
 Pour compiler depuis les sources, Swift 5.9 ou ultérieur est nécessaire. Cela dit, pour un usage standard, l'installation de la version précompilée est recommandée.
 
@@ -99,7 +99,7 @@ Oui. L'application capture l'audio système complet, ce qui la rend compatible a
 Absolument. Tout le traitement s'effectue localement sur votre Mac. Aucune donnée n'est transmise vers le cloud, aucune télémétrie n'est collectée. Les fichiers restent dans votre dossier Documents.
 
 **Que se passe-t-il si je ferme le couvercle pendant un enregistrement ?**
-Sur macOS 15 et versions ultérieures, Meety tente de récupérer automatiquement l'enregistrement au réveil de la machine. Sur les versions antérieures, l'enregistrement peut s'interrompre. Pour les réunions importantes, il est préférable de garder votre Mac actif.
+Meety tente de récupérer automatiquement l'enregistrement au réveil de la machine. Pour les réunions importantes, il est néanmoins préférable de garder votre Mac actif.
 
 ## Développement
 

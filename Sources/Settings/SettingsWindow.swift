@@ -8,19 +8,19 @@ struct SettingsWindow: View {
         case permissions = 2
     }
 
-    @ObservedObject private var settings: SettingsManager
-    @ObservedObject private var statusBarManager: StatusBarManager
+    private let settings: SettingsStore
+    private let permissionMonitor: PermissionMonitor
     @State private var selectedTab: SettingsTab
 
-    init(statusBarManager: StatusBarManager, selectedTab: SettingsTab = .general) {
-        self._settings = ObservedObject(wrappedValue: SettingsManager.shared)
-        self._statusBarManager = ObservedObject(wrappedValue: statusBarManager)
+    init(settings: SettingsStore, permissionMonitor: PermissionMonitor, selectedTab: SettingsTab = .general) {
+        self.settings = settings
+        self.permissionMonitor = permissionMonitor
         self._selectedTab = State(initialValue: selectedTab)
     }
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            GeneralSettingsTab(settings: settings, statusBarManager: statusBarManager)
+            GeneralSettingsTab(settings: settings)
                 .tabItem {
                     Label(L10n.settingsTabGeneral, systemImage: "gearshape")
                 }
@@ -32,7 +32,7 @@ struct SettingsWindow: View {
                 }
                 .tag(SettingsTab.transcription)
 
-            PermissionsSettingsTab(permissionManager: PermissionManager.shared)
+            PermissionsSettingsTab(permissionMonitor: permissionMonitor)
                 .tabItem {
                     Label(L10n.settingsTabPermissions, systemImage: "lock.shield")
                 }
@@ -52,14 +52,10 @@ struct SettingsWindow: View {
 // MARK: - General Tab
 
 private struct GeneralSettingsTab: View {
-    @ObservedObject private var settings: SettingsManager
-    private let statusBarManager: StatusBarManager
-    @State private var autoRecordingEnabled: Bool
+    @Bindable private var settings: SettingsStore
 
-    init(settings: SettingsManager, statusBarManager: StatusBarManager) {
-        self._settings = ObservedObject(wrappedValue: settings)
-        self.statusBarManager = statusBarManager
-        self._autoRecordingEnabled = State(initialValue: statusBarManager.isAutoRecordingEnabled())
+    init(settings: SettingsStore) {
+        self.settings = settings
     }
 
     var body: some View {
@@ -79,11 +75,8 @@ private struct GeneralSettingsTab: View {
                         title: L10n.settingsGeneralAutoRecordingTitle,
                         subtitle: L10n.settingsGeneralAutoRecordingSubtitle
                     ) {
-                        Toggle("", isOn: $autoRecordingEnabled)
+                        Toggle("", isOn: $settings.autoRecordingEnabled)
                             .toggleStyle(.switch)
-                            .onChange(of: autoRecordingEnabled) { _, newValue in
-                                statusBarManager.setAutoRecordingEnabled(newValue)
-                            }
                     }
 
                     Divider()
@@ -125,10 +118,10 @@ private struct GeneralSettingsTab: View {
 // MARK: - Transcription Tab
 
 private struct TranscriptionSettingsTab: View {
-    @ObservedObject private var settings: SettingsManager
+    @Bindable private var settings: SettingsStore
 
-    init(settings: SettingsManager) {
-        self._settings = ObservedObject(wrappedValue: settings)
+    init(settings: SettingsStore) {
+        self.settings = settings
     }
 
     var body: some View {
@@ -258,10 +251,10 @@ private struct TranscriptionSettingsTab: View {
 // MARK: - Permissions Tab
 
 private struct PermissionsSettingsTab: View {
-    @ObservedObject private var permissionManager: PermissionManager
+    private let permissionMonitor: PermissionMonitor
 
-    init(permissionManager: PermissionManager) {
-        self._permissionManager = ObservedObject(wrappedValue: permissionManager)
+    init(permissionMonitor: PermissionMonitor) {
+        self.permissionMonitor = permissionMonitor
     }
 
     var body: some View {
@@ -279,9 +272,9 @@ private struct PermissionsSettingsTab: View {
                         title: L10n.permissionMicrophoneTitle,
                         description: L10n.permissionMicrophoneDescription,
                         icon: "mic.fill",
-                        status: permissionManager.microphonePermission
+                        status: permissionMonitor.microphonePermission
                     ) {
-                        await permissionManager.requestMicrophonePermission()
+                        await permissionMonitor.requestMicrophonePermission()
                     }
 
                     Divider()
@@ -290,9 +283,9 @@ private struct PermissionsSettingsTab: View {
                         title: L10n.permissionScreenRecordingTitle,
                         description: L10n.permissionScreenRecordingDescription,
                         icon: "record.circle",
-                        status: permissionManager.screenRecordingPermission
+                        status: permissionMonitor.screenRecordingPermission
                     ) {
-                        permissionManager.openScreenRecordingSettings()
+                        permissionMonitor.openScreenRecordingSettings()
                     }
 
                     Divider()
@@ -301,9 +294,9 @@ private struct PermissionsSettingsTab: View {
                         title: L10n.permissionDocumentsTitle,
                         description: L10n.permissionDocumentsDescription,
                         icon: "folder.fill",
-                        status: permissionManager.documentsPermission
+                        status: permissionMonitor.documentsPermission
                     ) {
-                        await permissionManager.requestDocumentsPermission()
+                        await permissionMonitor.requestDocumentsPermission()
                     }
 
                     Divider()
@@ -312,9 +305,9 @@ private struct PermissionsSettingsTab: View {
                         title: L10n.permissionAccessibilityTitle,
                         description: L10n.permissionAccessibilityDescription,
                         icon: "eye.fill",
-                        status: permissionManager.accessibilityPermission
+                        status: permissionMonitor.accessibilityPermission
                     ) {
-                        await permissionManager.requestAccessibilityPermission()
+                        await permissionMonitor.requestAccessibilityPermission()
                     }
                 }
             }

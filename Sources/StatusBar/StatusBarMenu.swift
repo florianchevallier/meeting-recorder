@@ -1,30 +1,31 @@
 import SwiftUI
 
+/// Status bar popover menu. Reads `RecordingCoordinator` (@Observable) and
+/// `PermissionMonitor`; transcription state flows through
+/// `coordinator.transcription.state` (@Observable struct).
 struct StatusBarMenu: View {
-    @ObservedObject var statusBarManager: StatusBarManager
-    @ObservedObject var settingsManager = SettingsManager.shared
-    @State private var isHovering = false
-    @State private var audioLevel: Double = 0.0
+    let coordinator: RecordingCoordinator
+    let permissionMonitor: PermissionMonitor
+    let onOpenSettings: () -> Void
 
-    init(statusBarManager: StatusBarManager) {
-        self.statusBarManager = statusBarManager
+    @State private var isHovering = false
+
+    init(
+        coordinator: RecordingCoordinator,
+        permissionMonitor: PermissionMonitor,
+        onOpenSettings: @escaping () -> Void
+    ) {
+        self.coordinator = coordinator
+        self.permissionMonitor = permissionMonitor
+        self.onOpenSettings = onOpenSettings
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header Section
             headerSection
-            
-            // Main Control Section
             mainControlSection
-            
-            // Error Section (if any)
             errorSection
-
-            // Transcription Section (if active)
             transcriptionSection
-
-            // Quick Actions Section
             quickActionsSection
         }
         .background(VisualEffectView())
@@ -35,8 +36,9 @@ struct StatusBarMenu: View {
             }
         }
     }
-    
+
     // MARK: - Header Section
+
     private var headerSection: some View {
         VStack(spacing: 8) {
             HStack {
@@ -47,165 +49,164 @@ struct StatusBarMenu: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L10n.appName)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(.primary)
-                    
+
                     Text(L10n.appSubtitle)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 statusIndicator
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
         }
     }
-    
+
     // MARK: - Status Indicator
+
     private var statusIndicator: some View {
         HStack(spacing: 6) {
             Circle()
                 .fill(
-                    statusBarManager.isStoppingRecording ?
+                    coordinator.isStopping ?
                     .linearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom) :
-                    statusBarManager.isRecording ?
+                    coordinator.isRecording ?
                     .linearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom) :
-                    statusBarManager.isTeamsMeetingDetected ?
+                    coordinator.isTeamsMeetingDetected ?
                     .linearGradient(colors: [.blue, .cyan], startPoint: .top, endPoint: .bottom) :
                     .linearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
                 )
                 .frame(width: 8, height: 8)
-                .scaleEffect(statusBarManager.isRecording || statusBarManager.isStoppingRecording || statusBarManager.isTeamsMeetingDetected ? 1.2 : 1.0)
+                .scaleEffect(coordinator.isRecording || coordinator.isStopping || coordinator.isTeamsMeetingDetected ? 1.2 : 1.0)
                 .animation(
-                    statusBarManager.isRecording ?
+                    coordinator.isRecording ?
                         .easeInOut(duration: 1.0).repeatForever(autoreverses: true) :
-                    statusBarManager.isStoppingRecording ?
+                    coordinator.isStopping ?
                         .easeInOut(duration: 1.2).repeatForever(autoreverses: true) :
-                    statusBarManager.isTeamsMeetingDetected ?
+                    coordinator.isTeamsMeetingDetected ?
                         .easeInOut(duration: 2.0).repeatForever(autoreverses: true) :
                         .default,
-                    value: statusBarManager.isRecording || statusBarManager.isStoppingRecording || statusBarManager.isTeamsMeetingDetected
+                    value: coordinator.isRecording || coordinator.isStopping || coordinator.isTeamsMeetingDetected
                 )
-            
-            Text(statusBarManager.isStoppingRecording ? L10n.statusFinishingShort :
-                 statusBarManager.isRecording ? L10n.statusRecordingShort :
-                 statusBarManager.isTeamsMeetingDetected ? L10n.statusTeamsShort : L10n.statusIdle)
+
+            Text(coordinator.isStopping ? L10n.statusFinishingShort :
+                 coordinator.isRecording ? L10n.statusRecordingShort :
+                 coordinator.isTeamsMeetingDetected ? L10n.statusTeamsShort : L10n.statusIdle)
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundColor(statusBarManager.isStoppingRecording ? .orange :
-                                statusBarManager.isRecording ? .red :
-                                statusBarManager.isTeamsMeetingDetected ? .blue : .secondary)
+                .foregroundColor(coordinator.isStopping ? .orange :
+                                coordinator.isRecording ? .red :
+                                coordinator.isTeamsMeetingDetected ? .blue : .secondary)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(Color(.controlBackgroundColor).opacity(0.5))
         .clipShape(Capsule())
     }
-    
-    // MARK: - Main Control Section
-    private var mainControlSection: some View {
-        VStack(spacing: 16) {
-            // Central Control Circle
-            ZStack {
-                // Background circle
-                Circle()
-                    .stroke(Color(.separatorColor), lineWidth: 1)
-                    .frame(
-                        width: Constants.UI.controlCircleSize,
-                        height: Constants.UI.controlCircleSize
-                    )
 
-                // Progress ring (when recording)
-                if statusBarManager.isRecording {
+    // MARK: - Main Control Section
+
+    private var mainControlSection: some View {
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            let duration = recordingDuration(at: context.date)
+
+            VStack(spacing: 16) {
+                ZStack {
                     Circle()
-                        .trim(
-                            from: 0,
-                            to: min(
-                                statusBarManager.recordingDuration / Constants.UI.maxRecordingDurationForProgress,
-                                1.0
-                            )
-                        )
-                        .stroke(
-                            .linearGradient(
-                                colors: [.red, .orange, .yellow],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            style: StrokeStyle(
-                                lineWidth: Constants.UI.progressRingLineWidth,
-                                lineCap: .round
-                            )
-                        )
+                        .stroke(Color(.separatorColor), lineWidth: 1)
                         .frame(
                             width: Constants.UI.controlCircleSize,
                             height: Constants.UI.controlCircleSize
                         )
-                        .rotationEffect(.degrees(-90))
-                        .animation(.linear(duration: 1.0), value: statusBarManager.recordingDuration)
-                }
-                
-                if statusBarManager.isStoppingRecording {
-                    ProgressView()
-                        .controlSize(.large)
-                        .scaleEffect(1.2)
-                } else {
-                    Button(action: toggleRecording) {
-                        ZStack {
-                            Circle()
-                                .fill(statusBarManager.isRecording ?
-                                      .linearGradient(
-                                        colors: [.red.opacity(0.8), .red],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                      ) :
-                                      .linearGradient(
-                                        colors: [.blue.opacity(0.8), .blue],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                      )
+
+                    if coordinator.isRecording {
+                        Circle()
+                            .trim(
+                                from: 0,
+                                to: min(duration / Constants.UI.maxRecordingDurationForProgress, 1.0)
+                            )
+                            .stroke(
+                                .linearGradient(
+                                    colors: [.red, .orange, .yellow],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                style: StrokeStyle(
+                                    lineWidth: Constants.UI.progressRingLineWidth,
+                                    lineCap: .round
                                 )
-                                .frame(
-                                    width: Constants.UI.controlButtonSize,
-                                    height: Constants.UI.controlButtonSize
-                                )
-                                .scaleEffect(isHovering ? 1.05 : 1.0)
-                            
-                            Image(systemName: statusBarManager.isRecording ? "stop.fill" : "record.circle")
-                                .font(.system(size: 28, weight: .medium))
-                                .foregroundColor(.white)
-                                .scaleEffect(statusBarManager.isRecording ? 0.8 : 1.0)
-                        }
+                            )
+                            .frame(
+                                width: Constants.UI.controlCircleSize,
+                                height: Constants.UI.controlCircleSize
+                            )
+                            .rotationEffect(.degrees(-90))
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: statusBarManager.isRecording)
+
+                    if coordinator.isStopping {
+                        ProgressView()
+                            .controlSize(.large)
+                            .scaleEffect(1.2)
+                    } else {
+                        Button(action: toggleRecording) {
+                            ZStack {
+                                Circle()
+                                    .fill(coordinator.isRecording ?
+                                          .linearGradient(
+                                            colors: [.red.opacity(0.8), .red],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                          ) :
+                                          .linearGradient(
+                                            colors: [.blue.opacity(0.8), .blue],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                          )
+                                    )
+                                    .frame(
+                                        width: Constants.UI.controlButtonSize,
+                                        height: Constants.UI.controlButtonSize
+                                    )
+                                    .scaleEffect(isHovering ? 1.05 : 1.0)
+
+                                Image(systemName: coordinator.isRecording ? "stop.fill" : "record.circle")
+                                    .font(.system(size: 28, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .scaleEffect(coordinator.isRecording ? 0.8 : 1.0)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: coordinator.isRecording)
+                    }
                 }
+
+                recordingInfoSection(duration: duration)
             }
-            
-            // Recording info
-            recordingInfoSection
+            .padding(.vertical, 20)
         }
-        .padding(.vertical, 20)
     }
-    
+
     // MARK: - Recording Info Section
-    private var recordingInfoSection: some View {
+
+    private func recordingInfoSection(duration: TimeInterval) -> some View {
         VStack(spacing: 8) {
-            if statusBarManager.isRecording {
+            if coordinator.isRecording {
                 VStack(spacing: 4) {
-                    Text(formatDuration(statusBarManager.recordingDuration))
+                    Text(formatDuration(duration))
                         .font(.system(size: 24, weight: .bold, design: .monospaced))
                         .foregroundStyle(.linearGradient(
                             colors: [.primary, .secondary],
                             startPoint: .leading,
                             endPoint: .trailing
                         ))
-                    
+
                     Text(L10n.statusRecording)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.secondary)
@@ -214,7 +215,7 @@ struct StatusBarMenu: View {
                     insertion: .scale.combined(with: .opacity),
                     removal: .opacity
                 ))
-            } else if statusBarManager.isStoppingRecording {
+            } else if coordinator.isStopping {
                 VStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
@@ -224,21 +225,18 @@ struct StatusBarMenu: View {
                 }
             } else {
                 VStack(spacing: 4) {
-                    Text(statusBarManager.isTeamsMeetingDetected ? L10n.statusTeamsDetected : L10n.statusReady)
+                    Text(coordinator.isTeamsMeetingDetected ? L10n.statusTeamsDetected : L10n.statusReady)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(statusBarManager.isTeamsMeetingDetected ? .blue : .primary)
-                    
-                    if statusBarManager.isTeamsMeetingDetected {
-                        VStack(spacing: 2) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "video.circle.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.blue)
-                                Text(L10n.statusTeamsActive)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.blue)
-                            }
-                            
+                        .foregroundColor(coordinator.isTeamsMeetingDetected ? .blue : .primary)
+
+                    if coordinator.isTeamsMeetingDetected {
+                        HStack(spacing: 4) {
+                            Image(systemName: "video.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.blue)
+                            Text(L10n.statusTeamsActive)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.blue)
                         }
                     } else {
                         HStack(spacing: 12) {
@@ -250,7 +248,7 @@ struct StatusBarMenu: View {
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(.secondary)
                             }
-                            
+
                             HStack(spacing: 4) {
                                 Image(systemName: "speaker.wave.2.fill")
                                     .font(.system(size: 10))
@@ -268,19 +266,19 @@ struct StatusBarMenu: View {
                 ))
             }
         }
-        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: statusBarManager.isRecording)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: coordinator.isRecording)
     }
-    
+
     // MARK: - Transcription Section
+
     @ViewBuilder
     private var transcriptionSection: some View {
-        if statusBarManager.transcriptionManager.state.isTranscribing {
+        if coordinator.transcription.state.isTranscribing {
             VStack(spacing: 0) {
                 Divider()
                     .padding(.horizontal, 20)
 
                 HStack(spacing: 12) {
-                    // Animated icon
                     ZStack {
                         Circle()
                             .fill(Color.purple.opacity(0.1))
@@ -293,11 +291,11 @@ struct StatusBarMenu: View {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Transcription en cours...")
+                        Text(L10n.menuTranscriptionRunning)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.primary)
 
-                        Text(statusBarManager.transcriptionManager.state.progress)
+                        Text(coordinator.transcription.state.progress)
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
@@ -305,8 +303,7 @@ struct StatusBarMenu: View {
 
                     Spacer()
 
-                    // Status indicator
-                    if statusBarManager.transcriptionManager.state.status == .running {
+                    if coordinator.transcription.state.status == .running {
                         ProgressView()
                             .controlSize(.small)
                             .scaleEffect(0.8)
@@ -316,7 +313,7 @@ struct StatusBarMenu: View {
                 .padding(.vertical, 12)
                 .background(Color.purple.opacity(0.05))
             }
-        } else if let error = statusBarManager.transcriptionManager.state.error {
+        } else if let error = coordinator.transcription.state.error {
             VStack(spacing: 0) {
                 Divider()
                     .padding(.horizontal, 20)
@@ -327,7 +324,7 @@ struct StatusBarMenu: View {
                         .foregroundColor(.orange)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Erreur de transcription")
+                        Text(L10n.menuTranscriptionError)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.primary)
 
@@ -347,6 +344,7 @@ struct StatusBarMenu: View {
     }
 
     // MARK: - Quick Actions Section
+
     private var quickActionsSection: some View {
         VStack(spacing: 0) {
             Divider()
@@ -365,46 +363,46 @@ struct StatusBarMenu: View {
                 QuickActionButton(
                     icon: "gearshape.fill",
                     title: L10n.actionSettings,
-                    action: { statusBarManager.showSettings() }
+                    action: onOpenSettings
                 )
             }
             .frame(height: Constants.UI.quickActionHeight)
         }
         .background(Color(.controlBackgroundColor).opacity(0.3))
     }
-    
+
     // MARK: - Error Message
+
     @ViewBuilder
     private var errorSection: some View {
-        if let errorMessage = statusBarManager.errorMessage {
+        if let errorMessage = coordinator.errorMessage {
             VStack(spacing: 0) {
                 Divider()
                     .padding(.horizontal, 20)
-                
+
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 12))
                             .foregroundColor(.orange)
-                        
+
                         Text(errorMessage)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
                             .lineLimit(2)
-                        
+
                         Spacer()
                     }
-                    
-                    // Bouton Autoriser pour l'enregistrement d'écran
-                    if statusBarManager.permissionManager.screenRecordingPermission != .authorized {
+
+                    if permissionMonitor.screenRecordingPermission != .authorized {
                         Button(action: {
-                            statusBarManager.permissionManager.openScreenRecordingSettings()
+                            permissionMonitor.openScreenRecordingSettings()
                         }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "gear")
                                     .font(.system(size: 10, weight: .medium))
-                                Text("Autoriser l'enregistrement d'écran")
+                                Text(L10n.menuErrorAuthorizeScreen)
                                     .font(.system(size: 11, weight: .medium))
                             }
                             .foregroundColor(.white)
@@ -422,37 +420,46 @@ struct StatusBarMenu: View {
             }
         }
     }
-    
-    // MARK: - Helper Methods
+
+    // MARK: - Helpers
+
+    private func recordingDuration(at date: Date) -> TimeInterval {
+        guard let startedAt = coordinator.recordingStartedAt else { return 0 }
+        return date.timeIntervalSince(startedAt)
+    }
+
     private func toggleRecording() {
-        guard !statusBarManager.isStoppingRecording else { return }
-        
+        guard !coordinator.isStopping else { return }
+
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            if statusBarManager.isRecording {
-                statusBarManager.stopRecording()
+            if coordinator.isRecording {
+                coordinator.stop()
             } else {
-                statusBarManager.startRecording()
+                coordinator.start()
             }
         }
     }
-    
+
     private func openRecordingsFolder() {
         guard let documentsURL = FileSystemUtilities.getDocumentsDirectory() else {
-            Logger.shared.error("Unable to open Documents directory - directory unavailable", component: "UI")
+            Logger.shared.error("Unable to open Documents directory", component: "UI")
             return
         }
         NSWorkspace.shared.open(documentsURL)
     }
-    
+
     private func formatDuration(_ duration: TimeInterval) -> String {
         let minutes = Int(duration) / 60
         let seconds = Int(duration) % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
-    
 }
 
 // MARK: - Quick Action Button
+
+/// Quick action with an Option-key alternate action/icon/title.
+/// The flagsChanged monitor is stored and removed on disappear —
+/// the old code accumulated one monitor per appearance, forever.
 struct QuickActionButton: View {
     let icon: String
     let title: String
@@ -465,6 +472,7 @@ struct QuickActionButton: View {
 
     @State private var isHovering = false
     @State private var isOptionPressed = false
+    @State private var flagsMonitor: Any?
 
     init(
         icon: String,
@@ -488,18 +496,18 @@ struct QuickActionButton: View {
 
     var body: some View {
         Button(action: {
-            if isOptionPressed, let altAction = alternateAction {
-                altAction()
+            if isOptionPressed, let alternateAction {
+                alternateAction()
             } else {
                 action()
             }
         }) {
             VStack(spacing: 4) {
-                Image(systemName: isOptionPressed && alternateIcon != nil ? alternateIcon! : icon)
+                Image(systemName: isOptionPressed ? (alternateIcon ?? icon) : icon)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(isDestructive ? .red : isActive ? .blue : .primary)
 
-                Text(isOptionPressed && alternateTitle != nil ? alternateTitle! : title)
+                Text(isOptionPressed ? (alternateTitle ?? title) : title)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(isDestructive ? .red : isActive ? .blue : .secondary)
             }
@@ -513,15 +521,22 @@ struct QuickActionButton: View {
             isHovering = hovering
         }
         .onAppear {
-            NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
                 isOptionPressed = event.modifierFlags.contains(.option)
                 return event
             }
+        }
+        .onDisappear {
+            if let flagsMonitor {
+                NSEvent.removeMonitor(flagsMonitor)
+            }
+            flagsMonitor = nil
         }
     }
 }
 
 // MARK: - Visual Effect View
+
 struct VisualEffectView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
@@ -530,6 +545,6 @@ struct VisualEffectView: NSViewRepresentable {
         view.state = .active
         return view
     }
-    
+
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }

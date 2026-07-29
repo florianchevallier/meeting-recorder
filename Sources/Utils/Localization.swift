@@ -113,6 +113,53 @@ extension L10n {
     static let settingsTabGeneral = "settings.tab.general".localized
     static let settingsTabTranscription = "settings.tab.transcription".localized
     static let settingsTabPermissions = "settings.tab.permissions".localized
+    static let settingsWindowTitle = "settings.window.title".localized
+
+    // MARK: - Status Bar Menu
+    static let menuTranscriptionRunning = "menu.transcription.running".localized
+    static let menuTranscriptionError = "menu.transcription.error".localized
+    static let menuErrorAuthorizeScreen = "menu.error.authorize_screen".localized
+
+    // MARK: - Transcription Progress
+    static let transcriptionProgressPreparing = "transcription.progress.preparing".localized
+    static let transcriptionProgressConverting = "transcription.progress.converting".localized
+    static let transcriptionProgressUploading = "transcription.progress.uploading".localized
+    static let transcriptionProgressStarted = "transcription.progress.started".localized
+    static let transcriptionProgressPending = "transcription.progress.pending".localized
+    static let transcriptionProgressRunning = "transcription.progress.running".localized
+    static let transcriptionProgressCompleted = "transcription.progress.completed".localized
+    static let transcriptionProgressFailed = "transcription.progress.failed".localized
+    static let transcriptionProgressSaved = "transcription.progress.saved".localized
+
+    // MARK: - Transcription Errors
+    static let transcriptionErrorJobFailed = "transcription.error.job_failed".localized
+    static let transcriptionErrorTimeoutStatus = "transcription.error.timeout_status".localized
+    static let transcriptionErrorTooLong = "transcription.error.too_long".localized
+    static let transcriptionErrorNoFile = "transcription.error.no_file".localized
+    static func transcriptionErrorSaveFailed(_ message: String) -> String {
+        L10n.string("transcription.error.save_failed", message)
+    }
+    static func transcriptionErrorPrefixed(_ message: String) -> String {
+        L10n.string("transcription.error.prefixed", message)
+    }
+
+    // MARK: - API Errors
+    static let apiErrorInvalidURL = "api.error.invalid_url".localized
+    static let apiErrorInvalidResponse = "api.error.invalid_response".localized
+    static let apiErrorInvalidData = "api.error.invalid_data".localized
+    static let apiErrorJobNotFound = "api.error.job_not_found".localized
+    static let apiErrorJobNotCompleted = "api.error.job_not_completed".localized
+    static let apiErrorResultNotFound = "api.error.result_not_found".localized
+    static let apiErrorMissingBaseURL = "api.error.missing_base_url".localized
+    static func apiErrorBadRequest(_ message: String) -> String {
+        L10n.string("api.error.bad_request", message)
+    }
+    static func apiErrorServerError(_ message: String) -> String {
+        L10n.string("api.error.server_error", message)
+    }
+    static func apiErrorUnexpectedStatus(_ code: Int) -> String {
+        L10n.string("api.error.unexpected_status", code)
+    }
 
     // MARK: - Settings - General
     static let settingsGeneralHeaderTitle = "settings.general.header.title".localized

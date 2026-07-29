@@ -18,7 +18,7 @@ struct TeamsMeetingDecider {
         case fallbackNoSignals
     }
 
-    enum Decision {
+    enum Decision: Equatable {
         case active(Reason)
         case inactive(Reason)
     }

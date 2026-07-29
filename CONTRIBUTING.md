@@ -1,11 +1,11 @@
-# 🤝 Contributing Guide - MeetingRecorder
+# 🤝 Contributing Guide - Meety
 
-Thank you for your interest in contributing to MeetingRecorder! This guide will help you get started.
+Thank you for your interest in contributing to Meety! This guide will help you get started.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **macOS 12.3+** with Xcode 15.0+
+- **macOS 15.0+** with Xcode 16.0+
 - **Swift 5.9+**
 - **Git** configured with your GitHub account
 
@@ -31,7 +31,7 @@ Use **GitHub Issues** with the bug template:
 - **Clear description** of the problem
 - **Detailed reproduction steps**
 - **Environment**: macOS version, Xcode, Swift
-- **Logs** if available (use `log show --predicate 'subsystem == "com.meetingrecorder.app"' --last 100` or Console.app)
+- **Logs** if available (use `log show --predicate 'subsystem == "com.meetingrecorder.meety"' --last 100` or Console.app)
 
 ### ✨ Feature Requests
 - **Use case**: Why is this feature needed?
@@ -138,8 +138,8 @@ swift test -c release
 ### Permission Tests
 ```bash
 # Reset permissions for testing
-tccutil reset Microphone com.meetingrecorder.app
-tccutil reset ScreenCapture com.meetingrecorder.app
+tccutil reset Microphone com.meetingrecorder.meety
+tccutil reset ScreenCapture com.meetingrecorder.meety
 
 # Restart app and verify flow
 ./debug_app.sh
@@ -233,6 +233,6 @@ git push origin feature/my-new-feature
 
 ---
 
-**Thank you for contributing to MeetingRecorder! 🙏**
+**Thank you for contributing to Meety! 🙏**
 
 Every contribution, small or large, improves the project for the entire community.

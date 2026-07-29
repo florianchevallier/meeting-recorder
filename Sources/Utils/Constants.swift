@@ -1,10 +1,10 @@
 import Foundation
 import CoreGraphics
-import AVFoundation
 
 // MARK: - Application Constants
 
-/// Centralized constants to avoid magic numbers throughout the codebase
+/// Centralized constants to avoid magic numbers throughout the codebase.
+/// Only sections actually referenced by the code are kept.
 enum Constants {
 
     // MARK: - UI Constants
@@ -13,10 +13,8 @@ enum Constants {
         // Status Bar Menu
         static let menuWidth: CGFloat = 280
         static let menuHeight: CGFloat = 360
-        static let menuIconSize: CGFloat = 20
-        static let menuHeaderPadding: CGFloat = 20
 
-        // Status Bar Window
+        // Settings Window
         static let windowInitialWidth: CGFloat = 600
         static let windowInitialHeight: CGFloat = 500
         static let windowMinWidth: CGFloat = 500
@@ -36,108 +34,66 @@ enum Constants {
         static let quickActionHeight: CGFloat = 44
     }
 
-    // MARK: - Audio Constants
-
-    enum Audio {
-        // Sample Rate
-        static let sampleRate: Double = 48000.0
-
-        // Buffer Configuration
-        static let bufferSize: AVAudioFrameCount = 1024
-        static let preferredIOBufferDuration: TimeInterval = 0.005 // 5ms
-
-        // Channel Configuration
-        static let stereoChannelCount: UInt32 = 2
-        static let monoChannelCount: UInt32 = 1
-
-        // Audio Quality
-        static let aacBitRate: Int = 128000 // 128 kbps
-        static let audioQualityHigh: Float = 0.8
-    }
-
     // MARK: - Teams Detection Constants
 
     enum TeamsDetection {
-        // Polling Intervals
-        static let checkInterval: TimeInterval = 2.0 // Check every 2 seconds
-        static let healthCheckInterval: TimeInterval = 5.0 // Health check every 5 seconds
-
-        // Throttling
-        static let logThrottleCount: Int = 30 // Log every 30 checks
-        static let logThrottleInterval: TimeInterval = 60.0 // 60 seconds between logs
-
-        // Timeouts
-        static let meetingDetectionTimeout: TimeInterval = 10.0
+        /// Check every 2 seconds
+        static let checkInterval: TimeInterval = 2.0
+        /// Log every 30 checks
+        static let logThrottleCount: Int = 30
     }
 
     // MARK: - Transcription Constants
 
     enum Transcription {
-        // Polling Configuration
-        static let maxPollingAttempts: Int = 360 // Maximum attempts before timeout
-        static let pollingInterval: TimeInterval = 5.0 // Check every 5 seconds
-        static let maxPollingDuration: TimeInterval = 1800.0 // 30 minutes max
+        /// Maximum polling attempts before timeout (360 × 5s = 30 minutes)
+        static let maxPollingAttempts: Int = 360
+        /// Interval between job status polls
+        static let pollingInterval: TimeInterval = 5.0
+        /// Initial delay before first poll
+        static let initialPollingDelay: TimeInterval = 2.0
 
-        // File Size Limits
-        static let maxFileSizeMB: Int = 25
-        static let maxFileSizeBytes: Int = maxFileSizeMB * 1024 * 1024
-
-        // API Configuration
+        /// URLSession request timeout
         static let defaultTimeout: TimeInterval = 30.0
-        static let uploadTimeout: TimeInterval = 300.0 // 5 minutes for upload
+        /// URLSession resource timeout (upload of large audio files)
+        static let uploadTimeout: TimeInterval = 300.0
     }
 
     // MARK: - Recording Constants
 
     enum Recording {
-        // File Stability
-        static let fileStabilityCheckInterval: TimeInterval = 0.5 // Check every 500ms
-        static let fileStabilityRequiredChecks: Int = 2 // Must be stable for 2 consecutive checks
-        static let fileStabilityMaxWaitTime: TimeInterval = 15.0 // Wait max 15 seconds
+        // File Stability (pre-conversion and finalization watcher)
+        static let fileStabilityCheckInterval: TimeInterval = 0.5
+        /// Consecutive stable checks required by the MOV→M4A pre-flight
+        static let converterStabilityRequiredChecks: Int = 2
+        /// Consecutive stable checks required by the finalization fallback watcher
+        static let finalizationStabilityRequiredChecks: Int = 3
+        /// Max wait for MOV stability before conversion
+        static let converterMaxWaitTime: TimeInterval = 15.0
+        /// Max wait for the recording-finalization delegate callback
+        static let finalizationMaxWaitTime: TimeInterval = 120.0
 
         // Recovery Configuration
         static let maxRecoveryAttempts: Int = 3
-        static let recoveryDelayBase: TimeInterval = 2.0 // Base delay for exponential backoff
-        static let recoveryDelayMax: TimeInterval = 10.0
+        static let recoveryDelay: TimeInterval = 2.0
 
         // Health Monitoring
-        static let healthCheckSampleTimeout: TimeInterval = 10.0 // No samples for 10s = unhealthy
-        static let healthCheckMemoryWarningThreshold: Int = 80 // 80% memory usage
+        static let healthCheckInterval: TimeInterval = 5.0
+        /// No samples for this long = unhealthy
+        static let healthCheckSampleTimeout: TimeInterval = 10.0
     }
 
     // MARK: - Permission Constants
 
     enum Permissions {
-        // Recheck Intervals
+        /// Recheck loop after opening System Settings
         static let recheckDelay: TimeInterval = 2.0
         static let recheckCount: Int = 5
         static let recheckInterval: TimeInterval = 1.0
 
-        // Accessibility Monitoring
+        /// Accessibility trust polling after request
         static let accessibilityMonitorAttempts: Int = 20
         static let accessibilityMonitorInterval: TimeInterval = 1.0
-    }
-
-    // MARK: - Network Constants
-
-    enum Network {
-        static let defaultTimeout: TimeInterval = 30.0
-        static let uploadTimeout: TimeInterval = 300.0
-        static let maxRetryAttempts: Int = 3
-        static let retryDelay: TimeInterval = 2.0
-    }
-
-    // MARK: - File System Constants
-
-    enum FileSystem {
-        static let tempFilePrefix = "recording_"
-        static let systemAudioPrefix = "system_audio_"
-        static let unifiedCapturePrefix = "meeting_unified_"
-        static let finalRecordingPrefix = "meeting_"
-
-        static let wavExtension = "wav"
-        static let m4aExtension = "m4a"
-        static let movExtension = "mov"
 
         static let permissionTestFilename = "permission_test.tmp"
     }
@@ -146,35 +102,5 @@ enum Constants {
 
     enum DateFormat {
         static let timestamp = "yyyy-MM-dd_HH-mm-ss"
-        static let logTimestamp = "yyyy-MM-dd HH:mm:ss.SSS"
-        static let displayDate = "yyyy-MM-dd"
-        static let displayTime = "HH:mm:ss"
-    }
-
-    // MARK: - Animation Constants
-
-    enum Animation {
-        static let shortDuration: TimeInterval = 0.2
-        static let mediumDuration: TimeInterval = 0.5
-        static let longDuration: TimeInterval = 1.0
-
-        static let springResponse: Double = 0.3
-        static let springDampingFraction: Double = 0.7
-
-        static let pulseRepeatForever: Bool = true
-    }
-}
-
-// MARK: - Computed Constants
-
-extension Constants {
-    /// Convert seconds to nanoseconds for Task.sleep()
-    static func nanoseconds(from seconds: TimeInterval) -> UInt64 {
-        return UInt64(seconds * 1_000_000_000)
-    }
-
-    /// Convert milliseconds to nanoseconds for Task.sleep()
-    static func nanosecondsFromMilliseconds(_ milliseconds: Int) -> UInt64 {
-        return UInt64(milliseconds) * 1_000_000
     }
 }

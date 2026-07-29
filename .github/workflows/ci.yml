@@ -401,7 +401,7 @@ jobs:
       run: |
         VERSION="${{ needs.build.outputs.version }}"
 
-        echo "🤖 Generating release notes with Claude API..."
+        echo "🤖 Generating release notes with AI (Gemini/OpenAI)..."
         python .github/scripts/generate-release-notes.py "v$VERSION" > release-notes.md
 
         echo "📄 Generated release notes:"
