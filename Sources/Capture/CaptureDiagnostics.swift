@@ -1,5 +1,5 @@
 import Foundation
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 import AVFoundation
 import MachO
 
@@ -25,10 +25,11 @@ enum CaptureDiagnostics {
         var memoryInfo = mach_task_basic_info()
         var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
 
+        nonisolated(unsafe) let currentTask = mach_task_self_
         let result = withUnsafeMutablePointer(to: &memoryInfo) { memoryInfoPtr in
             withUnsafeMutablePointer(to: &count) { countPtr in
                 task_info(
-                    mach_task_self_,
+                    currentTask,
                     task_flavor_t(MACH_TASK_BASIC_INFO),
                     UnsafeMutablePointer<integer_t>(OpaquePointer(memoryInfoPtr)),
                     countPtr

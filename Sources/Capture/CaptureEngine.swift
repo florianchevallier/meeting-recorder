@@ -1,5 +1,5 @@
 import Foundation
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// The capture engine: owns the `SCStream` + `SCRecordingOutput` lifecycle,
 /// the stop finalization handshake, automatic recovery, and health monitoring.
