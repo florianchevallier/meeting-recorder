@@ -26,7 +26,7 @@ func isUsingCommandLineTools() -> Bool {
     }
 }
 
-var testSwiftSettings: [SwiftSetting] = [.swiftLanguageMode(.v6)]
+var testSwiftSettings: [SwiftSetting] = []
 var testLinkerSettings: [LinkerSetting] = []
 
 if isUsingCommandLineTools() {
@@ -62,9 +62,6 @@ let package = Package(
             path: "Sources",
             resources: [
                 .process("Resources")
-            ],
-            swiftSettings: [
-                .swiftLanguageMode(.v6)
             ]
         ),
         .testTarget(
