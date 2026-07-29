@@ -7,6 +7,10 @@ import MachO
 /// Log-only: helps diagnose sleeps, display changes, competing capture apps.
 enum CaptureDiagnostics {
 
+    /// `mach_task_self_` is a Darwin global var, flagged by strict concurrency
+    /// checking even though it never actually changes within a process.
+    private nonisolated(unsafe) static let currentMachTask: mach_port_t = mach_task_self_
+
     static func runDeepDiagnostics(
         outputURL: URL?,
         lastStreamDimensions: (width: Int, height: Int)?
@@ -25,11 +29,10 @@ enum CaptureDiagnostics {
         var memoryInfo = mach_task_basic_info()
         var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
 
-        nonisolated(unsafe) let currentTask = mach_task_self_
         let result = withUnsafeMutablePointer(to: &memoryInfo) { memoryInfoPtr in
             withUnsafeMutablePointer(to: &count) { countPtr in
                 task_info(
-                    currentTask,
+                    Self.currentMachTask,
                     task_flavor_t(MACH_TASK_BASIC_INFO),
                     UnsafeMutablePointer<integer_t>(OpaquePointer(memoryInfoPtr)),
                     countPtr
