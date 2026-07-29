@@ -48,7 +48,7 @@ cask "meety" do
   uninstall quit: "com.meetingrecorder.meety"
 
   zap trash: [
-    "~/Documents/MeetingRecorder_debug.log",
+    "~/Documents/Meety_debug.log",
     "~/Documents/meeting_*.m4a",
     "~/Library/Preferences/com.meetingrecorder.meety.plist",
   ]

@@ -156,15 +156,8 @@ create_release() {
     # Create annotated tag
     git tag -a "v$version" -m "Release version $version
 
-🎉 Features:
-- Unified ScreenCaptureKit recording (macOS 15+)
-- Automatic Teams meeting detection
-- High-quality audio capture (system + microphone)
-- Menu bar interface
-- Smart file naming
-
-📦 Installation:
-Download DMG from GitHub Releases and right-click → Open
+Signed and notarized DMG available on GitHub Releases.
+Release notes are generated automatically from commit history.
 
 🔗 https://github.com/florianchevallier/meeting-recorder/releases/tag/v$version"
     

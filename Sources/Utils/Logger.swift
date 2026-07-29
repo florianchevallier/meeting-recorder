@@ -9,8 +9,11 @@ import os.log
 /// - Warning logs: Potential issues, persisted in system logs
 /// - Error logs: Errors requiring attention, persisted in system logs
 ///
-/// Logs are accessible via Console.app (search for "Meety" or subsystem "com.meetingrecorder.app")
-final class Logger {
+/// Logs are accessible via Console.app (search for "Meety" or the bundle subsystem)
+///
+/// `@unchecked Sendable`: all mutable state (throttle cache) is protected by `throttleLock`;
+/// `os.Logger` is itself thread-safe.
+final class Logger: @unchecked Sendable {
     static let shared = Logger()
 
     private let osLog: os.Logger
@@ -111,7 +114,9 @@ final class Logger {
         }
     }
 
-    /// Legacy log method for backward compatibility
+    /// Legacy log method — TRANSITIONAL: kept until the remaining call sites
+    /// (capture, status bar, teams, transcription) are migrated to the leveled API
+    /// during their respective rewrite phases. Do not use in new code.
     /// - Parameters:
     ///   - message: The message to log
     func log(_ message: String) {

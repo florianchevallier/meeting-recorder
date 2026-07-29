@@ -63,17 +63,24 @@ enum FileSystemUtilities {
         }
     }
 
-    /// Create a unique filename with timestamp
+    /// Create a unique filename with timestamp (local time)
     /// - Parameters:
     ///   - prefix: The filename prefix (e.g., "recording")
     ///   - extension: The file extension (e.g., "m4a")
+    ///   - date: The date to format (injectable for tests, defaults to now)
+    ///   - timeZone: The timezone for the timestamp (injectable for tests, defaults to local)
     /// - Returns: A filename with format: prefix_YYYY-MM-DD_HH-mm-ss.extension
-    static func createTimestampedFilename(prefix: String, extension: String) -> String {
+    static func createTimestampedFilename(
+        prefix: String,
+        extension: String,
+        date: Date = Date(),
+        timeZone: TimeZone = .current
+    ) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = Constants.DateFormat.timestamp
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-        let timestamp = dateFormatter.string(from: Date())
+        dateFormatter.timeZone = timeZone
+        let timestamp = dateFormatter.string(from: date)
         return "\(prefix)_\(timestamp).\(`extension`)"
     }
 }
