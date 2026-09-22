@@ -1,6 +1,6 @@
 cask "meety" do
-  version "0.2.0"
-  sha256 "477b0e29e2d47f5836eeafae86ddb24eebb0b0899bcfa79781ed5d8aeb9ccee8"
+  version "0.3.0"
+  sha256 "e0e1bc0e70e0b70388f5e66a043249e96c30a178a39101f5e49c2be636580fed"
 
   url "https://github.com/florianchevallier/meeting-recorder/releases/download/v#{version}/Meety-#{version}.dmg"
   name "Meety"
