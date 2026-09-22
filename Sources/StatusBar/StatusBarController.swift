@@ -89,11 +89,15 @@ final class StatusBarController {
             }
         )
 
+        // Let SwiftUI drive the popover size. A fixed `contentSize` taller than
+        // the view makes AppKit anchor a 360 pt window under the status item and
+        // then shrink it from the top, leaving a gap between the bar and the arrow.
+        let hosting = NSHostingController(rootView: menu)
+        hosting.sizingOptions = .preferredContentSize
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: Constants.UI.menuWidth, height: Constants.UI.menuHeight)
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(rootView: menu)
+        popover.contentViewController = hosting
         self.popover = popover
 
         let coordinator = self.coordinator

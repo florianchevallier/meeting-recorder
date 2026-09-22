@@ -12,7 +12,6 @@ enum Constants {
     enum UI {
         // Status Bar Menu
         static let menuWidth: CGFloat = 280
-        static let menuHeight: CGFloat = 360
 
         // Settings Window
         static let windowInitialWidth: CGFloat = 600
