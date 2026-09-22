@@ -10,6 +10,8 @@ import SwiftUI
 struct StatusBarMenu: View {
     let coordinator: RecordingCoordinator
     let permissionMonitor: PermissionMonitor
+    let calendar: CalendarMonitor
+    let settings: SettingsStore
     let onOpenSettings: () -> Void
 
     var body: some View {
@@ -18,6 +20,7 @@ struct StatusBarMenu: View {
             mainControlSection
             errorSection
             transcriptionSection
+            CalendarMenuSection(calendar: calendar, permissionMonitor: permissionMonitor, settings: settings)
             quickActionsSection
         }
         .frame(width: Constants.UI.menuWidth)

@@ -70,19 +70,37 @@ enum FileSystemUtilities {
     ///   - extension: The file extension (e.g., "m4a")
     ///   - date: The date to format (injectable for tests, defaults to now)
     ///   - timeZone: The timezone for the timestamp (injectable for tests, defaults to local)
-    /// - Returns: A filename with format: prefix_YYYY-MM-DD_HH-mm-ss.extension
+    ///   - title: Optional human title (calendar event), sanitized and appended after the timestamp
+    /// - Returns: A filename with format: prefix_YYYY-MM-DD_HH-mm-ss[_title].extension
     static func createTimestampedFilename(
         prefix: String,
         extension: String,
         date: Date = Date(),
-        timeZone: TimeZone = .current
+        timeZone: TimeZone = .current,
+        title: String? = nil
     ) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = Constants.DateFormat.timestamp
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.timeZone = timeZone
         let timestamp = dateFormatter.string(from: date)
-        return "\(prefix)_\(timestamp).\(`extension`)"
+        let suffix = title.flatMap(sanitizedFilenameComponent).map { "_" + $0 } ?? ""
+        return "\(prefix)_\(timestamp)\(suffix).\(`extension`)"
+    }
+
+    /// Makes `title` safe for a filename: drops path separators, characters
+    /// Finder / SMB reject and control characters, collapses whitespace,
+    /// caps the length. Nil when nothing usable is left.
+    static func sanitizedFilenameComponent(_ title: String) -> String? {
+        let forbidden = CharacterSet(charactersIn: "/\\:?*\"<>|").union(.controlCharacters)
+        let cleaned = title.unicodeScalars
+            .map { forbidden.contains($0) ? " " : String($0) }
+            .joined()
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+        let trimmed = String(cleaned.prefix(Constants.Calendar.maxFilenameTitleLength))
+            .trimmingCharacters(in: .whitespaces.union(CharacterSet(charactersIn: ".")))
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

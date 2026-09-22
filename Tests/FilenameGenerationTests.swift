@@ -47,4 +47,23 @@ struct FilenameGenerationTests {
         #expect(utc == "meeting_2026-01-01_00-00-00.m4a")
         #expect(paris != utc)
     }
+
+    @Test("An event title is sanitized and appended after the timestamp")
+    func title() {
+        let date = Date(timeIntervalSince1970: 1767225600)
+        let utc = TimeZone(secondsFromGMT: 0)!
+        func name(_ title: String?) -> String {
+            FileSystemUtilities.createTimestampedFilename(
+                prefix: "meeting", extension: "m4a", date: date, timeZone: utc, title: title)
+        }
+
+        #expect(name(nil) == "meeting_2026-01-01_00-00-00.m4a")
+        #expect(name("Point hebdo") == "meeting_2026-01-01_00-00-00_Point hebdo.m4a")
+        #expect(name("Q3: Budget / RH?  \n  v2") == "meeting_2026-01-01_00-00-00_Q3 Budget RH v2.m4a")
+        #expect(name("  ...  ") == "meeting_2026-01-01_00-00-00.m4a")
+        #expect(name("   ") == "meeting_2026-01-01_00-00-00.m4a")
+
+        let long = String(repeating: "a", count: 100)
+        #expect(FileSystemUtilities.sanitizedFilenameComponent(long)?.count == 60)
+    }
 }

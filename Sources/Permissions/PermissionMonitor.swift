@@ -3,6 +3,7 @@ import Foundation
 import AppKit
 import AVFAudio
 import ApplicationServices
+import EventKit
 
 // MARK: - Probes
 
@@ -14,6 +15,9 @@ protocol PermissionProbes: Sendable {
     func isAccessibilityTrusted() -> Bool
     /// Shows the system Accessibility prompt (idempotent).
     func promptAccessibility()
+    func calendarStatus() -> PermissionStatus
+    /// Shows the calendar TCC prompt when undetermined.
+    func requestCalendar() async -> Bool
 }
 
 struct SystemPermissionProbes: PermissionProbes {
@@ -40,6 +44,25 @@ struct SystemPermissionProbes: PermissionProbes {
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
     }
+
+    func calendarStatus() -> PermissionStatus {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess: return .granted
+        // Write-only access cannot read events: as good as denied for Meety.
+        case .denied, .restricted, .writeOnly: return .denied
+        case .notDetermined: return .notDetermined
+        @unknown default: return .notDetermined
+        }
+    }
+
+    func requestCalendar() async -> Bool {
+        do {
+            return try await EKEventStore().requestFullAccessToEvents()
+        } catch {
+            Log.permissions.error("Calendar access request failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
 }
 
 /// Runs the deterministic system-audio check (see `SystemAudioPermissionProbe`).
@@ -51,7 +74,7 @@ extension SystemAudioPermissionProbe: SystemAudioAccessProbing {}
 
 // MARK: - Monitor
 
-/// Tracks the three permissions. `refresh()` is synchronous and cheap; the only
+/// Tracks the permissions. `refresh()` is synchronous and cheap; the only
 /// asynchronous work is the explicit requests. Refresh triggers are events
 /// (app activation, System Settings (de)activation) plus a short, bounded
 /// recheck after a deep link into System Settings.
@@ -62,6 +85,7 @@ final class PermissionMonitor {
     private(set) var microphone: PermissionStatus = .notDetermined
     private(set) var systemAudio: PermissionStatus = .unknownUntilFirstUse
     private(set) var accessibility: PermissionStatus = .notDetermined
+    private(set) var calendar: PermissionStatus = .notDetermined
 
     /// True while the system-audio probe (and its TCC prompt) is running.
     private(set) var isProbingSystemAudio = false
@@ -136,6 +160,8 @@ final class PermissionMonitor {
         if mic != microphone { microphone = mic }
         if axStatus != accessibility { accessibility = axStatus }
         if audio != systemAudio { systemAudio = audio }
+        let cal = probes.calendarStatus()
+        if cal != calendar { calendar = cal }
     }
 
     func status(for kind: PermissionKind) -> PermissionStatus {
@@ -143,6 +169,7 @@ final class PermissionMonitor {
         case .microphone: return microphone
         case .systemAudio: return systemAudio
         case .accessibility: return accessibility
+        case .calendar: return calendar
         }
     }
 
@@ -162,6 +189,17 @@ final class PermissionMonitor {
         refresh()
         if accessibility != .granted {
             openSystemSettings(for: .accessibility)
+        }
+    }
+
+    /// Prompts when undetermined; deep-links to the Calendars pane once denied.
+    func requestCalendar() async {
+        if calendar == .notDetermined {
+            _ = await probes.requestCalendar()
+        }
+        refresh()
+        if calendar == .denied {
+            openSystemSettings(for: .calendar)
         }
     }
 

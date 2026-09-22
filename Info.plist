@@ -41,6 +41,8 @@
 	<string>Meety uses system events to detect when Microsoft Teams meetings start and end, enabling automatic recording. No personal data is collected.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Meety records the audio of your meetings (Teams, Zoom…) played by other apps. Recordings stay on your Mac and are never uploaded automatically.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Meety reads your calendar to show today's meetings, name recordings after the event and keep its participants next to the file for transcription. Nothing leaves your Mac.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>Meety saves your meeting recordings as M4A files in your Documents folder for easy access. You have full control over these files.</string>
 	<key>NSHighResolutionCapable</key>

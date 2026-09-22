@@ -19,15 +19,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private let settings: SettingsStore
     private let permissionMonitor: PermissionMonitor
+    private let calendar: CalendarMonitor
 
     /// Invoked when the user closes the window (used by onboarding).
     var onClose: (() -> Void)?
 
     static let windowIdentifier = NSUserInterfaceItemIdentifier("settingsWindow")
 
-    init(settings: SettingsStore, permissionMonitor: PermissionMonitor) {
+    init(settings: SettingsStore, permissionMonitor: PermissionMonitor, calendar: CalendarMonitor) {
         self.settings = settings
         self.permissionMonitor = permissionMonitor
+        self.calendar = calendar
     }
 
     func show(tab: SettingsWindow.SettingsTab = .general) {
@@ -40,7 +42,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        let rootView = SettingsWindow(settings: settings, permissionMonitor: permissionMonitor, model: model)
+        let rootView = SettingsWindow(
+            settings: settings, permissionMonitor: permissionMonitor, calendar: calendar, model: model)
         let hostingController = NSHostingController(rootView: rootView)
 
         let newWindow = NSWindow(

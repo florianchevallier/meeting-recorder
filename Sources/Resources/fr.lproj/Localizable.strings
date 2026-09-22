@@ -154,3 +154,33 @@
 "api.error.bad_request" = "Requête invalide: %@";
 "api.error.server_error" = "Erreur serveur: %@";
 "api.error.unexpected_status" = "Code HTTP inattendu: %d";
+
+/* Calendar */
+"permission.calendar.title" = "Calendrier";
+"permission.calendar.description" = "Affiche les réunions du jour, nomme les enregistrements d'après l'événement et conserve ses participants à côté du fichier";
+"calendar.section.title" = "Aujourd'hui";
+"calendar.past.title" = "Plus tôt";
+"calendar.connect" = "Connecter le calendrier";
+"calendar.empty" = "Plus de réunion aujourd'hui";
+"calendar.in_progress" = "En cours";
+"calendar.untitled" = "Événement sans titre";
+"calendar.join" = "Rejoindre la réunion";
+"calendar.play_recording" = "Lire l'enregistrement";
+"calendar.show_in_finder" = "Afficher dans le Finder";
+"calendar.open_transcript" = "Ouvrir la transcription";
+"calendar.reminder.record" = "Enregistrer";
+"calendar.starts_in" = "dans %d min";
+"calendar.participants" = "%d participants";
+"calendar.reminder.body" = "Commence à %@";
+"settings.tab.calendar" = "Calendrier";
+"settings.calendar.header.title" = "Calendrier";
+"settings.calendar.header.subtitle" = "Les réunions des comptes ajoutés à l'app Calendrier";
+"settings.calendar.enabled.title" = "Utiliser le calendrier";
+"settings.calendar.enabled.subtitle" = "Agenda dans le menu, fichiers nommés d'après l'événement, participants gardés pour la transcription";
+"settings.calendar.reminders.title" = "Rappels de réunion";
+"settings.calendar.reminders.subtitle" = "Une notification avant chaque réunion, avec un bouton Enregistrer";
+"settings.calendar.lead.title" = "Me prévenir";
+"settings.calendar.lead.minutes" = "%d min avant";
+"settings.calendar.picker.title" = "Calendriers";
+"settings.calendar.picker.help" = "Seules les réunions des calendriers cochés apparaissent dans le menu, nomment les enregistrements et déclenchent les rappels. Une fois un choix fait, les calendriers ajoutés plus tard restent décochés.";
+"settings.calendar.picker.other_account" = "Autres";

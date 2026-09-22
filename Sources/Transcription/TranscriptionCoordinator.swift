@@ -48,14 +48,15 @@ final class TranscriptionCoordinator {
 
     /// Start transcription of a recorded audio file.
     /// Returns after the job is created and polling has started.
-    func transcribe(audioFileURL: URL) async {
+    /// - Parameter speakerCount: Diarization hint from the calendar; overrides the setting.
+    func transcribe(audioFileURL: URL, speakerCount: Int? = nil) async {
         Log.transcription.info("Starting transcription for: \(audioFileURL.lastPathComponent)")
 
         do {
             let client = WhisperAPIClient(baseURL: settings.apiBaseURL)
             let jobResponse = try await client.startTranscription(
                 audioFileURL: audioFileURL,
-                parameters: currentParameters
+                parameters: parameters(speakerCount: speakerCount)
             )
 
             apply(.jobCreated(jobResponse.jobId))
@@ -156,7 +157,7 @@ final class TranscriptionCoordinator {
 
     // MARK: - Parameters
 
-    private var currentParameters: TranscriptionRequest {
+    private func parameters(speakerCount: Int?) -> TranscriptionRequest {
         TranscriptionRequest(
             outputFormat: "txt",
             model: settings.whisperModel,
@@ -164,7 +165,7 @@ final class TranscriptionCoordinator {
             batchSize: 8,
             computeType: settings.computeType,
             diarize: true,
-            nbSpeaker: settings.nbSpeaker,
+            nbSpeaker: speakerCount ?? settings.nbSpeaker,
             debug: false
         )
     }

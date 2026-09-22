@@ -24,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         dependencies.statusBarController.setup()
         dependencies.permissionMonitor.start()
+        dependencies.calendar.start()
+        dependencies.reminderScheduler.start()
         dependencies.coordinator.startTeamsMonitoring()
         dependencies.onboardingCoordinator.presentIfNeeded()
     }
@@ -63,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         dependencies?.permissionMonitor.stop()
+        dependencies?.reminderScheduler.stop()
+        dependencies?.calendar.stop()
         dependencies?.statusBarController.tearDown()
     }
 }

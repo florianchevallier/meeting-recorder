@@ -110,6 +110,22 @@ enum Constants {
         static let recordingExtension = "m4a"
     }
 
+    // MARK: - Calendar Constants
+
+    enum Calendar {
+        /// A recording started this long before an event still belongs to it
+        static let earlyStartTolerance: TimeInterval = 600
+        /// Events are fetched from the start of today to now + this (reminders need tomorrow morning)
+        static let lookahead: TimeInterval = 24 * 3600
+        /// Reminders are scheduled for events starting within this window
+        static let reminderHorizon: TimeInterval = 24 * 3600
+        static let defaultReminderLeadMinutes = 1
+        /// Upcoming / past rows shown in the popover (each)
+        static let menuEntriesLimit = 3
+        /// Event title length kept in recording filenames
+        static let maxFilenameTitleLength = 60
+    }
+
     // MARK: - Date Formatting
 
     enum DateFormat {

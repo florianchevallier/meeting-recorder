@@ -154,3 +154,33 @@
 "api.error.bad_request" = "Invalid request: %@";
 "api.error.server_error" = "Server error: %@";
 "api.error.unexpected_status" = "Unexpected HTTP status: %d";
+
+/* Calendar */
+"permission.calendar.title" = "Calendar";
+"permission.calendar.description" = "Shows today's meetings, names recordings after the event and keeps its participants next to the file";
+"calendar.section.title" = "Today";
+"calendar.past.title" = "Earlier";
+"calendar.connect" = "Connect your calendar";
+"calendar.empty" = "No more meetings today";
+"calendar.in_progress" = "Now";
+"calendar.untitled" = "Untitled event";
+"calendar.join" = "Join meeting";
+"calendar.play_recording" = "Play recording";
+"calendar.show_in_finder" = "Show in Finder";
+"calendar.open_transcript" = "Open transcript";
+"calendar.reminder.record" = "Record";
+"calendar.starts_in" = "in %d min";
+"calendar.participants" = "%d participants";
+"calendar.reminder.body" = "Starts at %@";
+"settings.tab.calendar" = "Calendar";
+"settings.calendar.header.title" = "Calendar";
+"settings.calendar.header.subtitle" = "Meetings from the accounts added to the Calendar app";
+"settings.calendar.enabled.title" = "Use the calendar";
+"settings.calendar.enabled.subtitle" = "Agenda in the menu, event-named recordings, participants saved for transcription";
+"settings.calendar.reminders.title" = "Meeting reminders";
+"settings.calendar.reminders.subtitle" = "A notification before each meeting, with a Record button";
+"settings.calendar.lead.title" = "Remind me";
+"settings.calendar.lead.minutes" = "%d min before";
+"settings.calendar.picker.title" = "Calendars";
+"settings.calendar.picker.help" = "Only meetings from checked calendars appear in the menu, name recordings and trigger reminders. Calendars added later stay unchecked once you have made a choice.";
+"settings.calendar.picker.other_account" = "Other";

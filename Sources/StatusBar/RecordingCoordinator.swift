@@ -43,6 +43,7 @@ final class RecordingCoordinator {
     private let settings: SettingsStore
     private let permissionMonitor: PermissionMonitor
     private let teamsMonitor: TeamsMonitor
+    private let calendar: CalendarMonitor?
 
     /// Transcription entry point.
     let transcription: TranscriptionCoordinator
@@ -55,6 +56,8 @@ final class RecordingCoordinator {
     private var startTask: Task<Void, Never>?
     private var stopTask: Task<Void, Never>?
     private var permissionWatchTask: Task<Void, Never>?
+    /// Calendar event the current recording belongs to (named the file, feeds the sidecar).
+    private var sessionEvent: (event: CalendarEvent, startedAt: Date)?
 
     // MARK: - Computed
 
@@ -73,11 +76,13 @@ final class RecordingCoordinator {
     init(
         settings: SettingsStore,
         permissionMonitor: PermissionMonitor,
-        teamsMonitor: TeamsMonitor = TeamsMonitor()
+        teamsMonitor: TeamsMonitor = TeamsMonitor(),
+        calendar: CalendarMonitor? = nil
     ) {
         self.settings = settings
         self.permissionMonitor = permissionMonitor
         self.teamsMonitor = teamsMonitor
+        self.calendar = calendar
         self.transcription = TranscriptionCoordinator(settings: settings)
         watchMicrophoneRevocation()
     }
@@ -171,9 +176,17 @@ final class RecordingCoordinator {
                 apply(.startFailed)
                 return
             }
+            let startedAt = Date()
+            let event = calendar?.isAvailable == true ? calendar?.currentEvent(at: startedAt) : nil
+            sessionEvent = event.map { ($0, startedAt) }
+            if let event {
+                Log.recording.info("Recording matched calendar event \(event.title, privacy: .private)")
+            }
             let name = FileSystemUtilities.createTimestampedFilename(
                 prefix: Constants.Permissions.recordingPrefix,
-                extension: Constants.Permissions.recordingExtension
+                extension: Constants.Permissions.recordingExtension,
+                date: startedAt,
+                title: event?.title
             )
             outputURL = documents.appendingPathComponent(name)
         } catch {
@@ -251,6 +264,8 @@ final class RecordingCoordinator {
             engine = nil
             eventsTask?.cancel()
             eventsTask = nil
+            sessionEvent = nil
+            calendar?.refresh()
             apply(.stopped)
             Log.recording.info("Stop sequence completed")
         }
@@ -281,10 +296,19 @@ final class RecordingCoordinator {
             return
         }
         Log.recording.info("Final recording saved: \(url.lastPathComponent, privacy: .public)")
+        if let sessionEvent {
+            do {
+                try MeetingMetadata(recordingStartedAt: sessionEvent.startedAt, event: sessionEvent.event)
+                    .write(nextTo: url)
+            } catch {
+                Log.recording.error("Meeting metadata not written: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         guard transcribe else { return }
         transcription.notifyUploadStarted()
+        let speakerCount = sessionEvent?.event.expectedSpeakerCount
         Task { [transcription] in
-            await transcription.transcribe(audioFileURL: url)
+            await transcription.transcribe(audioFileURL: url, speakerCount: speakerCount)
         }
     }
 

@@ -22,6 +22,19 @@ struct SettingsStoreTests {
         #expect(store.nbSpeaker == 2)
         #expect(store.computeType == "float16")
         #expect(store.autoRecordingEnabled == true)
+        #expect(store.calendarEnabled == true)
+        #expect(store.calendarRemindersEnabled == false)
+        #expect(store.calendarReminderLeadMinutes == 1)
+        #expect(store.calendarSelectedIDs == nil)
+    }
+
+    @Test("Calendar selection persists, and nil removes the key")
+    func calendarSelection() {
+        let (store, defaults) = makeStore()
+        store.calendarSelectedIDs = ["work", "team"]
+        #expect(SettingsStore(defaults: defaults).calendarSelectedIDs == ["work", "team"])
+        store.calendarSelectedIDs = nil
+        #expect(SettingsStore(defaults: defaults).calendarSelectedIDs == nil)
     }
 
     @Test("Values persist to UserDefaults and survive reload")

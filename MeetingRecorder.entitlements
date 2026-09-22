@@ -15,6 +15,10 @@
     <key>com.apple.security.device.audio-input</key>
     <true/>
 
+    <!-- Calendar events (hardened-runtime resource access; TCC still asks) -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
+
     <!-- NOTE: if the App Sandbox is ever enabled, add
          com.apple.security.app-sandbox = true and
          com.apple.security.network.client = true (Whisper uploads). -->

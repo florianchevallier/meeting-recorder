@@ -81,6 +81,7 @@ log show --predicate 'subsystem == "com.meetingrecorder.meety"' --last 100
 tccutil reset Microphone com.meetingrecorder.meety
 tccutil reset AudioCapture com.meetingrecorder.meety
 tccutil reset Accessibility com.meetingrecorder.meety
+tccutil reset Calendar com.meetingrecorder.meety
 tccutil reset All com.meetingrecorder.meety.debug   # safe catch-all for the debug bundle
 
 # Check recordings
@@ -103,6 +104,7 @@ Sources/
 ├── StatusBar/              # Status bar UI
 │   ├── StatusBarController.swift  # NSStatusItem + NSPopover, IconState (pure) + cached NSImages
 │   ├── StatusBarMenu.swift        # Popover SwiftUI; TimelineView only around the duration/ring
+│   ├── CalendarMenuSection.swift  # Today's meetings; TimelineView(.everyMinute) over a pure agenda
 │   ├── RecordingCoordinator.swift # Drives CaptureEngine, permission gating, RecordingError + Remedy
 │   └── RecordingState.swift       # idle/starting/recording/recovering/stopping + pure transition()
 ├── Capture/                # Core Audio process-tap pipeline (audio only, AAC direct)
@@ -127,12 +129,20 @@ Sources/
 │   ├── TeamsMicrophoneObserver.swift # CoreAudio listener trigger + per-process "running input" read
 │   ├── TeamsWindowObserver.swift  # AXObserver + coalesced rescan + 15 s fallback poll
 │   └── TeamsMeetingDecider.swift  # Pure: window && mic
+├── Calendar/               # EventKit agenda, event-named recordings, reminders (@MainActor)
+│   ├── CalendarEvent.swift        # Sendable snapshot + Participant, expectedSpeakerCount
+│   ├── CalendarEventSource.swift  # Protocol + EventKitCalendarSource (EKEventStore, EKEventStoreChanged)
+│   ├── CalendarMatcher.swift      # Pure: event ↔ recording, filename date, meeting link
+│   ├── CalendarAgenda.swift       # Pure: upcoming/past for the popover + MeetingReminderPlanner
+│   ├── CalendarMonitor.swift      # @Observable: today's events + recordings on disk, event-driven
+│   ├── MeetingMetadata.swift      # `<recording>.meeting.json` sidecar (participants)
+│   └── MeetingReminderScheduler.swift # UNUserNotificationCenter + Record action (inert without bundle)
 ├── Permissions/
-│   ├── PermissionMonitor.swift    # @Observable, 3 permissions, synchronous refresh, injected probes
+│   ├── PermissionMonitor.swift    # @Observable, 4 permissions, synchronous refresh, injected probes
 │   └── PermissionStatus.swift     # PermissionKind, PermissionStatus, SystemAudioOutcome, errors
 ├── Settings/
 │   ├── SettingsStore.swift        # @Observable, DefaultsKey-backed, UserDefaults injectable
-│   ├── SettingsWindow.swift       # 3 tabs; selected tab lives in SettingsWindowModel
+│   ├── SettingsWindow.swift       # 4 tabs; selected tab lives in SettingsWindowModel
 │   └── SettingsWindowController.swift # NSWindow (created once), NSWindowDelegate → onClose
 ├── Onboarding/
 │   └── OnboardingCoordinator.swift # decide() pure + Observations-driven completion
@@ -200,7 +210,7 @@ The old `logs.txt` signal was removed (new Teams never writes it).
 
 **Recording auto-starts on meeting begin and intentionally continues after the meeting ends.**
 
-## Permissions (3)
+## Permissions (4)
 
 `PermissionMonitor` — `refresh()` is synchronous and side-effect free; triggers are app
 activation, System Settings (de)activation, and a bounded 30 × 1 s recheck after a deep link.
@@ -213,12 +223,39 @@ activation, System Settings (de)activation, and a bounded 30 × 1 s recheck afte
    shows the TCC prompt and blocks until answered — `start()` has no timeout for that reason.
 3. **Accessibility** — `AXIsProcessTrusted`; prompt via `AXIsProcessTrustedWithOptions` then
    deep link. `denied` only after we prompted once.
+4. **Calendar** (optional) — `EKEventStore.authorizationStatus(for: .event)`; only
+   `.fullAccess` counts (write-only ⇒ denied). Prompt via `requestFullAccessToEvents()`,
+   deep link `Privacy_Calendars`. Needs `NSCalendarsFullAccessUsageDescription` and the
+   hardened-runtime entitlement `com.apple.security.personal-information.calendars`.
+   Blocks neither onboarding nor recording.
 
 Onboarding completes on microphone + accessibility (system audio can't be granted without
 recording), or when the user closes the window. `RecordingCoordinator.start()` gates on
 microphone granted and system audio not denied, checks that `~/Documents` is writable, and
 surfaces `RecordingError` with a `Remedy` (deep link / open folder). Microphone revocation
 mid-recording stops and finalizes the recording.
+
+## Calendar
+
+EventKit, i.e. every account already in Calendar.app (Exchange/Outlook, iCloud, Google):
+no OAuth, no network. `CalendarMonitor` fetches today → now + 24 h (all-day and cancelled
+events dropped, rooms/resources dropped from attendees) on events only: `EKEventStoreChanged`,
+`NSCalendarDayChanged`, permission grant / Settings toggle (store `reset()` first), popover
+open, and the end of each recording. No polling.
+- **Calendar picker** (Settings → Calendar): `calendarSelectedIDs` (`EKCalendar.calendarIdentifier`);
+  `nil` = all (default). The first toggle makes it explicit, so calendars added later stay out.
+  Filtering happens in the EventKit predicate; an empty selection means no events.
+- **Popover**: up to 3 upcoming (incl. in progress, "in N min", join link) and 3 past
+  meetings of today; past ones link their recording (▶︎ / transcript / Finder).
+- **Recording ↔ event** (`CalendarMatcher`, pure): a recording started in
+  `[start − 10 min, end)` belongs to the event; a meeting link wins, then the closest start.
+  Linking reads the start from the filename, so it works for old recordings too.
+- **Filename**: `meeting_<timestamp>_<sanitized title>.m4a` (≤60 chars, no `/:\?*"<>|`).
+- **Sidecar**: `<recording>.meeting.json` (event, organizer, attendees + status) for
+  diarization; the attendee count (minus declined, ≥2) overrides `nbSpeaker` for Whisper.
+- **Reminders** (Settings → Calendar, off by default): notifications N min before, `Record`
+  action → `coordinator.start()`. Replaced wholesale on every change (`meety.reminder.` ids).
+  Inert when run as a bare binary (`UNUserNotificationCenter` needs a bundle id).
 
 ## Transcription (Whisper API)
 
@@ -243,7 +280,7 @@ both enforced by `Tests/L10nParityTests.swift`. Format arguments go through
 ## Logging
 
 `Log.<category>` (`app`, `capture`, `recording`, `teams`, `permissions`, `transcription`,
-`settings`, `ui`) are `os.Logger`s with subsystem = bundle identifier. Interpolate
+`settings`, `ui`, `calendar`) are `os.Logger`s with subsystem = bundle identifier. Interpolate
 directly and mark what must stay readable in release with `privacy: .public`
 (interpolated `String`s are private by default). Filter with
 `--predicate 'subsystem == "…" AND category == "teams"'`.
@@ -289,6 +326,8 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
 - `TeamsMeetingDeciderTests`, `TeamsWindowClassifierTests`
 - `PermissionMonitorTests` — fake probes + UUID `UserDefaults` suite
 - `OnboardingDecisionTests`, `DefaultsKeyTests`, `IconStateTests`
+- `CalendarMatcherTests`, `CalendarAgendaTests` (+ reminder planner), `MeetingMetadataTests`,
+  `CalendarMonitorTests` (fake source)
 - `FilenameGenerationTests`, `SettingsStoreTests`, `EndpointResolverTests`,
   `MultipartBuilderTests`, `TranscriptionStateMachineTests`, `L10nParityTests`
 

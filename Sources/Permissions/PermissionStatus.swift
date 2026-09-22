@@ -3,13 +3,15 @@ import SwiftUI
 
 // MARK: - Permission Kind
 
-/// The three runtime permissions Meety depends on.
+/// The runtime permissions Meety depends on (calendar is optional).
 enum PermissionKind: CaseIterable, Sendable, Equatable {
     case microphone
     /// TCC "System Audio Recording Only" (Core Audio process taps).
     case systemAudio
     /// Accessibility (Teams window titles).
     case accessibility
+    /// Full access to calendar events (agenda, event-named recordings).
+    case calendar
 
     /// Deep link into System Settings › Privacy & Security.
     var settingsURL: URL {
@@ -18,6 +20,7 @@ enum PermissionKind: CaseIterable, Sendable, Equatable {
         case .microphone: anchor = "Privacy_Microphone"
         case .systemAudio: anchor = "Privacy_AudioCapture"
         case .accessibility: anchor = "Privacy_Accessibility"
+        case .calendar: anchor = "Privacy_Calendars"
         }
         return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!
     }

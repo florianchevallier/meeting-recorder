@@ -52,15 +52,21 @@ final class StatusBarController {
 
     private let coordinator: RecordingCoordinator
     private let permissionMonitor: PermissionMonitor
+    private let calendar: CalendarMonitor
+    private let settings: SettingsStore
     private let settingsWindowController: SettingsWindowController
 
     init(
         coordinator: RecordingCoordinator,
         permissionMonitor: PermissionMonitor,
+        calendar: CalendarMonitor,
+        settings: SettingsStore,
         settingsWindowController: SettingsWindowController
     ) {
         self.coordinator = coordinator
         self.permissionMonitor = permissionMonitor
+        self.calendar = calendar
+        self.settings = settings
         self.settingsWindowController = settingsWindowController
     }
 
@@ -84,6 +90,8 @@ final class StatusBarController {
         let menu = StatusBarMenu(
             coordinator: coordinator,
             permissionMonitor: permissionMonitor,
+            calendar: calendar,
+            settings: settings,
             onOpenSettings: { [weak self] in
                 self?.settingsWindowController.show(tab: .general)
             }
@@ -131,6 +139,7 @@ final class StatusBarController {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            calendar.refresh()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }

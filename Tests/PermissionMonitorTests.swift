@@ -7,6 +7,9 @@ final class FakeProbes: PermissionProbes, @unchecked Sendable {
     var microphone: PermissionStatus = .notDetermined
     var accessibilityTrusted = false
     var microphoneRequestAnswer = true
+    var calendar: PermissionStatus = .notDetermined
+    var calendarRequestAnswer = true
+    private(set) var calendarRequests = 0
 
     func microphoneStatus() -> PermissionStatus { microphone }
     func requestMicrophone() async -> Bool {
@@ -15,6 +18,12 @@ final class FakeProbes: PermissionProbes, @unchecked Sendable {
     }
     func isAccessibilityTrusted() -> Bool { accessibilityTrusted }
     func promptAccessibility() {}
+    func calendarStatus() -> PermissionStatus { calendar }
+    func requestCalendar() async -> Bool {
+        calendarRequests += 1
+        calendar = calendarRequestAnswer ? .granted : .denied
+        return calendarRequestAnswer
+    }
 }
 
 struct FakeSystemAudioProbe: SystemAudioAccessProbing {
@@ -124,5 +133,23 @@ struct PermissionMonitorTests {
         probes.accessibilityTrusted = true
         monitor.refresh()
         #expect(monitor.isOnboardingSatisfied)
+    }
+
+    @Test("Calendar maps from the probe, prompts only when undetermined, and never blocks recording or onboarding")
+    func calendar() async {
+        let probes = FakeProbes()
+        probes.microphone = .granted
+        probes.accessibilityTrusted = true
+        let monitor = PermissionMonitor(probes: probes, systemAudioProbe: nil, defaults: makeDefaults())
+        #expect(monitor.calendar == .notDetermined)
+        #expect(monitor.isRecordingAllowed)
+        #expect(monitor.isOnboardingSatisfied)
+
+        await monitor.requestCalendar()
+        #expect(monitor.calendar == .granted)
+        #expect(monitor.status(for: .calendar) == .granted)
+
+        await monitor.requestCalendar()
+        #expect(probes.calendarRequests == 1)
     }
 }

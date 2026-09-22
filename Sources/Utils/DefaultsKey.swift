@@ -11,6 +11,10 @@ enum DefaultsKey: String, CaseIterable, Sendable {
     case nbSpeaker
     case computeType
     case autoRecordingEnabled
+    case calendarEnabled
+    case calendarRemindersEnabled
+    case calendarReminderLeadMinutes
+    case calendarSelectedIDs
 
     // Onboarding / permissions
     case hasCompletedOnboarding = "hasCompletedOnboarding"

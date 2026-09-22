@@ -247,3 +247,46 @@ extension L10n {
     static let settingsPermissionsHeaderTitle = "settings.permissions.header.title".localized
     static let settingsPermissionsHeaderSubtitle = "settings.permissions.header.subtitle".localized
 }
+
+// MARK: - Calendar
+extension L10n {
+    static let permissionCalendarTitle = "permission.calendar.title".localized
+    static let permissionCalendarDescription = "permission.calendar.description".localized
+
+    static let calendarSectionTitle = "calendar.section.title".localized
+    static let calendarPastTitle = "calendar.past.title".localized
+    static let calendarConnect = "calendar.connect".localized
+    static let calendarEmpty = "calendar.empty".localized
+    static let calendarInProgress = "calendar.in_progress".localized
+    static let calendarUntitledEvent = "calendar.untitled".localized
+    static let calendarJoin = "calendar.join".localized
+    static let calendarPlayRecording = "calendar.play_recording".localized
+    static let calendarShowInFinder = "calendar.show_in_finder".localized
+    static let calendarOpenTranscript = "calendar.open_transcript".localized
+    static let calendarReminderRecordAction = "calendar.reminder.record".localized
+
+    static func calendarStartsIn(_ minutes: Int) -> String {
+        L10n.string("calendar.starts_in", minutes)
+    }
+    static func calendarParticipants(_ count: Int) -> String {
+        L10n.string("calendar.participants", count)
+    }
+    static func calendarReminderBody(_ time: String) -> String {
+        L10n.string("calendar.reminder.body", time)
+    }
+
+    static let settingsTabCalendar = "settings.tab.calendar".localized
+    static let settingsCalendarHeaderTitle = "settings.calendar.header.title".localized
+    static let settingsCalendarHeaderSubtitle = "settings.calendar.header.subtitle".localized
+    static let settingsCalendarEnabledTitle = "settings.calendar.enabled.title".localized
+    static let settingsCalendarEnabledSubtitle = "settings.calendar.enabled.subtitle".localized
+    static let settingsCalendarRemindersTitle = "settings.calendar.reminders.title".localized
+    static let settingsCalendarRemindersSubtitle = "settings.calendar.reminders.subtitle".localized
+    static let settingsCalendarLeadTitle = "settings.calendar.lead.title".localized
+    static let settingsCalendarPickerTitle = "settings.calendar.picker.title".localized
+    static let settingsCalendarPickerHelp = "settings.calendar.picker.help".localized
+    static let settingsCalendarPickerOtherAccount = "settings.calendar.picker.other_account".localized
+    static func settingsCalendarLeadMinutes(_ minutes: Int) -> String {
+        L10n.string("settings.calendar.lead.minutes", minutes)
+    }
+}

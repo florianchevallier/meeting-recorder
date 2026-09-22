@@ -19,6 +19,9 @@ final class SettingsStore {
         static let nbSpeaker = 2
         static let computeType = "float16"
         static let autoRecordingEnabled = true
+        static let calendarEnabled = true
+        static let calendarRemindersEnabled = false
+        static let calendarReminderLeadMinutes = Constants.Calendar.defaultReminderLeadMinutes
     }
 
     // MARK: - Properties
@@ -75,6 +78,36 @@ final class SettingsStore {
         }
     }
 
+    /// Calendar integration (popover agenda, event-named files, sidecar metadata).
+    var calendarEnabled: Bool {
+        didSet {
+            defaults.set(calendarEnabled, for: .calendarEnabled)
+            Log.settings.debug("Calendar enabled: \(self.calendarEnabled)")
+        }
+    }
+
+    var calendarRemindersEnabled: Bool {
+        didSet {
+            defaults.set(calendarRemindersEnabled, for: .calendarRemindersEnabled)
+            Log.settings.debug("Calendar reminders: \(self.calendarRemindersEnabled)")
+        }
+    }
+
+    var calendarReminderLeadMinutes: Int {
+        didSet {
+            defaults.set(calendarReminderLeadMinutes, for: .calendarReminderLeadMinutes)
+            Log.settings.debug("Calendar reminder lead: \(self.calendarReminderLeadMinutes) min")
+        }
+    }
+
+    /// Calendars feeding Meety; `nil` = all (see `CalendarSelection`).
+    var calendarSelectedIDs: Set<String>? {
+        didSet {
+            defaults.set(calendarSelectedIDs.map { Array($0).sorted() }, for: .calendarSelectedIDs)
+            Log.settings.debug("Calendar selection: \(self.calendarSelectedIDs?.count ?? -1) calendars")
+        }
+    }
+
     // MARK: - Initialization
 
     init(defaults: UserDefaults = .standard) {
@@ -102,6 +135,16 @@ final class SettingsStore {
         self.autoRecordingEnabled =
             defaults.object(for: .autoRecordingEnabled) as? Bool
             ?? Defaults.autoRecordingEnabled
+        self.calendarEnabled =
+            defaults.object(for: .calendarEnabled) as? Bool
+            ?? Defaults.calendarEnabled
+        self.calendarRemindersEnabled =
+            defaults.object(for: .calendarRemindersEnabled) as? Bool
+            ?? Defaults.calendarRemindersEnabled
+        self.calendarReminderLeadMinutes =
+            defaults.object(for: .calendarReminderLeadMinutes) as? Int
+            ?? Defaults.calendarReminderLeadMinutes
+        self.calendarSelectedIDs = (defaults.object(for: .calendarSelectedIDs) as? [String]).map(Set.init)
 
         Log.settings.info("Settings loaded (transcription: \(self.transcriptionEnabled))")
     }
@@ -117,6 +160,10 @@ final class SettingsStore {
         nbSpeaker = Defaults.nbSpeaker
         computeType = Defaults.computeType
         autoRecordingEnabled = Defaults.autoRecordingEnabled
+        calendarEnabled = Defaults.calendarEnabled
+        calendarRemindersEnabled = Defaults.calendarRemindersEnabled
+        calendarReminderLeadMinutes = Defaults.calendarReminderLeadMinutes
+        calendarSelectedIDs = nil
         Log.settings.info("Reset to defaults")
     }
 
