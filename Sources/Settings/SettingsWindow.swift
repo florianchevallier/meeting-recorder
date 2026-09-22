@@ -132,10 +132,15 @@ private struct GeneralSettingsTab: View {
 private struct TranscriptionSettingsTab: View {
     @Bindable private var settings: SettingsStore
     @State private var apiURLDraft: String
+    @State private var apiKeyDraft: String
+    @State private var glossaryDraft: String
 
     init(settings: SettingsStore) {
         self.settings = settings
         self._apiURLDraft = State(initialValue: settings.apiBaseURL)
+        self._apiKeyDraft = State(
+            initialValue: KeychainStore.string(for: KeychainStore.transcriptionAPIKeyAccount) ?? "")
+        self._glossaryDraft = State(initialValue: settings.transcriptionGlossary)
     }
 
     private var isDraftValid: Bool {
@@ -177,6 +182,47 @@ private struct TranscriptionSettingsTab: View {
                                     .foregroundStyle(.red)
                             }
                         }
+                    }
+
+                    Divider()
+
+                    SettingsField(
+                        icon: "key.fill",
+                        iconColor: .gray,
+                        title: L10n.settingsTranscriptionApiKeyTitle,
+                        help: L10n.settingsTranscriptionApiKeyHelp
+                    ) {
+                        SecureField(L10n.settingsTranscriptionApiKeyPlaceholder, text: $apiKeyDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            // Debounced write: one keychain update per pause, not per keystroke.
+                            .task(id: apiKeyDraft) {
+                                try? await Task.sleep(for: .milliseconds(400))
+                                guard !Task.isCancelled else { return }
+                                let trimmed = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard
+                                    trimmed != KeychainStore.string(for: KeychainStore.transcriptionAPIKeyAccount) ?? ""
+                                else { return }
+                                KeychainStore.set(trimmed, for: KeychainStore.transcriptionAPIKeyAccount)
+                            }
+                    }
+
+                    Divider()
+
+                    SettingsField(
+                        icon: "text.book.closed.fill",
+                        iconColor: .teal,
+                        title: L10n.settingsTranscriptionGlossaryTitle,
+                        help: L10n.settingsTranscriptionGlossaryHelp
+                    ) {
+                        TextField(L10n.settingsTranscriptionGlossaryPlaceholder, text: $glossaryDraft, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...4)
+                            .task(id: glossaryDraft) {
+                                try? await Task.sleep(for: .milliseconds(400))
+                                guard !Task.isCancelled else { return }
+                                settings.transcriptionGlossary = glossaryDraft
+                            }
                     }
 
                     Divider()

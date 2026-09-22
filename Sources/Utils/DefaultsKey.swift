@@ -10,6 +10,7 @@ enum DefaultsKey: String, CaseIterable, Sendable {
     case language
     case nbSpeaker
     case computeType
+    case transcriptionGlossary
     case autoRecordingEnabled
     case calendarEnabled
     case calendarRemindersEnabled

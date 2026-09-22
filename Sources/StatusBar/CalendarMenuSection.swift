@@ -8,6 +8,8 @@ struct CalendarMenuSection: View {
     let calendar: CalendarMonitor
     let permissionMonitor: PermissionMonitor
     let settings: SettingsStore
+    let transcription: TranscriptionCoordinator
+    let onEditSpeakers: (URL) -> Void
 
     var body: some View {
         if settings.calendarEnabled {
@@ -26,7 +28,16 @@ struct CalendarMenuSection: View {
         switch permissionMonitor.calendar {
         case .granted:
             TimelineView(.everyMinute) { context in
-                AgendaList(agenda: calendar.agenda(at: context.date), now: context.date)
+                AgendaList(
+                    agenda: calendar.agenda(at: context.date),
+                    now: context.date,
+                    actions: RecordingActions(
+                        canTranscribe: !settings.apiBaseURL.isEmpty,
+                        isPending: transcription.isPending,
+                        transcribe: transcription.enqueue,
+                        editSpeakers: onEditSpeakers
+                    )
+                )
             }
         case .denied:
             ConnectRow { permissionMonitor.openSystemSettings(for: .calendar) }
@@ -55,9 +66,18 @@ private struct ConnectRow: View {
 
 // MARK: - Agenda
 
+/// What a past meeting row can do with its recording.
+private struct RecordingActions {
+    let canTranscribe: Bool
+    let isPending: (URL) -> Bool
+    let transcribe: (URL) -> Void
+    let editSpeakers: (URL) -> Void
+}
+
 private struct AgendaList: View {
     let agenda: CalendarAgenda
     let now: Date
+    let actions: RecordingActions
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -69,14 +89,14 @@ private struct AgendaList: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(agenda.upcoming) { entry in
-                EventRow(entry: entry, now: now, isPast: false)
+                EventRow(entry: entry, now: now, isPast: false, recordingActions: actions)
             }
 
             if !agenda.past.isEmpty {
                 SectionLabel(title: L10n.calendarPastTitle, icon: "clock.arrow.circlepath")
                     .padding(.top, 4)
                 ForEach(agenda.past) { entry in
-                    EventRow(entry: entry, now: now, isPast: true)
+                    EventRow(entry: entry, now: now, isPast: true, recordingActions: actions)
                 }
             }
         }
@@ -98,6 +118,7 @@ private struct EventRow: View {
     let entry: CalendarAgenda.Entry
     let now: Date
     let isPast: Bool
+    let recordingActions: RecordingActions
 
     private var event: CalendarEvent { entry.event }
     private var recording: URL? { entry.recordings.last }
@@ -167,10 +188,29 @@ private struct EventRow: View {
                 IconButton(icon: "play.fill", help: L10n.calendarPlayRecording) {
                     NSWorkspace.shared.open(recording)
                 }
-                let transcript = recording.deletingPathExtension().appendingPathExtension("txt")
-                if FileManager.default.fileExists(atPath: transcript.path) {
+                let files = RecordingFiles(audio: recording)
+                let hasTranscript = FileManager.default.fileExists(atPath: files.transcriptText.path)
+                if hasTranscript {
                     IconButton(icon: "doc.text", help: L10n.calendarOpenTranscript) {
-                        NSWorkspace.shared.open(transcript)
+                        NSWorkspace.shared.open(files.transcriptText)
+                    }
+                }
+                if FileManager.default.fileExists(atPath: files.transcriptJSON.path) {
+                    IconButton(icon: "person.2", help: L10n.calendarEditSpeakers) {
+                        recordingActions.editSpeakers(recording)
+                    }
+                }
+                if recordingActions.isPending(recording) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 18, height: 18)
+                        .help(L10n.calendarTranscriptionPending)
+                } else if recordingActions.canTranscribe {
+                    IconButton(
+                        icon: hasTranscript ? "arrow.clockwise" : "waveform",
+                        help: hasTranscript ? L10n.calendarRetranscribe : L10n.calendarTranscribe
+                    ) {
+                        recordingActions.transcribe(recording)
                     }
                 }
                 IconButton(icon: "folder", help: L10n.calendarShowInFinder) {

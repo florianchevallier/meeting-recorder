@@ -10,7 +10,29 @@ struct TranscriptionState: Sendable, Equatable {
     var status: JobStatus = .pending
     var lastLog: String?
     var progress = ""
+    /// Server-side progress (0…100) parsed from the job log, when it reports one.
+    var percent: Int?
     var error: String?
+}
+
+// MARK: - Job log parsing
+
+enum TranscriptionProgress {
+    /// Server log lines look like `[2026-09-22T20:41:27.559Z] [40%] - Transcription...`:
+    /// returns the message without the timestamp and the percentage, if any.
+    static func parse(_ log: String) -> (message: String, percent: Int?) {
+        var message = log.trimmingCharacters(in: .whitespaces)
+        if message.hasPrefix("["), let close = message.firstIndex(of: "]"),
+            message[message.index(after: message.startIndex)..<close].contains("T")
+        {
+            message = message[message.index(after: close)...].trimmingCharacters(in: .whitespaces)
+        }
+        guard let match = message.firstMatch(of: /^\[(\d{1,3})%\]\s*-?\s*/), let value = Int(match.1) else {
+            return (message, nil)
+        }
+        let rest = message[match.range.upperBound...].trimmingCharacters(in: .whitespaces)
+        return (rest.isEmpty ? message : rest, min(value, 100))
+    }
 }
 
 // MARK: - Events
@@ -37,6 +59,7 @@ enum TranscriptionStateReducer {
         switch event {
         case .prepare:
             state.isTranscribing = true
+            state.percent = nil
             state.error = nil
             applyProgress(&state, L10n.transcriptionProgressPreparing)
 
@@ -54,6 +77,7 @@ enum TranscriptionStateReducer {
             state.isTranscribing = true
             state.currentJobId = jobId
             state.status = .pending
+            state.percent = nil
             state.error = nil
 
         case .statusUpdated(let newStatus):
@@ -71,8 +95,10 @@ enum TranscriptionStateReducer {
                 state.isTranscribing = false
             }
 
-        case .progressMessage(let message):
-            applyProgress(&state, message)
+        case .progressMessage(let log):
+            let parsed = TranscriptionProgress.parse(log)
+            applyProgress(&state, parsed.message)
+            if let percent = parsed.percent { state.percent = percent }
 
         case .saved:
             applyProgress(&state, L10n.transcriptionProgressSaved)

@@ -32,6 +32,10 @@ final class AudioFileWriter: @unchecked Sendable {
     private var microphoneFIFO: [Float] = []
     private var hasMicrophone = false
 
+    private var activity = VoiceActivityRecorder()
+    /// The activity sidecar only makes sense if a microphone was captured at some point.
+    private var sawMicrophone = false
+
     private var framesWritten: Int64 = 0
     private var started = false
     private var finished = false
@@ -83,6 +87,7 @@ final class AudioFileWriter: @unchecked Sendable {
                     to: CaptureFormat.intermediate(channels: microphoneFormat.channelCount)
                 )
                 hasMicrophone = true
+                sawMicrophone = true
             } else {
                 microphoneConverter = nil
                 hasMicrophone = false
@@ -118,8 +123,15 @@ final class AudioFileWriter: @unchecked Sendable {
         queue.async { [self] in
             guard started, !finished else { return }
             drainMix(flush: true)
+            activity.addSilence(frames: frames)
             append(samples: [Float](repeating: 0, count: frames))
         }
+    }
+
+    /// Microphone vs system levels over the file, or nil without a microphone.
+    /// Read after `finish()`.
+    var voiceActivity: VoiceActivity? {
+        queue.sync { sawMicrophone ? activity.result() : nil }
     }
 
     /// Drains pending audio, closes the input and finishes the file.
@@ -174,6 +186,12 @@ final class AudioFileWriter: @unchecked Sendable {
             count = systemFIFO.count
         }
         guard count > 0 else { return }
+
+        activity.add(
+            system: systemFIFO.prefix(count),
+            microphone: hasMicrophone ? microphoneFIFO.prefix(count) : [],
+            count: count
+        )
 
         var mixed = [Float](repeating: 0, count: count)
         for i in 0..<min(count, systemFIFO.count) { mixed[i] = systemFIFO[i] }

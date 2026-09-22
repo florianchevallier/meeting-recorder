@@ -1,14 +1,16 @@
 import os
 import Foundation
 
-/// HTTP client for the Whisper transcription API. Stateless and `Sendable`.
+/// HTTP client for the WhisperX transcription API. Stateless and `Sendable`.
 struct WhisperAPIClient: Sendable {
 
     let baseURL: String
+    private let apiKey: String?
     private let session: URLSession
 
-    init(baseURL: String, session: URLSession? = nil) {
+    init(baseURL: String, apiKey: String? = nil, session: URLSession? = nil) {
         self.baseURL = EndpointResolver.sanitizeBaseURL(baseURL)
+        self.apiKey = apiKey.flatMap { $0.isEmpty ? nil : $0 }
         if let session {
             self.session = session
         } else {
@@ -21,150 +23,134 @@ struct WhisperAPIClient: Sendable {
 
     // MARK: - Start Transcription
 
-    /// Upload the audio file to the first candidate endpoint that does not 404.
-    /// The multipart body is built once and reused across candidates.
+    /// Upload the audio file. The multipart body is written to a temporary file
+    /// and streamed from disk.
     func startTranscription(
         audioFileURL: URL,
         parameters: TranscriptionRequest
     ) async throws -> TranscriptionJobResponse {
-        guard !baseURL.isEmpty else {
-            throw APIError.missingBaseURL
-        }
+        var request = try makeRequest(EndpointResolver.processURL(baseURL: baseURL), method: "POST")
 
         let boundary = "Boundary-\(UUID().uuidString)"
-        let httpBody = try MultipartBuilder.makeBody(
-            audioFileURL: audioFileURL,
-            parameters: parameters,
-            boundary: boundary
-        )
+        let bodyURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meety-upload-\(UUID().uuidString).multipart")
+        try MultipartBuilder.writeBody(
+            audioFileURL: audioFileURL, parameters: parameters, boundary: boundary, to: bodyURL)
+        defer { try? FileManager.default.removeItem(at: bodyURL) }
 
-        var lastError: any Error = APIError.invalidURL
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        for url in EndpointResolver.startEndpoints(baseURL: baseURL) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-            request.httpBody = httpBody
+        let bodySize = (try? bodyURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        Log.transcription.info("Uploading audio (\(bodySize / 1024) KB) to \(request.url?.absoluteString ?? "?")")
 
-            Log.transcription.info("Uploading audio (\(httpBody.count / 1024) KB) to \(url.absoluteString)")
+        let (data, response) = try await session.upload(for: request, fromFile: bodyURL)
+        let statusCode = try Self.statusCode(of: response)
+        Log.transcription.debug("Start response status: \(statusCode)")
 
-            do {
-                let (data, response) = try await session.data(for: request)
+        switch statusCode {
+        case 202:  // Accepted — job started
+            let jobResponse = try JSONDecoder().decode(TranscriptionJobResponse.self, from: data)
+            Log.transcription.info("Job created: \(jobResponse.jobId)")
+            return jobResponse
 
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw APIError.invalidResponse
-                }
+        case 400:
+            let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            throw APIError.badRequest(errorResponse?.error ?? "Invalid request")
 
-                Log.transcription.debug("Start response status: \(httpResponse.statusCode)")
+        case 401:
+            throw APIError.unauthorized
 
-                if EndpointResolver.shouldTryNextEndpoint(statusCode: httpResponse.statusCode) {
-                    Log.transcription.info("Endpoint \(url.lastPathComponent) not found (404) — trying fallback")
-                    lastError = APIError.unexpectedStatusCode(404)
-                    continue
-                }
+        case 500:
+            let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            throw APIError.serverError(errorResponse?.error ?? "Internal server error")
 
-                switch httpResponse.statusCode {
-                case 202:  // Accepted — job started
-                    let jobResponse = try JSONDecoder().decode(TranscriptionJobResponse.self, from: data)
-                    Log.transcription.info("Job created: \(jobResponse.jobId)")
-                    return jobResponse
-
-                case 400:
-                    let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
-                    throw APIError.badRequest(errorResponse?.error ?? "Invalid request")
-
-                case 500:
-                    let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
-                    throw APIError.serverError(errorResponse?.error ?? "Internal server error")
-
-                default:
-                    throw APIError.unexpectedStatusCode(httpResponse.statusCode)
-                }
-            } catch let error as APIError {
-                throw error
-            }
+        default:
+            throw APIError.unexpectedStatusCode(statusCode)
         }
-
-        Log.transcription.error("No transcription endpoint answered — check the API base URL in settings")
-        throw lastError
     }
 
     // MARK: - Job Status
 
     func getJobStatus(jobId: String) async throws -> JobDetailResponse {
-        guard !baseURL.isEmpty else {
-            throw APIError.missingBaseURL
-        }
-        guard let url = EndpointResolver.jobStatusURL(baseURL: baseURL, jobId: jobId) else {
-            throw APIError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-
+        let request = try makeRequest(EndpointResolver.jobURL(baseURL: baseURL, jobId: jobId), method: "GET")
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-
-        switch httpResponse.statusCode {
+        switch try Self.statusCode(of: response) {
         case 200:
             return try JSONDecoder().decode(JobDetailResponse.self, from: data)
-
+        case 401:
+            throw APIError.unauthorized
         case 404:
-            if let body = String(data: data, encoding: .utf8) {
-                Log.transcription.error("Job status 404 body: \(body)")
-            }
             throw APIError.jobNotFound
-
-        default:
+        case let code:
             if let body = String(data: data, encoding: .utf8) {
-                Log.transcription.warning("Unexpected job status response (\(httpResponse.statusCode)): \(body)")
+                Log.transcription.warning("Unexpected job status response (\(code)): \(body)")
             }
-            throw APIError.unexpectedStatusCode(httpResponse.statusCode)
+            throw APIError.unexpectedStatusCode(code)
         }
     }
 
     // MARK: - Download Result
 
-    func downloadResult(jobId: String) async throws -> String {
-        guard !baseURL.isEmpty else {
-            throw APIError.missingBaseURL
-        }
-        guard let url = EndpointResolver.jobResultURL(baseURL: baseURL, jobId: jobId) else {
-            throw APIError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-
+    /// Raw result body (JSON when the job was started with `outputFormat=json`).
+    func downloadResult(jobId: String) async throws -> Data {
+        let request = try makeRequest(EndpointResolver.jobResultURL(baseURL: baseURL, jobId: jobId), method: "GET")
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-
-        switch httpResponse.statusCode {
+        switch try Self.statusCode(of: response) {
         case 200:
-            guard let transcription = String(data: data, encoding: .utf8) else {
-                throw APIError.invalidData
-            }
-            Log.transcription.info("Result downloaded: \(transcription.count) characters")
-            return transcription
-
+            Log.transcription.info("Result downloaded: \(data.count) bytes")
+            return data
         case 400:
             let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
             if let error = errorResponse?.error, error.contains("pas terminé") {
                 throw APIError.jobNotCompleted
             }
             throw APIError.badRequest(errorResponse?.error ?? "Bad request")
-
+        case 401:
+            throw APIError.unauthorized
         case 404:
             throw APIError.resultNotFound
-
-        default:
-            throw APIError.unexpectedStatusCode(httpResponse.statusCode)
+        case let code:
+            throw APIError.unexpectedStatusCode(code)
         }
+    }
+
+    // MARK: - Delete Job
+
+    /// Removes the job, its audio and its result from the server. A job the
+    /// server no longer knows counts as deleted.
+    func deleteJob(jobId: String) async throws {
+        let request = try makeRequest(EndpointResolver.jobURL(baseURL: baseURL, jobId: jobId), method: "DELETE")
+        let (_, response) = try await session.data(for: request)
+
+        switch try Self.statusCode(of: response) {
+        case 200, 204, 404:
+            return
+        case 401:
+            throw APIError.unauthorized
+        case let code:
+            throw APIError.unexpectedStatusCode(code)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func makeRequest(_ url: URL?, method: String) throws -> URLRequest {
+        guard !baseURL.isEmpty else { throw APIError.missingBaseURL }
+        guard let url else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        // Free ngrok tunnels answer an HTML interstitial without this header.
+        request.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
+        if let apiKey {
+            request.setValue(apiKey, forHTTPHeaderField: Constants.Transcription.apiKeyHeader)
+        }
+        return request
+    }
+
+    private static func statusCode(of response: URLResponse) throws -> Int {
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        return httpResponse.statusCode
     }
 }

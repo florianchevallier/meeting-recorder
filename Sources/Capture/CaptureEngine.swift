@@ -130,6 +130,13 @@ actor CaptureEngine {
         } catch {
             throw CaptureFailure.writer("rename failed: \(error.localizedDescription)")
         }
+        if let activity = writer.voiceActivity {
+            do {
+                try activity.write(to: RecordingFiles(audio: finalURL).voiceActivity)
+            } catch {
+                Log.capture.error("Voice activity not written: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         return finalURL
     }
 

@@ -55,19 +55,22 @@ final class StatusBarController {
     private let calendar: CalendarMonitor
     private let settings: SettingsStore
     private let settingsWindowController: SettingsWindowController
+    private let speakerNamesWindowController: SpeakerNamesWindowController
 
     init(
         coordinator: RecordingCoordinator,
         permissionMonitor: PermissionMonitor,
         calendar: CalendarMonitor,
         settings: SettingsStore,
-        settingsWindowController: SettingsWindowController
+        settingsWindowController: SettingsWindowController,
+        speakerNamesWindowController: SpeakerNamesWindowController
     ) {
         self.coordinator = coordinator
         self.permissionMonitor = permissionMonitor
         self.calendar = calendar
         self.settings = settings
         self.settingsWindowController = settingsWindowController
+        self.speakerNamesWindowController = speakerNamesWindowController
     }
 
     // MARK: - Setup
@@ -94,6 +97,10 @@ final class StatusBarController {
             settings: settings,
             onOpenSettings: { [weak self] in
                 self?.settingsWindowController.show(tab: .general)
+            },
+            onEditSpeakers: { [weak self] recording in
+                self?.popover?.performClose(nil)
+                self?.speakerNamesWindowController.show(for: recording)
             }
         )
 
