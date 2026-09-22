@@ -257,6 +257,11 @@ app with entitlements), creates + signs the DMG, notarizes via notarytool, stapl
 creates the GitHub Release (AI-generated notes only); `scripts/release.sh` then updates
 the Homebrew cask (`depends_on macos: :tahoe`).
 
+The cask is `Casks/meety.rb` **in this repo** (no separate `homebrew-*` tap repo), so the
+tap needs the explicit URL: `brew tap florianchevallier/meeting-recorder
+https://github.com/florianchevallier/meeting-recorder`. Keep it `brew style`-clean
+(post-install text goes in `caveats`, never `postflight`; `zap` never touches recordings).
+
 ```bash
 ./scripts/release.sh 0.2.0   # full release (tag → CI → cask)
 swift format lint --strict --recursive Sources Tests Package.swift   # what CI runs

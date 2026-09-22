@@ -34,10 +34,10 @@ Pour compiler depuis les sources, Xcode 26 (Swift 6.2 ou ultérieur) est nécess
 
 ### Via Homebrew (recommandé)
 
-Homebrew simplifie l'installation et les mises à jour futures :
+Homebrew simplifie l'installation et les mises à jour futures. La cask vit dans ce dépôt, d'où l'URL explicite au `brew tap` :
 
 ```bash
-brew tap florianchevallier/meety
+brew tap florianchevallier/meeting-recorder https://github.com/florianchevallier/meeting-recorder
 brew install --cask meety
 ```
 

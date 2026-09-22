@@ -4,7 +4,7 @@ cask "meety" do
 
   url "https://github.com/florianchevallier/meeting-recorder/releases/download/v#{version}/Meety-#{version}.dmg"
   name "Meety"
-  desc "Native macOS meeting recorder with Teams detection and system audio capture"
+  desc "Meeting recorder with Teams detection and system audio capture"
   homepage "https://github.com/florianchevallier/meeting-recorder"
 
   livecheck do
@@ -12,44 +12,28 @@ cask "meety" do
     strategy :github_latest
   end
 
-  depends_on macos: :tahoe
   depends_on arch: :arm64
+  depends_on macos: :tahoe
 
   app "Meety.app"
-
-  postflight do
-    puts ""
-    puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    puts "🎉 Meety installed successfully!"
-    puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    puts ""
-    puts "✅ This app is signed and notarized by Apple - no security warnings!"
-    puts ""
-    puts "🚀 To launch Meety:"
-    puts "   • Open Applications folder"
-    puts "   • Double-click Meety.app (or run: open /Applications/Meety.app)"
-    puts "   • Look for the 🎤 icon in your menu bar"
-    puts ""
-    puts "📋 First Launch Setup:"
-    puts "   Meety will guide you through granting 3 permissions:"
-    puts "   1. 🎤 Microphone - Record your voice"
-    puts "   2. 🔊 System Audio Recording - Capture system audio (Teams, Zoom, etc.)"
-    puts "   3. ♿ Accessibility - Auto-detect Teams meetings"
-    puts ""
-    puts "💡 All recordings are saved to: ~/Documents/meeting_*.m4a"
-    puts ""
-    puts "📚 Need help? Check the README:"
-    puts "   https://github.com/florianchevallier/meeting-recorder#readme"
-    puts ""
-    puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    puts ""
-  end
 
   uninstall quit: "com.meetingrecorder.meety"
 
   zap trash: [
     "~/Documents/Meety_debug.log",
-    "~/Documents/meeting_*.m4a",
     "~/Library/Preferences/com.meetingrecorder.meety.plist",
   ]
+
+  caveats <<~EOS
+    Launch Meety from /Applications (open /Applications/Meety.app) and look for
+    the 🎤 icon in your menu bar.
+
+    On first launch Meety guides you through 3 permissions:
+      1. Microphone - record your voice
+      2. System Audio Recording - capture system audio (Teams, Zoom, etc.)
+      3. Accessibility - auto-detect Teams meetings
+
+    Recordings are saved to ~/Documents/meeting_*.m4a
+    Help: https://github.com/florianchevallier/meeting-recorder#readme
+  EOS
 end
