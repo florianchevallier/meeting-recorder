@@ -233,7 +233,9 @@ Note: the app is **not sandboxed**. If sandboxing is ever enabled, add
 
 ## Localization
 
-EN (default) + FR via `L10n` (`Bundle.module`). Both `.strings` files must carry
+EN (default) + FR via `L10n` (`Bundle.resources`, **not** `Bundle.module`: the SwiftPM
+accessor for an executable only looks at the `.app` root and at the compile machine's
+absolute build path, so a CI-built release trapped on launch — 0.2.0-beta). Both `.strings` files must carry
 identical key sets, and every key referenced from `Localization.swift` must exist —
 both enforced by `Tests/L10nParityTests.swift`. Format arguments go through
 `L10n.string(_:arguments:)` (never pass a `[CVarArg]` to the variadic overload).

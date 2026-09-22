@@ -1,5 +1,26 @@
 import Foundation
 
+extension Bundle {
+    /// The SwiftPM resource bundle, located the way a shipped app needs.
+    ///
+    /// The accessor SwiftPM generates for an executable target (`Bundle.module`)
+    /// only looks at the root of the main bundle and at the absolute build
+    /// directory of the machine that compiled the binary. Neither exists once
+    /// the app is assembled by CI and installed elsewhere, so a release build
+    /// would trap on first use. Look in `Contents/Resources` first (where
+    /// `debug_app.sh` and the release workflow copy the bundle), then fall back
+    /// to `Bundle.module` for `swift test`.
+    nonisolated static let resources: Bundle = {
+        let name = "MeetingRecorder_MeetingRecorder.bundle"
+        if let url = Bundle.main.resourceURL?.appendingPathComponent(name),
+            let bundle = Bundle(url: url)
+        {
+            return bundle
+        }
+        return Bundle.module
+    }()
+}
+
 // MARK: - Localization Helper
 struct L10n {
     /// Returns a localized string for the given key
@@ -11,7 +32,7 @@ struct L10n {
     /// `String.localized(_:)` (passing a `[CVarArg]` to the variadic version
     /// would wrap the whole array as a single argument).
     static func string(_ key: String, arguments: [any CVarArg]) -> String {
-        let format = NSLocalizedString(key, bundle: Bundle.module, comment: "")
+        let format = NSLocalizedString(key, bundle: Bundle.resources, comment: "")
         return withVaList(arguments) { pointer in
             NSString(format: format, arguments: pointer) as String
         }
@@ -23,7 +44,7 @@ struct L10n {
 extension String {
     /// Returns the localized version of this string
     var localized: String {
-        return NSLocalizedString(self, bundle: Bundle.module, comment: "")
+        return NSLocalizedString(self, bundle: Bundle.resources, comment: "")
     }
 
     /// Returns the localized version of this string with arguments
