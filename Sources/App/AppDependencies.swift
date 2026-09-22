@@ -16,7 +16,11 @@ struct AppDependencies {
         let settings = SettingsStore()
         let permissionMonitor = PermissionMonitor()
         let teamsMonitor = TeamsMonitor()
-        let coordinator = RecordingCoordinator(settings: settings, teamsMonitor: teamsMonitor)
+        let coordinator = RecordingCoordinator(
+            settings: settings,
+            permissionMonitor: permissionMonitor,
+            teamsMonitor: teamsMonitor
+        )
         let settingsWindowController = SettingsWindowController(
             settings: settings,
             permissionMonitor: permissionMonitor

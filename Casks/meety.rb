@@ -12,7 +12,8 @@ cask "meety" do
     strategy :github_latest
   end
 
-  depends_on macos: :sequoia
+  depends_on macos: :tahoe
+  depends_on arch: :arm64
 
   app "Meety.app"
 
@@ -30,11 +31,10 @@ cask "meety" do
     puts "   • Look for the 🎤 icon in your menu bar"
     puts ""
     puts "📋 First Launch Setup:"
-    puts "   Meety will guide you through granting 4 permissions:"
+    puts "   Meety will guide you through granting 3 permissions:"
     puts "   1. 🎤 Microphone - Record your voice"
-    puts "   2. 📺 Screen Recording - Capture system audio (Teams, Zoom, etc.)"
-    puts "   3. 📁 Documents - Save recordings"
-    puts "   4. ♿ Accessibility - Auto-detect Teams meetings"
+    puts "   2. 🔊 System Audio Recording - Capture system audio (Teams, Zoom, etc.)"
+    puts "   3. ♿ Accessibility - Auto-detect Teams meetings"
     puts ""
     puts "💡 All recordings are saved to: ~/Documents/meeting_*.m4a"
     puts ""

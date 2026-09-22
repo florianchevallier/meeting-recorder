@@ -28,7 +28,7 @@ enum Constants {
         static let progressRingLineWidth: CGFloat = 3
 
         // Recording Progress
-        static let maxRecordingDurationForProgress: TimeInterval = 3600 // 1 hour in seconds
+        static let maxRecordingDurationForProgress: TimeInterval = 3600  // 1 hour in seconds
 
         // Quick Action Buttons
         static let quickActionHeight: CGFloat = 44
@@ -37,10 +37,17 @@ enum Constants {
     // MARK: - Teams Detection Constants
 
     enum TeamsDetection {
-        /// Check every 2 seconds
-        static let checkInterval: TimeInterval = 2.0
-        /// Log every 30 checks
-        static let logThrottleCount: Int = 30
+        /// A signal transition must hold this long before a meeting start/end is emitted
+        static let debounce: TimeInterval = 3.0
+        /// Slow safety-net rescan of Teams windows while Teams runs (AX notifications are the fast path)
+        static let windowFallbackPollInterval: TimeInterval = 15.0
+        static let windowFallbackPollTolerance: TimeInterval = 5.0
+        /// Coalesce bursts of AX notifications before rescanning
+        static let windowRescanCoalesce: TimeInterval = 0.3
+        /// Max time an Accessibility request may block (default is 6 s)
+        static let axMessagingTimeout: Float = 0.5
+        /// The per-process "running input" flag lags the device-level trigger
+        static let microphoneRecheckDelay: TimeInterval = 0.5
     }
 
     // MARK: - Transcription Constants
@@ -62,40 +69,46 @@ enum Constants {
     // MARK: - Recording Constants
 
     enum Recording {
-        // File Stability (pre-conversion and finalization watcher)
-        static let fileStabilityCheckInterval: TimeInterval = 0.5
-        /// Consecutive stable checks required by the MOV→M4A pre-flight
-        static let converterStabilityRequiredChecks: Int = 2
-        /// Consecutive stable checks required by the finalization fallback watcher
-        static let finalizationStabilityRequiredChecks: Int = 3
-        /// Max wait for MOV stability before conversion
-        static let converterMaxWaitTime: TimeInterval = 15.0
-        /// Max wait for the recording-finalization delegate callback
-        static let finalizationMaxWaitTime: TimeInterval = 120.0
-
-        // Recovery Configuration
+        // Tap restart policy (device change, stall)
         static let maxRecoveryAttempts: Int = 3
-        static let recoveryDelay: TimeInterval = 2.0
+        static let recoveryDelay: TimeInterval = 1.0
+        /// Coalesce bursts of Core Audio device notifications
+        static let deviceChangeDebounce: TimeInterval = 0.5
 
-        // Health Monitoring
-        static let healthCheckInterval: TimeInterval = 5.0
-        /// No samples for this long = unhealthy
-        static let healthCheckSampleTimeout: TimeInterval = 10.0
+        // Health monitoring
+        static let healthPollInterval: TimeInterval = 2.0
+        /// No IO callback for this long = stalled → restart the tap
+        static let healthStallTimeout: TimeInterval = 3.0
+        /// System tap silent for this long = informational `degraded` event
+        static let systemSilenceTimeout: TimeInterval = 30.0
+        /// Writer back-pressure: drop IO cycles above this many queued frames (≈5 s at 48 kHz)
+        static let maxPendingFrames: Int = 240_000
+
+        // Finalization
+        static let finalizationTimeout: TimeInterval = 10.0
+        /// Silence inserted to keep wall-clock alignment across a restart is capped here
+        static let maxSilenceGapFill: TimeInterval = 10.0
+        /// AVAssetWriter fragment interval (keeps a crashed recording playable)
+        static let fragmentInterval: TimeInterval = 10.0
+    }
+
+    // MARK: - App Lifecycle
+
+    enum App {
+        /// Must exceed `Recording.finalizationTimeout` plus a margin
+        static let terminationWatchdog: TimeInterval = 15.0
     }
 
     // MARK: - Permission Constants
 
     enum Permissions {
-        /// Recheck loop after opening System Settings
-        static let recheckDelay: TimeInterval = 2.0
-        static let recheckCount: Int = 5
+        /// Bounded recheck after deep-linking into System Settings (stops early once granted)
+        static let recheckCount: Int = 30
         static let recheckInterval: TimeInterval = 1.0
 
-        /// Accessibility trust polling after request
-        static let accessibilityMonitorAttempts: Int = 20
-        static let accessibilityMonitorInterval: TimeInterval = 1.0
-
-        static let permissionTestFilename = "permission_test.tmp"
+        /// Recording filename prefix / extension
+        static let recordingPrefix = "meeting"
+        static let recordingExtension = "m4a"
     }
 
     // MARK: - Date Formatting

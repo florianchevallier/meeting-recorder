@@ -1,3 +1,4 @@
+import os
 import Foundation
 
 /// Centralized file system utilities to avoid code duplication and force unwrapping
@@ -51,14 +52,14 @@ enum FileSystemUtilities {
     @discardableResult
     static func deleteFile(at url: URL) -> Bool {
         guard fileExists(at: url) else {
-            return true // File doesn't exist, consider it "deleted"
+            return true  // File doesn't exist, consider it "deleted"
         }
 
         do {
             try FileManager.default.removeItem(at: url)
             return true
         } catch {
-            Logger.shared.warning("Failed to delete file at \(url.path): \(error.localizedDescription)", component: "FILE_SYSTEM")
+            Log.app.warning("Failed to delete file at \(url.path): \(error.localizedDescription, privacy: .public)")
             return false
         }
     }

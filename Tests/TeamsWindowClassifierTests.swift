@@ -4,35 +4,39 @@ import Testing
 @Suite("TeamsWindowClassifier")
 struct TeamsWindowClassifierTests {
 
-    @Test("Meeting keywords are detected", arguments: [
-        "Team Sync - Meeting",
-        "Réunion hebdo",
-        "Daily call",
-        "Appel client",
-        "Conference Room",
-        "Conférence produit",
-        "Teams Meeting - Project",
-        "Video Call with John",
-        "Audio Call",
-        "Conversation with team",
-        "Standup - Microsoft Teams"
-    ])
+    @Test(
+        "Meeting keywords are detected",
+        arguments: [
+            "Team Sync - Meeting",
+            "Réunion hebdo",
+            "Daily call",
+            "Appel client",
+            "Conference Room",
+            "Conférence produit",
+            "Teams Meeting - Project",
+            "Video Call with John",
+            "Audio Call",
+            "Conversation with team",
+            "Standup - Microsoft Teams",
+        ])
     func meetingWindows(title: String) {
         #expect(TeamsWindowClassifier.isMeetingWindow(title: title))
     }
 
-    @Test("Non-meeting windows are rejected", arguments: [
-        "Microsoft Teams Main Window",
-        "Fenêtre principale",
-        "Chat with Alice",
-        "Teams Home",
-        "Activity Feed",
-        "Calendar",
-        "Calendrier",
-        "Files",
-        "Fichiers partagés",
-        "Random Document.txt"
-    ])
+    @Test(
+        "Non-meeting windows are rejected",
+        arguments: [
+            "Microsoft Teams Main Window",
+            "Fenêtre principale",
+            "Chat with Alice",
+            "Teams Home",
+            "Activity Feed",
+            "Calendar",
+            "Calendrier",
+            "Files",
+            "Fichiers partagés",
+            "Random Document.txt",
+        ])
     func nonMeetingWindows(title: String) {
         #expect(!TeamsWindowClassifier.isMeetingWindow(title: title))
     }

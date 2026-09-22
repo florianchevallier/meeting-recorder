@@ -1,5 +1,44 @@
 import Cocoa
 import SwiftUI
+import Observation
+
+/// Pure mapping from coordinator state to the status-bar icon. Testable.
+enum IconState: CaseIterable, Sendable {
+    case ready
+    case teamsDetected
+    case recording
+    case finishing
+
+    init(isStopping: Bool, isRecording: Bool, isTeamsMeetingDetected: Bool) {
+        if isStopping {
+            self = .finishing
+        } else if isRecording {
+            self = .recording
+        } else if isTeamsMeetingDetected {
+            self = .teamsDetected
+        } else {
+            self = .ready
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .ready: return "record.circle"
+        case .teamsDetected: return "video.circle"
+        case .recording: return "record.circle.fill"
+        case .finishing: return "hourglass.circle"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .ready: return L10n.statusReady
+        case .teamsDetected: return L10n.statusTeamsDetected
+        case .recording: return L10n.statusRecording
+        case .finishing: return L10n.statusFinishing
+        }
+    }
+}
 
 /// Owns the NSStatusItem and its popover. Pure AppKit glue:
 /// all recording state lives in `RecordingCoordinator`.
@@ -8,6 +47,8 @@ final class StatusBarController {
 
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
+    private var icons: [IconState: NSImage] = [:]
+    private var iconTask: Task<Void, Never>?
 
     private let coordinator: RecordingCoordinator
     private let permissionMonitor: PermissionMonitor
@@ -26,10 +67,16 @@ final class StatusBarController {
     // MARK: - Setup
 
     func setup() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        icons = Dictionary(
+            uniqueKeysWithValues: IconState.allCases.map { state in
+                let image = NSImage(systemSymbolName: state.symbolName, accessibilityDescription: state.description)
+                image?.size = NSSize(width: 18, height: 18)
+                image?.isTemplate = true
+                return (state, image ?? NSImage())
+            })
 
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
-            updateIcon()
             button.action = #selector(statusBarButtonClicked)
             button.target = self
         }
@@ -49,10 +96,23 @@ final class StatusBarController {
         popover.contentViewController = NSHostingController(rootView: menu)
         self.popover = popover
 
-        observeState()
+        let coordinator = self.coordinator
+        iconTask = Task { [weak self] in
+            for await state in Observations({
+                IconState(
+                    isStopping: coordinator.isStopping,
+                    isRecording: coordinator.isRecording,
+                    isTeamsMeetingDetected: coordinator.isTeamsMeetingDetected
+                )
+            }) {
+                self?.apply(state)
+            }
+        }
     }
 
     func tearDown() {
+        iconTask?.cancel()
+        iconTask = nil
         if let statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
         }
@@ -63,9 +123,7 @@ final class StatusBarController {
     // MARK: - Popover
 
     @objc private func statusBarButtonClicked() {
-        guard let button = statusItem?.button,
-              let popover else { return }
-
+        guard let button = statusItem?.button, let popover else { return }
         if popover.isShown {
             popover.performClose(nil)
         } else {
@@ -75,43 +133,9 @@ final class StatusBarController {
 
     // MARK: - Icon
 
-    private func observeState() {
-        withObservationTracking {
-            _ = coordinator.state
-            _ = coordinator.isTeamsMeetingDetected
-        } onChange: { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                self.updateIcon()
-                self.observeState()
-            }
-        }
-    }
-
-    private func updateIcon() {
+    private func apply(_ state: IconState) {
         guard let button = statusItem?.button else { return }
-
-        let description: String
-        let iconName: String
-
-        if coordinator.isStopping {
-            description = L10n.statusFinishing
-            iconName = "hourglass.circle"
-        } else if coordinator.isRecording {
-            description = L10n.statusRecording
-            iconName = "record.circle.fill"
-        } else if coordinator.isTeamsMeetingDetected {
-            description = L10n.statusTeamsDetected
-            iconName = "video.circle"
-        } else {
-            description = L10n.statusReady
-            iconName = "record.circle"
-        }
-
-        button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: description)
-        button.image?.size = NSSize(width: 18, height: 18)
-        button.image?.isTemplate = true
-        button.alphaValue = 1.0
-        button.toolTip = description
+        button.image = icons[state]
+        button.toolTip = state.description
     }
 }

@@ -10,9 +10,10 @@ struct FilenameGenerationTests {
         // 2026-07-29 14:30:45 at a fixed timezone
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
-        let date = calendar.date(from: DateComponents(
-            year: 2026, month: 7, day: 29, hour: 14, minute: 30, second: 45
-        ))!
+        let date = calendar.date(
+            from: DateComponents(
+                year: 2026, month: 7, day: 29, hour: 14, minute: 30, second: 45
+            ))!
 
         let filename = FileSystemUtilities.createTimestampedFilename(
             prefix: "meeting_unified",
@@ -27,7 +28,7 @@ struct FilenameGenerationTests {
     @Test("Timestamp uses the injected timezone (not UTC)")
     func localTimezone() {
         // Midnight UTC on Jan 1st = 01:00 in Paris (UTC+1)
-        let utcDate = Date(timeIntervalSince1970: 1767225600) // 2026-01-01 00:00:00 UTC
+        let utcDate = Date(timeIntervalSince1970: 1767225600)  // 2026-01-01 00:00:00 UTC
 
         let paris = FileSystemUtilities.createTimestampedFilename(
             prefix: "meeting",

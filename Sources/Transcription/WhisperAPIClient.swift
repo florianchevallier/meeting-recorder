@@ -1,3 +1,4 @@
+import os
 import Foundation
 
 /// HTTP client for the Whisper transcription API. Stateless and `Sendable`.
@@ -45,7 +46,7 @@ struct WhisperAPIClient: Sendable {
             request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
             request.httpBody = httpBody
 
-            Logger.shared.info("Uploading audio (\(httpBody.count / 1024) KB) to \(url.absoluteString)", component: "WHISPER_API")
+            Log.transcription.info("Uploading audio (\(httpBody.count / 1024) KB) to \(url.absoluteString)")
 
             do {
                 let (data, response) = try await session.data(for: request)
@@ -54,18 +55,18 @@ struct WhisperAPIClient: Sendable {
                     throw APIError.invalidResponse
                 }
 
-                Logger.shared.debug("Start response status: \(httpResponse.statusCode)", component: "WHISPER_API")
+                Log.transcription.debug("Start response status: \(httpResponse.statusCode)")
 
                 if EndpointResolver.shouldTryNextEndpoint(statusCode: httpResponse.statusCode) {
-                    Logger.shared.info("Endpoint \(url.lastPathComponent) not found (404) — trying fallback", component: "WHISPER_API")
+                    Log.transcription.info("Endpoint \(url.lastPathComponent) not found (404) — trying fallback")
                     lastError = APIError.unexpectedStatusCode(404)
                     continue
                 }
 
                 switch httpResponse.statusCode {
-                case 202: // Accepted — job started
+                case 202:  // Accepted — job started
                     let jobResponse = try JSONDecoder().decode(TranscriptionJobResponse.self, from: data)
-                    Logger.shared.info("Job created: \(jobResponse.jobId)", component: "WHISPER_API")
+                    Log.transcription.info("Job created: \(jobResponse.jobId)")
                     return jobResponse
 
                 case 400:
@@ -84,7 +85,7 @@ struct WhisperAPIClient: Sendable {
             }
         }
 
-        Logger.shared.error("No transcription endpoint answered — check the API base URL in settings", component: "WHISPER_API")
+        Log.transcription.error("No transcription endpoint answered — check the API base URL in settings")
         throw lastError
     }
 
@@ -113,13 +114,13 @@ struct WhisperAPIClient: Sendable {
 
         case 404:
             if let body = String(data: data, encoding: .utf8) {
-                Logger.shared.error("Job status 404 body: \(body)", component: "WHISPER_API")
+                Log.transcription.error("Job status 404 body: \(body)")
             }
             throw APIError.jobNotFound
 
         default:
             if let body = String(data: data, encoding: .utf8) {
-                Logger.shared.warning("Unexpected job status response (\(httpResponse.statusCode)): \(body)", component: "WHISPER_API")
+                Log.transcription.warning("Unexpected job status response (\(httpResponse.statusCode)): \(body)")
             }
             throw APIError.unexpectedStatusCode(httpResponse.statusCode)
         }
@@ -149,7 +150,7 @@ struct WhisperAPIClient: Sendable {
             guard let transcription = String(data: data, encoding: .utf8) else {
                 throw APIError.invalidData
             }
-            Logger.shared.info("Result downloaded: \(transcription.count) characters", component: "WHISPER_API")
+            Log.transcription.info("Result downloaded: \(transcription.count) characters")
             return transcription
 
         case 400:

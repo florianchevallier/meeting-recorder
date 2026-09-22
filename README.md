@@ -2,8 +2,8 @@
 
 > Meety est une application macOS native qui enregistre vos réunions en capturant simultanément l'audio système et votre microphone. Simple, efficace, et entièrement locale.
 
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org)
-[![Platform](https://img.shields.io/badge/Platform-macOS%2015.0+-blue.svg)](https://www.apple.com/macos/)
+[![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
+[![Platform](https://img.shields.io/badge/Platform-macOS%2026+-blue.svg)](https://www.apple.com/macos/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Pourquoi Meety ?
@@ -16,7 +16,7 @@ L'application mixe les deux sources audio en temps réel sans écho ni feedback.
 
 L'application détecte automatiquement quand vous rejoignez une réunion Teams et peut démarrer l'enregistrement sans intervention. L'audio est exporté en AAC 48kHz stéréo, offrant un bon équilibre entre qualité et taille de fichier.
 
-Sur macOS 15 et versions ultérieures, Meety utilise la version optimisée de ScreenCaptureKit avec un système de récupération automatique. Si votre Mac se met en veille pendant un enregistrement, l'application tente de reprendre automatiquement au réveil. Ce système de récupération a demandé beaucoup de travail mais il s'avère précieux pour les longues réunions.
+Meety capture l'audio système avec les « process taps » de Core Audio (aucune capture d'écran, aucune vidéo) et le microphone dans un même flux synchronisé, encodé directement en AAC. Si votre Mac change de périphérique audio (AirPods, casque USB) ou se met en veille pendant un enregistrement, la capture est relancée automatiquement sans fermer le fichier : l'enregistrement reste aligné sur l'horloge réelle.
 
 Les fichiers sont nommés automatiquement selon le format `meeting_YYYY-MM-DD_HH-mm-ss.m4a` et sauvegardés directement dans votre dossier Documents. L'interface dans la barre de menu affiche un indicateur rouge et un timer pendant l'enregistrement, rendant le statut très visible.
 
@@ -26,9 +26,9 @@ Plusieurs améliorations sont prévues : intégration avec le calendrier pour pr
 
 ## Configuration requise
 
-Meety nécessite macOS 15.0 minimum. Cette version est requise pour bénéficier des fonctionnalités optimisées de ScreenCaptureKit (enregistrement unifié écran + audio système + microphone). L'application est distribuée sous forme de binaire universel, compatible avec les Mac Apple Silicon (M1, M2, M3) et Intel.
+Meety nécessite macOS 26 (Tahoe) minimum. L'application est compilée uniquement pour Apple Silicon (M1 et suivants) et n'est pas compatible avec les Mac Intel.
 
-Pour compiler depuis les sources, Swift 5.9 ou ultérieur est nécessaire. Cela dit, pour un usage standard, l'installation de la version précompilée est recommandée.
+Pour compiler depuis les sources, Xcode 26 (Swift 6.2 ou ultérieur) est nécessaire. Cela dit, pour un usage standard, l'installation de la version précompilée est recommandée.
 
 ## Installation
 
@@ -72,11 +72,11 @@ Vous pouvez vérifier votre version actuelle en cliquant sur l'icône dans la ba
 
 ### Premier lancement
 
-Au premier démarrage, macOS demande quatre permissions nécessaires au fonctionnement de Meety :
+Au premier démarrage, macOS demande trois permissions nécessaires au fonctionnement de Meety :
 
-Le microphone pour enregistrer votre voix. L'enregistrement d'écran pour capturer l'audio système via ScreenCaptureKit (seul l'audio est capturé, jamais la vidéo). L'accès au dossier Documents pour sauvegarder les fichiers audio. Et l'API d'accessibilité pour détecter automatiquement les réunions Teams.
+Le microphone pour enregistrer votre voix. L'« enregistrement audio système seul » pour capturer le son des autres applications (Teams, Zoom…) — Meety n'a plus besoin de l'autorisation d'enregistrement d'écran. Et l'API d'accessibilité pour détecter automatiquement les réunions Teams. L'autorisation audio système est demandée par macOS au premier enregistrement ; vous pouvez aussi la vérifier depuis Réglages › Permissions.
 
-Si vous refusez une permission par inadvertance, vous pouvez l'activer ultérieurement dans Réglages Système > Confidentialité et sécurité. Les quatre permissions sont nécessaires pour un fonctionnement optimal.
+Si vous refusez une permission par inadvertance, vous pouvez l'activer ultérieurement dans Réglages Système > Confidentialité et sécurité. Les trois permissions sont nécessaires pour un fonctionnement optimal.
 
 ### Enregistrer une réunion
 
@@ -112,7 +112,7 @@ swift build
 ./.build/debug/MeetingRecorder
 ```
 
-Le code est organisé en modules : `Audio/` gère la capture et le mixage audio avec AVAudioEngine et ScreenCaptureKit, `StatusBar/` contrôle l'interface dans la barre de menu, `Calendar/` implémente la détection des réunions Teams, et `Permissions/` coordonne les demandes d'autorisation système.
+Le code est organisé en modules : `Capture/` gère la capture (process taps Core Audio + microphone) et l'encodage AAC, `StatusBar/` contrôle l'interface dans la barre de menu, `TeamsDetection/` implémente la détection événementielle des réunions Teams, et `Permissions/` coordonne les demandes d'autorisation système.
 
 Les contributions sont bienvenues. Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour les directives. Les pull requests doivent être testées et ne pas introduire de régressions.
 

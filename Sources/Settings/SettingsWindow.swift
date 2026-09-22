@@ -10,16 +10,16 @@ struct SettingsWindow: View {
 
     private let settings: SettingsStore
     private let permissionMonitor: PermissionMonitor
-    @State private var selectedTab: SettingsTab
+    @Bindable private var model: SettingsWindowModel
 
-    init(settings: SettingsStore, permissionMonitor: PermissionMonitor, selectedTab: SettingsTab = .general) {
+    init(settings: SettingsStore, permissionMonitor: PermissionMonitor, model: SettingsWindowModel) {
         self.settings = settings
         self.permissionMonitor = permissionMonitor
-        self._selectedTab = State(initialValue: selectedTab)
+        self.model = model
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $model.selectedTab) {
             GeneralSettingsTab(settings: settings)
                 .tabItem {
                     Label(L10n.settingsTabGeneral, systemImage: "gearshape")
@@ -119,9 +119,15 @@ private struct GeneralSettingsTab: View {
 
 private struct TranscriptionSettingsTab: View {
     @Bindable private var settings: SettingsStore
+    @State private var apiURLDraft: String
 
     init(settings: SettingsStore) {
         self.settings = settings
+        self._apiURLDraft = State(initialValue: settings.apiBaseURL)
+    }
+
+    private var isDraftValid: Bool {
+        apiURLDraft.isEmpty || SettingsStore.isValidAPIURL(apiURLDraft)
     }
 
     var body: some View {
@@ -141,9 +147,24 @@ private struct TranscriptionSettingsTab: View {
                         title: L10n.settingsTranscriptionApiTitle,
                         help: L10n.settingsTranscriptionApiHelp
                     ) {
-                        TextField(L10n.settingsTranscriptionApiPlaceholder, text: $settings.apiBaseURL)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
+                        VStack(alignment: .leading, spacing: 4) {
+                            TextField(L10n.settingsTranscriptionApiPlaceholder, text: $apiURLDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 12, design: .monospaced))
+                                .onSubmit { settings.apiBaseURL = apiURLDraft }
+                                // Debounced write: one UserDefaults update per pause, not per keystroke.
+                                .task(id: apiURLDraft) {
+                                    try? await Task.sleep(for: .milliseconds(400))
+                                    guard !Task.isCancelled, isDraftValid else { return }
+                                    settings.apiBaseURL = apiURLDraft
+                                }
+
+                            if !isDraftValid {
+                                Text(L10n.settingsTranscriptionApiInvalid)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.red)
+                            }
+                        }
                     }
 
                     Divider()
@@ -272,32 +293,22 @@ private struct PermissionsSettingsTab: View {
                         title: L10n.permissionMicrophoneTitle,
                         description: L10n.permissionMicrophoneDescription,
                         icon: "mic.fill",
-                        status: permissionMonitor.microphonePermission
-                    ) {
-                        await permissionMonitor.requestMicrophonePermission()
-                    }
+                        status: permissionMonitor.microphone,
+                        request: { await permissionMonitor.requestMicrophone() },
+                        openSettings: { permissionMonitor.openSystemSettings(for: .microphone) }
+                    )
 
                     Divider()
 
                     SettingsPermissionRow(
-                        title: L10n.permissionScreenRecordingTitle,
-                        description: L10n.permissionScreenRecordingDescription,
-                        icon: "record.circle",
-                        status: permissionMonitor.screenRecordingPermission
-                    ) {
-                        permissionMonitor.openScreenRecordingSettings()
-                    }
-
-                    Divider()
-
-                    SettingsPermissionRow(
-                        title: L10n.permissionDocumentsTitle,
-                        description: L10n.permissionDocumentsDescription,
-                        icon: "folder.fill",
-                        status: permissionMonitor.documentsPermission
-                    ) {
-                        await permissionMonitor.requestDocumentsPermission()
-                    }
+                        title: L10n.permissionSystemAudioTitle,
+                        description: L10n.permissionSystemAudioDescription,
+                        icon: "speaker.wave.2.circle.fill",
+                        status: permissionMonitor.systemAudio,
+                        requestTitle: L10n.permissionSystemAudioVerify,
+                        request: { await permissionMonitor.requestSystemAudio() },
+                        openSettings: { permissionMonitor.openSystemSettings(for: .systemAudio) }
+                    )
 
                     Divider()
 
@@ -305,10 +316,10 @@ private struct PermissionsSettingsTab: View {
                         title: L10n.permissionAccessibilityTitle,
                         description: L10n.permissionAccessibilityDescription,
                         icon: "eye.fill",
-                        status: permissionMonitor.accessibilityPermission
-                    ) {
-                        await permissionMonitor.requestAccessibilityPermission()
-                    }
+                        status: permissionMonitor.accessibility,
+                        request: { permissionMonitor.requestAccessibility() },
+                        openSettings: { permissionMonitor.openSystemSettings(for: .accessibility) }
+                    )
                 }
             }
             .padding(.horizontal, 32)
@@ -471,7 +482,9 @@ private struct SettingsPermissionRow: View {
     let description: String
     let icon: String
     let status: PermissionStatus
-    let action: () async -> Void
+    var requestTitle: String = L10n.onboardingButtonAuthorize
+    let request: () async -> Void
+    let openSettings: () -> Void
 
     @State private var isRequesting = false
 
@@ -484,7 +497,7 @@ private struct SettingsPermissionRow: View {
 
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(status.swiftUIColor)
+                    .foregroundStyle(status.swiftUIColor)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -492,7 +505,7 @@ private struct SettingsPermissionRow: View {
                     .font(.system(size: 14, weight: .medium))
                 Text(description)
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -505,27 +518,25 @@ private struct SettingsPermissionRow: View {
     @ViewBuilder
     private var trailingContent: some View {
         switch status {
-        case .authorized:
+        case .granted:
             Label {
                 Text(status.displayName)
                     .font(.system(size: 12, weight: .semibold))
             } icon: {
                 Image(systemName: "checkmark.circle.fill")
             }
-            .foregroundColor(.green)
+            .foregroundStyle(.green)
 
-        case .denied, .restricted:
-            Button(L10n.onboardingButtonOpenPreferences) {
-                openSystemPreferences()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+        case .denied:
+            Button(L10n.onboardingButtonOpenPreferences, action: openSettings)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
-        case .notDetermined:
+        case .notDetermined, .unknownUntilFirstUse:
             Button {
                 isRequesting = true
                 Task {
-                    await action()
+                    await request()
                     isRequesting = false
                 }
             } label: {
@@ -533,18 +544,12 @@ private struct SettingsPermissionRow: View {
                     ProgressView()
                         .controlSize(.small)
                 } else {
-                    Text(L10n.onboardingButtonAuthorize)
+                    Text(requestTitle)
                 }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .disabled(isRequesting)
-        }
-    }
-
-    private func openSystemPreferences() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
-            NSWorkspace.shared.open(url)
         }
     }
 }

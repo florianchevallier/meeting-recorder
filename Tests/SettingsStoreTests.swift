@@ -50,15 +50,16 @@ struct SettingsStoreTests {
         #expect(store.autoRecordingEnabled == true)
     }
 
-    @Test("API URL validation requires http/https scheme", arguments: [
-        ("https://api.example.com", true),
-        ("http://localhost:8000", true),
-        ("ftp://example.com", false),
-        ("not a url", false),
-        ("", false)
-    ])
+    @Test(
+        "API URL validation requires http/https scheme",
+        arguments: [
+            ("https://api.example.com", true),
+            ("http://localhost:8000", true),
+            ("ftp://example.com", false),
+            ("not a url", false),
+            ("", false),
+        ])
     func urlValidation(url: String, expected: Bool) {
-        let (store, _) = makeStore()
-        #expect(store.isValidAPIURL(url) == expected)
+        #expect(SettingsStore.isValidAPIURL(url) == expected)
     }
 }

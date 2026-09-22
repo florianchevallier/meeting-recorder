@@ -37,26 +37,43 @@
 // MARK: - Permissions
 "permission.microphone.title" = "Microphone";
 "permission.microphone.description" = "This app needs access to the microphone to record your meetings";
-"permission.screen_recording.title" = "Screen Recording";
-"permission.screen_recording.description" = "This app needs screen recording access to capture system audio during meetings";
-"permission.documents.title" = "Documents Folder";
-"permission.documents.description" = "This app saves your meeting recordings in the Documents folder";
 "permission.accessibility.title" = "Accessibility";
 "permission.accessibility.description" = "This app uses accessibility features to detect Teams meetings automatically";
+"permission.system_audio.title" = "System Audio Recording";
+"permission.system_audio.description" = "Captures the audio played by other apps (Teams, Zoom…). macOS asks the first time a recording starts.";
+"permission.system_audio.verify" = "Verify";
+"permission.status.unknown_until_first_use" = "Checked on first recording";
+"error.output_folder_not_writable" = "The Documents folder is not writable.";
+"menu.error.open_privacy_settings" = "Open Privacy Settings";
+"menu.error.open_folder" = "Open Folder";
+"status.starting" = "Starting…";
+"status.reconnecting" = "Reconnecting audio…";
+"status.waiting_system_audio" = "Waiting for the System Audio Recording permission…";
+"settings.transcription.api.invalid" = "Enter a full URL starting with http:// or https://";
 
 // MARK: - Permission Status
 "permission.status.not_determined" = "Not Determined";
 "permission.status.authorized" = "Authorized";
 "permission.status.denied" = "Denied";
-"permission.status.restricted" = "Restricted";
 
 // MARK: - Error Messages
 "error.microphone_permission" = "Microphone permission missing. Please allow it in System Preferences.";
-"error.screen_recording_permission" = "Screen recording access is required to capture system audio. Please allow access in System Preferences.";
-"error.documents_permission" = "Documents folder access is required to save recordings. Please allow access in System Preferences.";
 "error.accessibility_permission" = "Accessibility access is required to automatically detect Teams meetings. Please allow access in System Preferences.";
 "error.recording_failed" = "Recording failed: %@";
-"error.audio_mixing_failed" = "Audio mixing error: %@";
+"error.recovery_attempt" = "Reconnecting audio (%d/%d)…";
+"error.critical_recording" = "Critical recording error: %@";
+"error.system_audio_permission" = "System Audio Recording permission is required to capture meeting audio. Please allow it in System Settings › Privacy & Security › Screen & System Audio Recording.";
+"error.capture.core_audio" = "Audio system error %@ during %@";
+"error.capture.tap_unavailable" = "System audio capture is unavailable on this Mac.";
+"error.capture.no_output_device" = "No audio output device found.";
+"error.capture.no_input_device" = "No microphone found.";
+"error.capture.writer" = "Could not write the recording file: %@";
+"error.capture.disk_full" = "The disk is full.";
+"error.capture.documents_unavailable" = "The Documents folder is not available.";
+"error.capture.already_recording" = "A recording is already in progress.";
+"error.capture.not_recording" = "No recording in progress.";
+"error.capture.stalled" = "The audio stream stopped delivering samples.";
+"error.capture.finalization_timeout" = "Finalizing the recording took too long.";
 
 // MARK: - Onboarding
 "onboarding.title" = "Permissions Setup";
@@ -112,7 +129,6 @@
 "settings.window.title" = "Meety - Settings";
 "menu.transcription.running" = "Transcribing...";
 "menu.transcription.error" = "Transcription error";
-"menu.error.authorize_screen" = "Allow Screen Recording";
 "transcription.progress.preparing" = "⏳ Preparing transcription...";
 "transcription.progress.converting" = "🔄 Converting...";
 "transcription.progress.uploading" = "📤 Uploading to API...";

@@ -31,11 +31,11 @@ struct EndpointResolverTests {
     func jobURLs() {
         #expect(
             EndpointResolver.jobStatusURL(baseURL: "https://api.example.com", jobId: "abc")?.absoluteString
-            == "https://api.example.com/jobs/abc"
+                == "https://api.example.com/jobs/abc"
         )
         #expect(
             EndpointResolver.jobResultURL(baseURL: "https://api.example.com", jobId: "abc")?.absoluteString
-            == "https://api.example.com/jobs/abc/result"
+                == "https://api.example.com/jobs/abc/result"
         )
     }
 }

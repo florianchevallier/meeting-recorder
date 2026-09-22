@@ -1,457 +1,345 @@
 import Foundation
-@preconcurrency import ScreenCaptureKit
+import Synchronization
+import AVFoundation
+import CoreAudio
+import os
 
-/// The capture engine: owns the `SCStream` + `SCRecordingOutput` lifecycle,
-/// the stop finalization handshake, automatic recovery, and health monitoring.
-///
-/// All mutable capture state lives inside this actor. ScreenCaptureKit delegate
-/// callbacks arrive on private queues and are forwarded by `StreamDelegateBridge`.
-///
-/// Fixes vs the old `UnifiedScreenCapture`:
-/// - Health monitoring actually works: the bridge is attached as a lightweight
-///   sample-counting `SCStreamOutput` (plus MOV file-growth as a second signal).
-/// - Recovery retries directly when a restart fails (no silent give-up).
-/// - `recordingOutput(didFailWithError:)` surfaces as `.criticalError`.
-/// - The finish continuation is resumed exactly once, inside the actor.
+/// Owns one recording: a `ProcessTapController` that can be rebuilt any number
+/// of times (device change, stall) while a single `AudioFileWriter` keeps the
+/// file open, plus a health loop. Emits `CaptureEvent`s; the coordinator maps
+/// them to UI state.
 actor CaptureEngine {
 
-    // MARK: - Events
+    private enum State: Equatable {
+        case idle, running, restarting, stopping, stopped
+    }
 
-    /// Stream of capture events (recovery, critical errors, health warnings).
     nonisolated let events: AsyncStream<CaptureEvent>
     private let eventContinuation: AsyncStream<CaptureEvent>.Continuation
 
-    // MARK: - State
-
-    private var stream: SCStream?
-    private var recordingOutput: SCRecordingOutput?
-    private var bridge: StreamDelegateBridge?
-
-    private var isRecording = false
-    private var isStopping = false
-    private var recordingStartTime: Date?
-    private var outputURL: URL?
-    private var lastStreamDimensions: (width: Int, height: Int)?
-
-    private var finishContinuation: CheckedContinuation<Void, Never>?
-    private var finalizationWatcher: Task<Void, Never>?
-    private var fallbackElapsed: TimeInterval = 0
-    private var fallbackLastSize: UInt64 = 0
-    private var fallbackStableCount = 0
-
-    private var retryCount = 0
-    private var isRecovering = false
-    private var recoveryTask: Task<Void, Never>?
+    private var state: State = .idle
+    private var tap: ProcessTapController?
+    private var writer: AudioFileWriter?
+    private let counters = CaptureCounters()
+    private var health = HealthEvaluator()
+    private var deviceObserver: DeviceChangeObserver?
 
     private var healthTask: Task<Void, Never>?
-    private var healthCheckCounter = 0
-    private var lastHealthFileSize: UInt64 = 0
+    private var deviceTask: Task<Void, Never>?
+    private var restartTask: Task<Void, Never>?
+    private var stopTask: Task<URL, any Error>?
 
-    // MARK: - Init
+    private var retryCount = 0
+    private var lastDegradation: HealthVerdict = .healthy
+    private var systemAudioDetected = false
+    private var finalURL: URL?
 
     init() {
-        let (stream, continuation) = AsyncStream<CaptureEvent>.makeStream()
-        self.events = stream
-        self.eventContinuation = continuation
+        (events, eventContinuation) = AsyncStream.makeStream(bufferingPolicy: .unbounded)
     }
 
-    // MARK: - Public API
+    /// The final file location (also valid while recording: the `.partial` sibling is renamed to it on stop).
+    var recordingURL: URL? { finalURL }
 
-    /// URL of the MOV being written (or last written). Lets the coordinator
-    /// salvage a partial file after a critical error.
-    var currentOutputURL: URL? { outputURL }
+    // MARK: - Start
 
-    var recordingDuration: TimeInterval {
-        guard let recordingStartTime else { return 0 }
-        return Date().timeIntervalSince(recordingStartTime)
-    }
+    /// Opens `outputURL` (written as `<name>.partial.m4a` until `stop()`) and starts the tap.
+    func start(outputURL: URL) async throws(CaptureFailure) {
+        guard state == .idle else { throw .alreadyRecording }
+        finalURL = outputURL
+        let partialURL = Self.partialURL(for: outputURL)
+        try? FileManager.default.removeItem(at: partialURL)
 
-    /// Start recording. Returns the MOV output URL.
-    func start() async throws -> URL {
-        guard !isRecording else {
-            Logger.shared.warning("Already recording — start ignored", component: "CAPTURE")
-            throw CaptureError.alreadyRecording
-        }
+        let writer = try AudioFileWriter(outputURL: partialURL, counters: counters)
+        try writer.start()
+        self.writer = writer
 
-        Logger.shared.info("Starting unified recording…", component: "CAPTURE")
-        retryCount = 0
-        isRecovering = false
-        outputURL = nil
-        recordingStartTime = nil
-
-        try await startInternal()
-
-        guard let outputURL else { throw CaptureError.documentsUnavailable }
-        return outputURL
-    }
-
-    /// Stop recording with the full finalization handshake.
-    /// Returns the finalized MOV URL, or nil if not recording.
-    func stop() async -> URL? {
-        guard isRecording, let stream else {
-            Logger.shared.warning("Not recording — stop ignored", component: "CAPTURE")
-            return nil
-        }
-
-        Logger.shared.info("Stopping unified recording…", component: "CAPTURE")
-        isStopping = true
-        defer { isStopping = false }
-
-        // 1. Ask the stream to stop
         do {
-            try await stream.stopCapture()
+            try startTap()
         } catch {
-            Logger.shared.error("Error during stopCapture (continuing cleanup): \(error.localizedDescription)", component: "CAPTURE")
+            writer.cancel()
+            try? FileManager.default.removeItem(at: partialURL)
+            self.writer = nil
+            throw error
         }
 
-        // 2. Wait until SCRecordingOutput has fully written the file
-        //    (delegate callback, with a file-stability fallback watcher)
-        Logger.shared.info("Waiting for recording output to finish…", component: "CAPTURE")
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            finishContinuation = continuation
-            startFinalizationWatcher()
-        }
-        finalizationWatcher?.cancel()
-        finalizationWatcher = nil
-
-        // 3. Now that writing is finished, detach outputs
-        if let recordingOutput {
-            do {
-                try stream.removeRecordingOutput(recordingOutput)
-            } catch {
-                Logger.shared.warning("removeRecordingOutput failed: \(error.localizedDescription)", component: "CAPTURE")
-            }
-        }
-
-        // 4. Teardown
-        self.recordingOutput = nil
-        self.stream = nil
-        self.bridge = nil
-        isRecording = false
-        stopHealthMonitoring()
-
-        if let recordingStartTime {
-            let duration = Date().timeIntervalSince(recordingStartTime)
-            Logger.shared.info("Recording stopped. Duration: \(String(format: "%.1f", duration))s", component: "CAPTURE")
-        }
-        self.recordingStartTime = nil
-
-        Logger.shared.info("Unified recording stopped successfully", component: "CAPTURE")
-        return outputURL
-    }
-
-    // MARK: - Internal Start (also used by recovery)
-
-    private func startInternal() async throws {
-        let availableContent = try await SCShareableContent.current
-        guard let display = availableContent.displays.first else {
-            throw CaptureError.noDisplay
-        }
-
-        let configuration = CaptureConfiguration.makeStreamConfiguration(display: display)
-        let filter = CaptureConfiguration.makeContentFilter(
-            display: display,
-            applications: availableContent.applications
-        )
-        lastStreamDimensions = (display.width, display.height)
-
-        if outputURL == nil {
-            outputURL = try CaptureConfiguration.makeOutputURL()
-        }
-        guard let safeOutputURL = outputURL else {
-            throw CaptureError.documentsUnavailable
-        }
-
-        let bridge = StreamDelegateBridge(engine: self)
-        self.bridge = bridge
-
-        let recordingConfiguration = CaptureConfiguration.makeRecordingConfiguration(outputURL: safeOutputURL)
-        let newRecordingOutput = SCRecordingOutput(configuration: recordingConfiguration, delegate: bridge)
-        recordingOutput = newRecordingOutput
-
-        let newStream = SCStream(filter: filter, configuration: configuration, delegate: bridge)
-        stream = newStream
-
-        try newStream.addRecordingOutput(newRecordingOutput)
-
-        // Attach the bridge as a lightweight sample-counting output so health
-        // monitoring has a real liveness signal (buffers are discarded).
-        try newStream.addStreamOutput(bridge, type: .screen, sampleHandlerQueue: bridge.screenQueue)
-        try newStream.addStreamOutput(bridge, type: .audio, sampleHandlerQueue: bridge.audioQueue)
-        try newStream.addStreamOutput(bridge, type: .microphone, sampleHandlerQueue: bridge.microphoneQueue)
-
-        try await newStream.startCapture()
-
-        bridge.markStarted()
-        isRecording = true
-        if recordingStartTime == nil {
-            recordingStartTime = Date()
-        }
+        state = .running
+        retryCount = 0
+        startDeviceObservation()
         startHealthMonitoring()
-
-        Logger.shared.info("Unified recording started — Screen + System Audio + Microphone", component: "CAPTURE")
+        Log.capture.info(
+            "Recording started → \(outputURL.lastPathComponent, privacy: .public); devices: \(DeviceChangeObserver.snapshotDescription(), privacy: .public)"
+        )
+        eventContinuation.yield(.started(outputURL))
     }
 
-    // MARK: - Finalization Handshake
+    // MARK: - Stop
 
-    /// Fallback watcher: if `recordingOutputDidFinishRecording` never fires,
-    /// resume once the MOV size is stable (or after the max wait).
-    private func startFinalizationWatcher() {
-        finalizationWatcher?.cancel()
-        fallbackElapsed = 0
-        fallbackLastSize = 0
-        fallbackStableCount = 0
+    /// Finalizes the file and returns its URL. Safe to call twice: the second
+    /// caller awaits the same finalization.
+    func stop() async throws -> URL {
+        if let stopTask { return try await stopTask.value }
+        guard state == .running || state == .restarting else { throw CaptureFailure.notRecording }
+        state = .stopping
 
-        finalizationWatcher = Task { [weak self] in
-            guard let self else { return }
-            let interval = Constants.Recording.fileStabilityCheckInterval
+        let task = Task<URL, any Error> { try await self.performStop(failure: nil) }
+        stopTask = task
+        return try await task.value
+    }
 
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
-                if Task.isCancelled { return }
-                if await self.finalizationTick() { return }
+    private func performStop(failure: CaptureFailure?) async throws -> URL {
+        healthTask?.cancel(); healthTask = nil
+        deviceTask?.cancel(); deviceTask = nil
+        deviceObserver?.invalidate(); deviceObserver = nil
+        restartTask?.cancel()
+        await restartTask?.value  // never leave a restart in flight (ghost tap)
+        restartTask = nil
+
+        tap?.stop()
+        tap = nil
+
+        defer {
+            state = .stopped
+            eventContinuation.finish()
+        }
+
+        guard let writer, let finalURL else { throw failure ?? CaptureFailure.notRecording }
+        let url = try await finalize(writer: writer, finalURL: finalURL)
+        Log.capture.info(
+            "Recording finalized → \(url.lastPathComponent, privacy: .public) (\(writer.writtenDuration, format: .fixed(precision: 1))s)"
+        )
+        if let failure { throw failure }
+        return url
+    }
+
+    private func finalize(writer: AudioFileWriter, finalURL: URL) async throws -> URL {
+        let partialURL = writer.outputURL
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { _ = try await writer.finish() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(Constants.Recording.finalizationTimeout))
+                writer.cancel()
+                throw CaptureFailure.finalizationTimedOut
             }
+            try await group.next()
+            group.cancelAll()
+        }
+        try? FileManager.default.removeItem(at: finalURL)
+        do {
+            try FileManager.default.moveItem(at: partialURL, to: finalURL)
+        } catch {
+            throw CaptureFailure.writer("rename failed: \(error.localizedDescription)")
+        }
+        return finalURL
+    }
+
+    // MARK: - Tap lifecycle
+
+    private func startTap() throws(CaptureFailure) {
+        guard let writer else { throw .notRecording }
+        let tap = ProcessTapController()
+        try tap.prepare()
+
+        let systemFormat = tap.streamFormats.first { $0.source == .systemTap }?.format
+        let microphoneFormat = tap.streamFormats.first { $0.source == .microphone }?.format
+        guard let systemFormat else {
+            tap.stop()
+            throw .coreAudio(status: kAudioHardwareBadStreamError, operation: "NoTapStream")
+        }
+        writer.configure(systemFormat: systemFormat, microphoneFormat: microphoneFormat)
+
+        let counters = self.counters
+        try tap.run { [counters, writer] inputData, inputTime, now, formats in
+            Self.handleIO(
+                inputData: inputData, inputTime: inputTime, now: now, formats: formats, counters: counters,
+                writer: writer)
+        }
+        self.tap = tap
+        health.reset()
+    }
+
+    /// IO path (runs on the tap's IO queue): copy each stream into its own PCM
+    /// buffer, update meters/counters, hand off to the writer queue.
+    private static func handleIO(
+        inputData: UnsafePointer<AudioBufferList>,
+        inputTime: UnsafePointer<AudioTimeStamp>,
+        now: UnsafePointer<AudioTimeStamp>,
+        formats: [ProcessTapController.StreamFormat],
+        counters: CaptureCounters,
+        writer: AudioFileWriter
+    ) {
+        counters.ioCallbacks.add(1, ordering: .relaxed)
+        counters.lastIOHostTime.store(now.pointee.mHostTime, ordering: .relaxed)
+
+        let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inputData))
+        guard !formats.isEmpty else { return }
+
+        // Back-pressure: if the writer lags more than a few seconds, drop this cycle.
+        if counters.pendingFrames.load(ordering: .relaxed) > Constants.Recording.maxPendingFrames {
+            let frames = list.first.map { Int($0.mDataByteSize) / max(1, Int($0.mNumberChannels) * 4) } ?? 0
+            counters.droppedFrames.add(UInt64(frames), ordering: .relaxed)
+            return
+        }
+
+        var system: AVAudioPCMBuffer?
+        var microphone: AVAudioPCMBuffer?
+        var systemPeak: Float = 0
+        var microphonePeak: Float = 0
+
+        for stream in formats where stream.bufferIndex < list.count {
+            let buffer = list[stream.bufferIndex]
+            guard let data = buffer.mData else { continue }
+            let channels = Int(buffer.mNumberChannels)
+            let frames = Int(buffer.mDataByteSize) / (channels * MemoryLayout<Float>.size)
+            guard frames > 0,
+                let pcm = AVAudioPCMBuffer(pcmFormat: stream.format, frameCapacity: AVAudioFrameCount(frames)),
+                let destination = pcm.floatChannelData?[0]
+            else { continue }
+            pcm.frameLength = AVAudioFrameCount(frames)
+            let sampleCount = frames * channels
+            destination.update(from: data.assumingMemoryBound(to: Float.self), count: sampleCount)
+
+            var peak: Float = 0
+            let samples = UnsafeBufferPointer(start: destination, count: sampleCount)
+            for sample in samples { peak = max(peak, abs(sample)) }
+
+            switch stream.source {
+            case .systemTap:
+                system = pcm
+                systemPeak = max(systemPeak, peak)
+            case .microphone:
+                microphone = pcm
+                microphonePeak = max(microphonePeak, peak)
+            }
+        }
+        counters.recordPeaks(system: systemPeak, microphone: microphonePeak)
+        writer.enqueue(system: system, microphone: microphone)
+    }
+
+    // MARK: - Restart (device change / stall)
+
+    private func scheduleRestart(reason: String) {
+        guard state == .running, restartTask == nil else { return }
+        state = .restarting
+        retryCount += 1
+        let attempt = retryCount
+        Log.capture.warning(
+            "Restarting tap (\(attempt)/\(Constants.Recording.maxRecoveryAttempts)): \(reason, privacy: .public)")
+        eventContinuation.yield(.restarting(attempt: attempt, reason: reason))
+
+        let gapStartHostTime = counters.lastIOHostTime.load(ordering: .relaxed)
+        tap?.stop()
+        tap = nil
+
+        restartTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Constants.Recording.recoveryDelay))
+            guard !Task.isCancelled else { return }
+            await self?.performRestart(gapStartHostTime: gapStartHostTime, reason: reason)
         }
     }
 
-    /// One fallback poll step. Returns true when the watcher should stop.
-    private func finalizationTick() -> Bool {
-        if finishContinuation == nil { return true } // delegate already resumed us
-
-        let interval = Constants.Recording.fileStabilityCheckInterval
-        fallbackElapsed += interval
-
-        if let url = outputURL,
-           let size = fileSize(at: url) {
-            if size > 0 && size == fallbackLastSize {
-                fallbackStableCount += 1
+    private func performRestart(gapStartHostTime: UInt64, reason: String) {
+        defer { restartTask = nil }
+        guard state == .restarting else { return }
+        do {
+            try startTap()
+            if gapStartHostTime > 0 {
+                let gapNanos = AudioConvertHostTimeToNanos(AudioGetCurrentHostTime() &- gapStartHostTime)
+                let gap = min(Double(gapNanos) / 1_000_000_000, Constants.Recording.maxSilenceGapFill)
+                writer?.insertSilence(seconds: gap)
+            }
+            state = .running
+            retryCount = 0
+            Log.capture.info("Tap restarted; devices: \(DeviceChangeObserver.snapshotDescription(), privacy: .public)")
+            eventContinuation.yield(.restarted)
+        } catch {
+            Log.capture.error("Tap restart failed: \(error.localizedDescription, privacy: .public)")
+            if retryCount < Constants.Recording.maxRecoveryAttempts,
+                CaptureErrorClassifier.policy(for: error) == .restartTap
+            {
+                state = .running  // so scheduleRestart accepts the next attempt
+                scheduleRestart(reason: "retry after \(error.fourCC)")
             } else {
-                fallbackStableCount = 0
-                fallbackLastSize = size
+                fail(with: error)
             }
-
-            if fallbackStableCount >= Constants.Recording.finalizationStabilityRequiredChecks {
-                Logger.shared.info("Fallback: MOV stable, resuming finalization", component: "CAPTURE")
-                resumeFinishContinuation()
-                return true
-            }
-        }
-
-        if fallbackElapsed >= Constants.Recording.finalizationMaxWaitTime {
-            Logger.shared.warning("Timeout waiting for recording finalization (\(Int(Constants.Recording.finalizationMaxWaitTime))s)", component: "CAPTURE")
-            resumeFinishContinuation()
-            return true
-        }
-
-        return false
-    }
-
-    /// Resume the finish continuation exactly once.
-    private func resumeFinishContinuation() {
-        if let continuation = finishContinuation {
-            finishContinuation = nil
-            continuation.resume()
         }
     }
 
-    // MARK: - Health Monitoring
+    private func fail(with failure: CaptureFailure) {
+        guard state != .stopping, state != .stopped, stopTask == nil else { return }
+        state = .stopping
+        let task = Task<URL, any Error> { try await self.performStop(failure: failure) }
+        stopTask = task
+        Task {
+            let url = try? await task.value
+            let file = url ?? finalURL.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+            eventContinuation.yield(.failed(failure, file: file))
+        }
+    }
+
+    // MARK: - Monitoring
 
     private func startHealthMonitoring() {
-        stopHealthMonitoring()
-        Logger.shared.debug("Starting stream health monitoring", component: "HEALTH_MONITOR")
-        lastHealthFileSize = 0
-        healthCheckCounter = 0
-
         healthTask = Task { [weak self] in
+            let interval = Constants.Recording.healthPollInterval
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(Constants.Recording.healthCheckInterval * 1_000_000_000))
-                if Task.isCancelled { return }
-                await self?.performHealthCheck()
+                try? await Task.sleep(for: .seconds(interval))
+                guard !Task.isCancelled else { return }
+                await self?.checkHealth(elapsed: interval)
             }
         }
     }
 
-    private func stopHealthMonitoring() {
-        healthTask?.cancel()
-        healthTask = nil
-    }
-
-    private func performHealthCheck() {
-        guard isRecording else { return }
-
-        let stats: (count: Int, lastTime: Date?) = bridge?.sampleStats() ?? (count: 0, lastTime: nil)
-        let timeSinceLastSample = stats.lastTime.map { Date().timeIntervalSince($0) } ?? .infinity
-
-        // Second liveness signal: the MOV should keep growing
-        let currentSize = outputURL.flatMap { fileSize(at: $0) } ?? 0
-        let fileGrowing = currentSize > lastHealthFileSize
-        lastHealthFileSize = currentSize
-
-        if timeSinceLastSample > Constants.Recording.healthCheckSampleTimeout && !fileGrowing {
-            Logger.shared.warning(
-                "No samples for \(Int(timeSinceLastSample))s and file not growing (\(stats.count) samples so far)",
-                component: "HEALTH_MONITOR"
-            )
-            eventContinuation.yield(.unhealthy("No samples for \(Int(timeSinceLastSample))s"))
-            Task { await logDetailedStreamHealth() }
+    private func checkHealth(elapsed: TimeInterval) {
+        guard state == .running else { return }
+        let snapshot = counters.snapshot()
+        if !systemAudioDetected, snapshot.systemPeak >= health.silenceThreshold {
+            systemAudioDetected = true
+            eventContinuation.yield(.systemAudioDetected)
         }
-
-        // Stats log once per minute (12 checks × 5s)
-        healthCheckCounter += 1
-        if healthCheckCounter >= 12 {
-            Logger.shared.debug("Stream healthy — \(stats.count) samples received", component: "HEALTH_MONITOR")
-            healthCheckCounter = 0
-        }
-    }
-
-    private func logDetailedStreamHealth() async {
-        do {
-            let content = try await SCShareableContent.current
-            Logger.shared.info("Displays available: \(content.displays.count), applications: \(content.applications.count)", component: "HEALTH_MONITOR")
-        } catch {
-            Logger.shared.error("Shareable content check failed: \(error.localizedDescription)", component: "HEALTH_MONITOR")
-        }
-
-        let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        Logger.shared.info("Microphone permission: \(micStatus.rawValue)", component: "HEALTH_MONITOR")
-
-        if let defaultMic = AVCaptureDevice.default(for: .audio) {
-            Logger.shared.info("Default microphone: \(defaultMic.localizedName), connected: \(defaultMic.isConnected)", component: "HEALTH_MONITOR")
-            if !defaultMic.isConnected {
-                Logger.shared.warning("MICROPHONE DISCONNECTED", component: "HEALTH_MONITOR")
-            }
-        } else {
-            Logger.shared.warning("NO DEFAULT MICROPHONE AVAILABLE", component: "HEALTH_MONITOR")
-        }
-    }
-
-    // MARK: - Delegate Entry Points (called by StreamDelegateBridge)
-
-    func streamDidStop(with error: any Error) {
-        // Ignore errors triggered by our own stop/teardown
-        guard isRecording, !isStopping else { return }
-
-        let nsError = error as NSError
-        Logger.shared.error("Stream stopped with error — domain: \(nsError.domain), code: \(nsError.code): \(error.localizedDescription)", component: "CAPTURE")
-
-        // Deep diagnostics for the classic "system stopped the stream" error
-        if nsError.code == -3821 {
-            let url = outputURL
-            let dimensions = lastStreamDimensions
-            Task {
-                await CaptureDiagnostics.runDeepDiagnostics(outputURL: url, lastStreamDimensions: dimensions)
-            }
-        }
-
-        if CaptureErrorClassifier.isRecoverable(error), retryCount < Constants.Recording.maxRecoveryAttempts, !isRecovering {
-            attemptRecovery()
-        } else {
-            handleCriticalError(error)
-        }
-    }
-
-    func recordingOutputDidFail(with error: any Error) {
-        // The old code only flipped isRecording internally and never told anyone —
-        // the UI stayed stuck in "recording". Now surfaced as a critical error.
-        Logger.shared.error("Recording output failed: \(error.localizedDescription)", component: "CAPTURE")
-        handleCriticalError(error)
-    }
-
-    func recordingDidFinish() {
-        Logger.shared.info("Recording output finished — file is ready", component: "CAPTURE")
-        finalizationWatcher?.cancel()
-        finalizationWatcher = nil
-        resumeFinishContinuation()
-    }
-
-    // MARK: - Recovery
-
-    private func attemptRecovery() {
-        isRecovering = true
-        retryCount += 1
-
-        Logger.shared.info("Attempting recovery (\(retryCount)/\(Constants.Recording.maxRecoveryAttempts))", component: "CAPTURE")
-        eventContinuation.yield(.recoveryAttempt(retryCount))
-
-        recoveryTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await Task.sleep(nanoseconds: UInt64(Constants.Recording.recoveryDelay * 1_000_000_000))
-                try Task.checkCancellation()
-                await self.performRecoveryRestart()
-            } catch {
-                Logger.shared.info("Recovery cancelled", component: "CAPTURE")
+        let verdict = health.evaluate(snapshot, elapsed: elapsed)
+        switch verdict {
+        case .healthy:
+            lastDegradation = .healthy
+        case .stalled:
+            scheduleRestart(reason: "no IO callback for \(Int(Constants.Recording.healthStallTimeout))s")
+        case .dropping, .systemSilent:
+            if verdict != lastDegradation {
+                lastDegradation = verdict
+                Log.capture.warning("Capture degraded: \(String(describing: verdict), privacy: .public)")
+                eventContinuation.yield(.degraded(verdict))
             }
         }
     }
 
-    /// One full restart cycle: cleanup → start. Schedules the next attempt
-    /// directly on failure (the old code waited for a didStopWithError that
-    /// never arrives after a failed startCapture — silently giving up).
-    private func performRecoveryRestart() async {
-        do {
-            await cleanupStream()
-
-            Logger.shared.info("Attempting restart…", component: "CAPTURE")
-            try await startInternal()
-
-            Logger.shared.info("Recovery successful", component: "CAPTURE")
-            retryCount = 0
-            isRecovering = false
-            eventContinuation.yield(.recovered)
-        } catch {
-            Logger.shared.error("Recovery attempt \(retryCount) failed: \(error.localizedDescription)", component: "CAPTURE")
-            isRecovering = false
-
-            if retryCount >= Constants.Recording.maxRecoveryAttempts {
-                handleCriticalError(error)
-            } else {
-                attemptRecovery()
+    private func startDeviceObservation() {
+        let observer = DeviceChangeObserver()
+        observer.start()
+        deviceObserver = observer
+        let changes = observer.changes
+        deviceTask = Task { [weak self] in
+            for await change in changes {
+                // Coalesce bursts (AirPods emit several notifications per switch).
+                try? await Task.sleep(for: .seconds(Constants.Recording.deviceChangeDebounce))
+                guard !Task.isCancelled else { return }
+                await self?.scheduleRestart(reason: "device change (\(String(describing: change)))")
             }
         }
-    }
-
-    private func handleCriticalError(_ error: any Error) {
-        guard isRecording || isRecovering else { return }
-
-        isRecording = false
-        isRecovering = false
-        retryCount = 0
-
-        Logger.shared.error("Critical error — capture is dead", component: "CAPTURE")
-
-        Task { await cleanupStream() }
-        // Sendable-safe payload for the event stream
-        eventContinuation.yield(.criticalError(error as NSError))
-    }
-
-    private func cleanupStream() async {
-        if let stream {
-            do {
-                try await stream.stopCapture()
-            } catch {
-                Logger.shared.warning("Error stopping stream during cleanup: \(error.localizedDescription)", component: "CAPTURE")
-            }
-        }
-
-        stream = nil
-        recordingOutput = nil
-        bridge = nil
-        stopHealthMonitoring()
-
-        finalizationWatcher?.cancel()
-        finalizationWatcher = nil
-        // Never leave an awaiting stop() hanging: resume, don't drop.
-        resumeFinishContinuation()
-
-        isRecording = false
     }
 
     // MARK: - Helpers
 
-    private nonisolated func fileSize(at url: URL) -> UInt64? {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = attrs[.size] as? NSNumber else { return nil }
-        return size.uint64Value
+    static func partialURL(for finalURL: URL) -> URL {
+        let base = finalURL.deletingPathExtension().lastPathComponent
+        return finalURL.deletingLastPathComponent()
+            .appendingPathComponent(base + ".partial")
+            .appendingPathExtension(finalURL.pathExtension)
+    }
+}
+
+private extension CaptureFailure {
+    var fourCC: String {
+        if case .coreAudio(let status, _) = self { return status.fourCharCode }
+        return String(describing: self)
     }
 }

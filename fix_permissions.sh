@@ -12,25 +12,25 @@ echo "🔧 Nettoyage complet des permissions MeetingRecorder..."
 # 1. Nettoyer les ANCIENNES permissions (compatibilité)
 echo "🗑️  Suppression des anciennes permissions (obsolète)..."
 sudo tccutil reset Microphone com.meetingrecorder.app 2>/dev/null || true
-sudo tccutil reset ScreenCapture com.meetingrecorder.app 2>/dev/null || true
+sudo tccutil reset AudioCapture com.meetingrecorder.app 2>/dev/null || true
 sudo tccutil reset Accessibility com.meetingrecorder.app 2>/dev/null || true
 
 # 2. Nettoyer les permissions PRODUCTION
 echo "🗑️  Reset des permissions production..."
 sudo tccutil reset Microphone com.meetingrecorder.meety 2>/dev/null || true
-sudo tccutil reset ScreenCapture com.meetingrecorder.meety 2>/dev/null || true
+sudo tccutil reset AudioCapture com.meetingrecorder.meety 2>/dev/null || true
 sudo tccutil reset Accessibility com.meetingrecorder.meety 2>/dev/null || true
 
 # 3. Nettoyer les permissions DEVELOPMENT
 echo "🗑️  Reset des permissions development..."
 sudo tccutil reset Microphone com.meetingrecorder.dev 2>/dev/null || true
-sudo tccutil reset ScreenCapture com.meetingrecorder.dev 2>/dev/null || true
+sudo tccutil reset AudioCapture com.meetingrecorder.dev 2>/dev/null || true
 sudo tccutil reset Accessibility com.meetingrecorder.dev 2>/dev/null || true
 
 # 4. Nettoyer les permissions DEBUG
 echo "🗑️  Reset des permissions debug..."
 sudo tccutil reset Microphone com.meetingrecorder.meety.debug 2>/dev/null || true
-sudo tccutil reset ScreenCapture com.meetingrecorder.meety.debug 2>/dev/null || true
+sudo tccutil reset AudioCapture com.meetingrecorder.meety.debug 2>/dev/null || true
 sudo tccutil reset Accessibility com.meetingrecorder.meety.debug 2>/dev/null || true
 
 # 5. Nettoyer les préférences

@@ -19,7 +19,8 @@ enum MultipartBuilder {
         let mimeType = "audio/\(audioFileURL.pathExtension)"
 
         body.append(Data("--\(boundary)\r\n".utf8))
-        body.append(Data("Content-Disposition: form-data; name=\"\(audioFieldName)\"; filename=\"\(filename)\"\r\n".utf8))
+        body.append(
+            Data("Content-Disposition: form-data; name=\"\(audioFieldName)\"; filename=\"\(filename)\"\r\n".utf8))
         body.append(Data("Content-Type: \(mimeType)\r\n\r\n".utf8))
         body.append(audioData)
         body.append(Data("\r\n".utf8))
@@ -33,7 +34,7 @@ enum MultipartBuilder {
             ("computeType", parameters.computeType),
             ("diarize", String(parameters.diarize)),
             ("nbSpeaker", String(parameters.nbSpeaker)),
-            ("debug", String(parameters.debug))
+            ("debug", String(parameters.debug)),
         ]
 
         for (key, value) in fields {

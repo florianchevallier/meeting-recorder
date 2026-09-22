@@ -37,26 +37,43 @@
 // MARK: - Permissions
 "permission.microphone.title" = "Microphone";
 "permission.microphone.description" = "Cette application a besoin d'accéder au microphone pour enregistrer vos réunions";
-"permission.screen_recording.title" = "Enregistrement d'écran";
-"permission.screen_recording.description" = "Cette application a besoin d'enregistrer l'écran pour capturer l'audio système lors des réunions";
-"permission.documents.title" = "Dossier Documents";
-"permission.documents.description" = "Cette application sauvegarde vos enregistrements de réunion dans le dossier Documents";
 "permission.accessibility.title" = "Accessibilité";
 "permission.accessibility.description" = "Cette application utilise les fonctionnalités d'accessibilité pour détecter automatiquement les réunions Teams";
+"permission.system_audio.title" = "Enregistrement audio système";
+"permission.system_audio.description" = "Capture le son joué par les autres apps (Teams, Zoom…). macOS demande l'autorisation au premier enregistrement.";
+"permission.system_audio.verify" = "Vérifier";
+"permission.status.unknown_until_first_use" = "Vérifié au premier enregistrement";
+"error.output_folder_not_writable" = "Le dossier Documents n'est pas accessible en écriture.";
+"menu.error.open_privacy_settings" = "Ouvrir Confidentialité";
+"menu.error.open_folder" = "Ouvrir le dossier";
+"status.starting" = "Démarrage…";
+"status.reconnecting" = "Reconnexion audio…";
+"status.waiting_system_audio" = "En attente de l'autorisation « Enregistrement audio système »…";
+"settings.transcription.api.invalid" = "Saisissez une URL complète commençant par http:// ou https://";
 
 // MARK: - Permission Status
 "permission.status.not_determined" = "Non déterminé";
 "permission.status.authorized" = "Autorisé";
 "permission.status.denied" = "Refusé";
-"permission.status.restricted" = "Restreint";
 
 // MARK: - Error Messages
 "error.microphone_permission" = "Permission microphone manquante. Veuillez l'autoriser dans les Préférences Système.";
-"error.screen_recording_permission" = "L'accès à l'enregistrement d'écran est requis pour capturer l'audio système. Veuillez autoriser l'accès dans les Préférences Système.";
-"error.documents_permission" = "L'accès au dossier Documents est requis pour sauvegarder les enregistrements. Veuillez autoriser l'accès dans les Préférences Système.";
 "error.accessibility_permission" = "L'accès à l'accessibilité est requis pour détecter automatiquement les réunions Teams. Veuillez autoriser l'accès dans les Préférences Système.";
 "error.recording_failed" = "Échec de l'enregistrement : %@";
-"error.audio_mixing_failed" = "Erreur lors de la fusion audio : %@";
+"error.recovery_attempt" = "Reconnexion audio (%d/%d)…";
+"error.critical_recording" = "Erreur critique d'enregistrement : %@";
+"error.system_audio_permission" = "L'autorisation « Enregistrement audio système » est nécessaire pour capturer l'audio des réunions. Autorisez-la dans Réglages Système › Confidentialité et sécurité › Enregistrement de l'écran et de l'audio système.";
+"error.capture.core_audio" = "Erreur du système audio %@ pendant %@";
+"error.capture.tap_unavailable" = "La capture de l'audio système n'est pas disponible sur ce Mac.";
+"error.capture.no_output_device" = "Aucun périphérique de sortie audio trouvé.";
+"error.capture.no_input_device" = "Aucun microphone trouvé.";
+"error.capture.writer" = "Impossible d'écrire le fichier d'enregistrement : %@";
+"error.capture.disk_full" = "Le disque est plein.";
+"error.capture.documents_unavailable" = "Le dossier Documents n'est pas disponible.";
+"error.capture.already_recording" = "Un enregistrement est déjà en cours.";
+"error.capture.not_recording" = "Aucun enregistrement en cours.";
+"error.capture.stalled" = "Le flux audio ne fournit plus d'échantillons.";
+"error.capture.finalization_timeout" = "La finalisation de l'enregistrement a pris trop de temps.";
 
 // MARK: - Onboarding
 "onboarding.title" = "Configuration des Permissions";
@@ -112,7 +129,6 @@
 "settings.window.title" = "Meety - Paramètres";
 "menu.transcription.running" = "Transcription en cours...";
 "menu.transcription.error" = "Erreur de transcription";
-"menu.error.authorize_screen" = "Autoriser l'enregistrement d'écran";
 "transcription.progress.preparing" = "⏳ Préparation de la transcription...";
 "transcription.progress.converting" = "🔄 Conversion en cours...";
 "transcription.progress.uploading" = "📤 Upload vers API...";

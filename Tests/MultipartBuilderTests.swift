@@ -37,7 +37,8 @@ struct MultipartBuilderTests {
         #expect(bodyString.contains("fake-audio-bytes"))
 
         // All 8 parameter fields
-        for field in ["outputFormat", "model", "language", "batchSize", "computeType", "diarize", "nbSpeaker", "debug"] {
+        for field in ["outputFormat", "model", "language", "batchSize", "computeType", "diarize", "nbSpeaker", "debug"]
+        {
             #expect(bodyString.contains("name=\"\(field)\""), "missing field \(field)")
         }
 

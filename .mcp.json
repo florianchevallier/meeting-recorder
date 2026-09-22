@@ -13,6 +13,12 @@
         "-y",
         "@kimsungwhee/apple-docs-mcp"
       ]
+    },
+    "graft": {
+      "command": "graft",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }

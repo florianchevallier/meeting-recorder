@@ -1,24 +1,16 @@
+import os
 import SwiftUI
 
 /// Status bar popover menu. Reads `RecordingCoordinator` (@Observable) and
 /// `PermissionMonitor`; transcription state flows through
 /// `coordinator.transcription.state` (@Observable struct).
+///
+/// Structure notes: nothing ticks while idle — only the duration/ring subtree
+/// is wrapped in a `TimelineView`, and only while recording.
 struct StatusBarMenu: View {
     let coordinator: RecordingCoordinator
     let permissionMonitor: PermissionMonitor
     let onOpenSettings: () -> Void
-
-    @State private var isHovering = false
-
-    init(
-        coordinator: RecordingCoordinator,
-        permissionMonitor: PermissionMonitor,
-        onOpenSettings: @escaping () -> Void
-    ) {
-        self.coordinator = coordinator
-        self.permissionMonitor = permissionMonitor
-        self.onOpenSettings = onOpenSettings
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,81 +20,56 @@ struct StatusBarMenu: View {
             transcriptionSection
             quickActionsSection
         }
-        .background(VisualEffectView())
         .frame(width: Constants.UI.menuWidth)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovering = hovering
-            }
-        }
     }
 
     // MARK: - Header Section
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Image(systemName: "waveform.circle.fill")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.linearGradient(
-                        colors: [.blue, .purple],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+        HStack {
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(MenuStyle.brandGradient)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L10n.appName)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.appName)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
 
-                    Text(L10n.appSubtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                statusIndicator
+                Text(L10n.appSubtitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+
+            Spacer()
+
+            statusIndicator
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
     }
 
     // MARK: - Status Indicator
 
-    private var statusIndicator: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(
-                    coordinator.isStopping ?
-                    .linearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom) :
-                    coordinator.isRecording ?
-                    .linearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom) :
-                    coordinator.isTeamsMeetingDetected ?
-                    .linearGradient(colors: [.blue, .cyan], startPoint: .top, endPoint: .bottom) :
-                    .linearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-                )
-                .frame(width: 8, height: 8)
-                .scaleEffect(coordinator.isRecording || coordinator.isStopping || coordinator.isTeamsMeetingDetected ? 1.2 : 1.0)
-                .animation(
-                    coordinator.isRecording ?
-                        .easeInOut(duration: 1.0).repeatForever(autoreverses: true) :
-                    coordinator.isStopping ?
-                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true) :
-                    coordinator.isTeamsMeetingDetected ?
-                        .easeInOut(duration: 2.0).repeatForever(autoreverses: true) :
-                        .default,
-                    value: coordinator.isRecording || coordinator.isStopping || coordinator.isTeamsMeetingDetected
-                )
+    private var activity: MenuActivity {
+        MenuActivity(
+            isStopping: coordinator.isStopping,
+            isRecording: coordinator.isRecording,
+            isTeamsMeetingDetected: coordinator.isTeamsMeetingDetected
+        )
+    }
 
-            Text(coordinator.isStopping ? L10n.statusFinishingShort :
-                 coordinator.isRecording ? L10n.statusRecordingShort :
-                 coordinator.isTeamsMeetingDetected ? L10n.statusTeamsShort : L10n.statusIdle)
+    private var statusIndicator: some View {
+        let activity = self.activity
+        return HStack(spacing: 6) {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(activity.gradient)
+                .symbolEffect(.pulse, options: .repeating, isActive: activity != .idle)
+
+            Text(activity.shortLabel)
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundColor(coordinator.isStopping ? .orange :
-                                coordinator.isRecording ? .red :
-                                coordinator.isTeamsMeetingDetected ? .blue : .secondary)
+                .foregroundStyle(activity.tint)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -113,157 +80,85 @@ struct StatusBarMenu: View {
     // MARK: - Main Control Section
 
     private var mainControlSection: some View {
-        TimelineView(.periodic(from: .now, by: 1.0)) { context in
-            let duration = recordingDuration(at: context.date)
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .stroke(Color(.separatorColor), lineWidth: 1)
+                    .frame(width: Constants.UI.controlCircleSize, height: Constants.UI.controlCircleSize)
 
-            VStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .stroke(Color(.separatorColor), lineWidth: 1)
-                        .frame(
-                            width: Constants.UI.controlCircleSize,
-                            height: Constants.UI.controlCircleSize
-                        )
-
-                    if coordinator.isRecording {
-                        Circle()
-                            .trim(
-                                from: 0,
-                                to: min(duration / Constants.UI.maxRecordingDurationForProgress, 1.0)
-                            )
-                            .stroke(
-                                .linearGradient(
-                                    colors: [.red, .orange, .yellow],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                style: StrokeStyle(
-                                    lineWidth: Constants.UI.progressRingLineWidth,
-                                    lineCap: .round
-                                )
-                            )
-                            .frame(
-                                width: Constants.UI.controlCircleSize,
-                                height: Constants.UI.controlCircleSize
-                            )
-                            .rotationEffect(.degrees(-90))
-                    }
-
-                    if coordinator.isStopping {
-                        ProgressView()
-                            .controlSize(.large)
-                            .scaleEffect(1.2)
-                    } else {
-                        Button(action: toggleRecording) {
-                            ZStack {
-                                Circle()
-                                    .fill(coordinator.isRecording ?
-                                          .linearGradient(
-                                            colors: [.red.opacity(0.8), .red],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                          ) :
-                                          .linearGradient(
-                                            colors: [.blue.opacity(0.8), .blue],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                          )
-                                    )
-                                    .frame(
-                                        width: Constants.UI.controlButtonSize,
-                                        height: Constants.UI.controlButtonSize
-                                    )
-                                    .scaleEffect(isHovering ? 1.05 : 1.0)
-
-                                Image(systemName: coordinator.isRecording ? "stop.fill" : "record.circle")
-                                    .font(.system(size: 28, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .scaleEffect(coordinator.isRecording ? 0.8 : 1.0)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: coordinator.isRecording)
-                    }
+                if let startedAt = coordinator.recordingStartedAt {
+                    ProgressRing(startedAt: startedAt)
                 }
 
-                recordingInfoSection(duration: duration)
+                if coordinator.isStopping {
+                    ProgressView()
+                        .controlSize(.large)
+                        .scaleEffect(1.2)
+                } else {
+                    RecordButton(isRecording: coordinator.isRecording, action: toggleRecording)
+                }
             }
-            .padding(.vertical, 20)
+
+            recordingInfoSection
         }
+        .padding(.vertical, 20)
     }
 
     // MARK: - Recording Info Section
 
-    private func recordingInfoSection(duration: TimeInterval) -> some View {
+    @ViewBuilder
+    private var recordingInfoSection: some View {
         VStack(spacing: 8) {
-            if coordinator.isRecording {
+            if let startedAt = coordinator.recordingStartedAt {
                 VStack(spacing: 4) {
-                    Text(formatDuration(duration))
-                        .font(.system(size: 24, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.linearGradient(
-                            colors: [.primary, .secondary],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ))
+                    DurationLabel(startedAt: startedAt)
 
-                    Text(L10n.statusRecording)
+                    Text(coordinator.state.isRecovering ? L10n.statusReconnecting : L10n.statusRecording)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .transition(.asymmetric(
-                    insertion: .scale.combined(with: .opacity),
-                    removal: .opacity
-                ))
+                .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
             } else if coordinator.isStopping {
                 VStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
                     Text(L10n.statusFinishing)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
+            } else if coordinator.isStarting {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(
+                        permissionMonitor.systemAudio == .unknownUntilFirstUse
+                            ? L10n.statusWaitingSystemAudio : L10n.statusStarting
+                    )
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 20)
             } else {
                 VStack(spacing: 4) {
                     Text(coordinator.isTeamsMeetingDetected ? L10n.statusTeamsDetected : L10n.statusReady)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(coordinator.isTeamsMeetingDetected ? .blue : .primary)
+                        .foregroundStyle(coordinator.isTeamsMeetingDetected ? Color.blue : Color.primary)
 
                     if coordinator.isTeamsMeetingDetected {
-                        HStack(spacing: 4) {
-                            Image(systemName: "video.circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(.blue)
-                            Text(L10n.statusTeamsActive)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.blue)
-                        }
+                        Label(L10n.statusTeamsActive, systemImage: "video.circle.fill")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.blue)
                     } else {
                         HStack(spacing: 12) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "mic.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.blue)
-                                Text(L10n.audioMicrophone)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.secondary)
-                            }
-
-                            HStack(spacing: 4) {
-                                Image(systemName: "speaker.wave.2.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.green)
-                                Text(L10n.audioSystem)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.secondary)
-                            }
+                            Label(L10n.audioMicrophone, systemImage: "mic.fill")
+                            Label(L10n.audioSystem, systemImage: "speaker.wave.2.fill")
                         }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
                     }
                 }
-                .transition(.asymmetric(
-                    insertion: .scale.combined(with: .opacity),
-                    removal: .opacity
-                ))
+                .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
             }
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: coordinator.isRecording)
@@ -275,8 +170,7 @@ struct StatusBarMenu: View {
     private var transcriptionSection: some View {
         if coordinator.transcription.state.isTranscribing {
             VStack(spacing: 0) {
-                Divider()
-                    .padding(.horizontal, 20)
+                Divider().padding(.horizontal, 20)
 
                 HStack(spacing: 12) {
                     ZStack {
@@ -286,18 +180,18 @@ struct StatusBarMenu: View {
 
                         Image(systemName: "waveform.circle")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.purple)
+                            .foregroundStyle(.purple)
                             .symbolEffect(.pulse, options: .repeating)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L10n.menuTranscriptionRunning)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
 
                         Text(coordinator.transcription.state.progress)
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
 
@@ -315,22 +209,21 @@ struct StatusBarMenu: View {
             }
         } else if let error = coordinator.transcription.state.error {
             VStack(spacing: 0) {
-                Divider()
-                    .padding(.horizontal, 20)
+                Divider().padding(.horizontal, 20)
 
                 HStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 16))
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L10n.menuTranscriptionError)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
 
                         Text(error)
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
 
@@ -347,24 +240,15 @@ struct StatusBarMenu: View {
 
     private var quickActionsSection: some View {
         VStack(spacing: 0) {
-            Divider()
-                .padding(.horizontal, 20)
+            Divider().padding(.horizontal, 20)
 
             HStack(spacing: 0) {
-                QuickActionButton(
-                    icon: "folder.fill",
-                    title: L10n.actionFolder,
-                    action: openRecordingsFolder
-                )
+                QuickActionButton(icon: "folder.fill", title: L10n.actionFolder, action: openRecordingsFolder)
 
                 Divider()
                     .frame(height: Constants.UI.quickActionHeight)
 
-                QuickActionButton(
-                    icon: "gearshape.fill",
-                    title: L10n.actionSettings,
-                    action: onOpenSettings
-                )
+                QuickActionButton(icon: "gearshape.fill", title: L10n.actionSettings, action: onOpenSettings)
             }
             .frame(height: Constants.UI.quickActionHeight)
         }
@@ -375,43 +259,38 @@ struct StatusBarMenu: View {
 
     @ViewBuilder
     private var errorSection: some View {
-        if let errorMessage = coordinator.errorMessage {
+        if let error = coordinator.error {
             VStack(spacing: 0) {
-                Divider()
-                    .padding(.horizontal, 20)
+                Divider().padding(.horizontal, 20)
 
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(.orange)
+                            .foregroundStyle(.orange)
 
-                        Text(errorMessage)
+                        Text(error.message)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                             .multilineTextAlignment(.leading)
-                            .lineLimit(2)
+                            .lineLimit(3)
 
                         Spacer()
                     }
 
-                    if permissionMonitor.screenRecordingPermission != .authorized {
-                        Button(action: {
-                            permissionMonitor.openScreenRecordingSettings()
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "gear")
-                                    .font(.system(size: 10, weight: .medium))
-                                Text(L10n.menuErrorAuthorizeScreen)
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.blue)
-                            .clipShape(Capsule())
+                    if let remedy = error.remedy {
+                        Button {
+                            perform(remedy)
+                        } label: {
+                            Label(remedy.title, systemImage: remedy.symbolName)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.blue)
+                                .clipShape(Capsule())
                         }
-                        .buttonStyle(PlainButtonStyle())
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -423,128 +302,196 @@ struct StatusBarMenu: View {
 
     // MARK: - Helpers
 
-    private func recordingDuration(at date: Date) -> TimeInterval {
-        guard let startedAt = coordinator.recordingStartedAt else { return 0 }
-        return date.timeIntervalSince(startedAt)
-    }
-
     private func toggleRecording() {
         guard !coordinator.isStopping else { return }
+        if coordinator.isRecording {
+            coordinator.stop()
+        } else {
+            coordinator.start()
+        }
+    }
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            if coordinator.isRecording {
-                coordinator.stop()
-            } else {
-                coordinator.start()
-            }
+    private func perform(_ remedy: RecordingError.Remedy) {
+        switch remedy {
+        case .openPrivacySettings(let kind):
+            permissionMonitor.openSystemSettings(for: kind)
+        case .openFolder(let url):
+            NSWorkspace.shared.open(url)
         }
     }
 
     private func openRecordingsFolder() {
         guard let documentsURL = FileSystemUtilities.getDocumentsDirectory() else {
-            Logger.shared.error("Unable to open Documents directory", component: "UI")
+            Log.ui.error("Unable to open Documents directory")
             return
         }
         NSWorkspace.shared.open(documentsURL)
     }
+}
 
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+// MARK: - Activity
+
+/// Collapses the coordinator's flags into one value for the indicator.
+private enum MenuActivity: Equatable {
+    case idle, teams, recording, finishing
+
+    init(isStopping: Bool, isRecording: Bool, isTeamsMeetingDetected: Bool) {
+        if isStopping {
+            self = .finishing
+        } else if isRecording {
+            self = .recording
+        } else if isTeamsMeetingDetected {
+            self = .teams
+        } else {
+            self = .idle
+        }
+    }
+
+    var gradient: LinearGradient {
+        switch self {
+        case .finishing: return MenuStyle.finishingGradient
+        case .recording: return MenuStyle.recordingGradient
+        case .teams: return MenuStyle.teamsGradient
+        case .idle: return MenuStyle.idleGradient
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .finishing: return .orange
+        case .recording: return .red
+        case .teams: return .blue
+        case .idle: return .secondary
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .finishing: return L10n.statusFinishingShort
+        case .recording: return L10n.statusRecordingShort
+        case .teams: return L10n.statusTeamsShort
+        case .idle: return L10n.statusIdle
+        }
+    }
+}
+
+// MARK: - Style
+
+private enum MenuStyle {
+    static let brandGradient = LinearGradient(
+        colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let finishingGradient = LinearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom)
+    static let recordingGradient = LinearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom)
+    static let teamsGradient = LinearGradient(colors: [.blue, .cyan], startPoint: .top, endPoint: .bottom)
+    static let idleGradient = LinearGradient(
+        colors: [.gray.opacity(0.3), .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
+    static let ringGradient = LinearGradient(
+        colors: [.red, .orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let recordButtonGradient = LinearGradient(
+        colors: [.red.opacity(0.8), .red], startPoint: .top, endPoint: .bottom)
+    static let idleButtonGradient = LinearGradient(
+        colors: [.blue.opacity(0.8), .blue], startPoint: .top, endPoint: .bottom)
+    static let durationGradient = LinearGradient(
+        colors: [.primary, .secondary], startPoint: .leading, endPoint: .trailing)
+}
+
+// MARK: - Ticking subviews (only exist while recording)
+
+private struct ProgressRing: View {
+    let startedAt: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: startedAt, by: 1.0)) { context in
+            let elapsed = context.date.timeIntervalSince(startedAt)
+            Circle()
+                .trim(from: 0, to: min(elapsed / Constants.UI.maxRecordingDurationForProgress, 1.0))
+                .stroke(
+                    MenuStyle.ringGradient,
+                    style: StrokeStyle(lineWidth: Constants.UI.progressRingLineWidth, lineCap: .round)
+                )
+                .frame(width: Constants.UI.controlCircleSize, height: Constants.UI.controlCircleSize)
+                .rotationEffect(.degrees(-90))
+        }
+    }
+}
+
+private struct DurationLabel: View {
+    let startedAt: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: startedAt, by: 1.0)) { context in
+            Text(Self.format(context.date.timeIntervalSince(startedAt)))
+                .font(.system(size: 24, weight: .bold, design: .monospaced))
+                .foregroundStyle(MenuStyle.durationGradient)
+        }
+    }
+
+    static func format(_ duration: TimeInterval) -> String {
+        let total = max(0, Int(duration))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        return hours > 0
+            ? String(format: "%d:%02d:%02d", hours, minutes, seconds)
+            : String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+// MARK: - Record Button
+
+private struct RecordButton: View {
+    let isRecording: Bool
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(isRecording ? MenuStyle.recordButtonGradient : MenuStyle.idleButtonGradient)
+                    .frame(width: Constants.UI.controlButtonSize, height: Constants.UI.controlButtonSize)
+                    .scaleEffect(isHovering ? 1.05 : 1.0)
+
+                Image(systemName: isRecording ? "stop.fill" : "record.circle")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(.white)
+                    .scaleEffect(isRecording ? 0.8 : 1.0)
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isRecording)
     }
 }
 
 // MARK: - Quick Action Button
 
-/// Quick action with an Option-key alternate action/icon/title.
-/// The flagsChanged monitor is stored and removed on disappear —
-/// the old code accumulated one monitor per appearance, forever.
 struct QuickActionButton: View {
     let icon: String
     let title: String
     let action: () -> Void
-    let isDestructive: Bool
-    let isActive: Bool
-    let alternateAction: (() -> Void)?
-    let alternateIcon: String?
-    let alternateTitle: String?
 
     @State private var isHovering = false
-    @State private var isOptionPressed = false
-    @State private var flagsMonitor: Any?
-
-    init(
-        icon: String,
-        title: String,
-        action: @escaping () -> Void,
-        isDestructive: Bool = false,
-        isActive: Bool = false,
-        alternateAction: (() -> Void)? = nil,
-        alternateIcon: String? = nil,
-        alternateTitle: String? = nil
-    ) {
-        self.icon = icon
-        self.title = title
-        self.action = action
-        self.isDestructive = isDestructive
-        self.isActive = isActive
-        self.alternateAction = alternateAction
-        self.alternateIcon = alternateIcon
-        self.alternateTitle = alternateTitle
-    }
 
     var body: some View {
-        Button(action: {
-            if isOptionPressed, let alternateAction {
-                alternateAction()
-            } else {
-                action()
-            }
-        }) {
+        Button(action: action) {
             VStack(spacing: 4) {
-                Image(systemName: isOptionPressed ? (alternateIcon ?? icon) : icon)
+                Image(systemName: icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isDestructive ? .red : isActive ? .blue : .primary)
+                    .foregroundStyle(.primary)
 
-                Text(isOptionPressed ? (alternateTitle ?? title) : title)
+                Text(title)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(isDestructive ? .red : isActive ? .blue : .secondary)
+                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .scaleEffect(isHovering ? 1.05 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
         }
-        .buttonStyle(PlainButtonStyle())
-        .onHover { hovering in
-            isHovering = hovering
-        }
-        .onAppear {
-            flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-                isOptionPressed = event.modifierFlags.contains(.option)
-                return event
-            }
-        }
-        .onDisappear {
-            if let flagsMonitor {
-                NSEvent.removeMonitor(flagsMonitor)
-            }
-            flagsMonitor = nil
-        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
     }
-}
-
-// MARK: - Visual Effect View
-
-struct VisualEffectView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }

@@ -1,3 +1,4 @@
+import os
 import Foundation
 
 /// Application settings backed by UserDefaults.
@@ -7,18 +8,6 @@ import Foundation
 @MainActor
 @Observable
 final class SettingsStore {
-
-    // MARK: - Settings Keys
-
-    private enum Keys {
-        static let transcriptionEnabled = "transcriptionEnabled"
-        static let apiBaseURL = "apiBaseURL"
-        static let whisperModel = "whisperModel"
-        static let language = "language"
-        static let nbSpeaker = "nbSpeaker"
-        static let computeType = "computeType"
-        static let autoRecordingEnabled = "autoRecordingEnabled"
-    }
 
     // MARK: - Defaults
 
@@ -38,43 +27,42 @@ final class SettingsStore {
 
     var transcriptionEnabled: Bool {
         didSet {
-            defaults.set(transcriptionEnabled, forKey: Keys.transcriptionEnabled)
-            Logger.shared.info("Transcription enabled: \(transcriptionEnabled)", component: "SETTINGS")
+            defaults.set(transcriptionEnabled, for: .transcriptionEnabled)
+            Log.settings.debug("Transcription enabled: \(self.transcriptionEnabled)")
         }
     }
 
     var apiBaseURL: String {
         didSet {
-            defaults.set(apiBaseURL, forKey: Keys.apiBaseURL)
-            Logger.shared.info("API URL updated: \(apiBaseURL)", component: "SETTINGS")
+            defaults.set(apiBaseURL, for: .apiBaseURL)
         }
     }
 
     var whisperModel: String {
         didSet {
-            defaults.set(whisperModel, forKey: Keys.whisperModel)
-            Logger.shared.info("Whisper model: \(whisperModel)", component: "SETTINGS")
+            defaults.set(whisperModel, for: .whisperModel)
+            Log.settings.debug("Whisper model: \(self.whisperModel)")
         }
     }
 
     var language: String {
         didSet {
-            defaults.set(language, forKey: Keys.language)
-            Logger.shared.info("Language: \(language)", component: "SETTINGS")
+            defaults.set(language, for: .language)
+            Log.settings.debug("Language: \(self.language)")
         }
     }
 
     var nbSpeaker: Int {
         didSet {
-            defaults.set(nbSpeaker, forKey: Keys.nbSpeaker)
-            Logger.shared.info("Number of speakers: \(nbSpeaker)", component: "SETTINGS")
+            defaults.set(nbSpeaker, for: .nbSpeaker)
+            Log.settings.debug("Number of speakers: \(self.nbSpeaker)")
         }
     }
 
     var computeType: String {
         didSet {
-            defaults.set(computeType, forKey: Keys.computeType)
-            Logger.shared.info("Compute type: \(computeType)", component: "SETTINGS")
+            defaults.set(computeType, for: .computeType)
+            Log.settings.debug("Compute type: \(self.computeType)")
         }
     }
 
@@ -82,8 +70,8 @@ final class SettingsStore {
     /// Now persisted (was in-memory only in the old StatusBarManager).
     var autoRecordingEnabled: Bool {
         didSet {
-            defaults.set(autoRecordingEnabled, forKey: Keys.autoRecordingEnabled)
-            Logger.shared.info("Auto recording: \(autoRecordingEnabled)", component: "SETTINGS")
+            defaults.set(autoRecordingEnabled, for: .autoRecordingEnabled)
+            Log.settings.debug("Auto recording: \(self.autoRecordingEnabled)")
         }
     }
 
@@ -92,24 +80,30 @@ final class SettingsStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        self.transcriptionEnabled = defaults.object(forKey: Keys.transcriptionEnabled) as? Bool
+        self.transcriptionEnabled =
+            defaults.object(for: .transcriptionEnabled) as? Bool
             ?? Defaults.transcriptionEnabled
-        self.apiBaseURL = defaults.string(forKey: Keys.apiBaseURL)
+        self.apiBaseURL =
+            defaults.string(for: .apiBaseURL)
             ?? Defaults.apiBaseURL
-        self.whisperModel = defaults.string(forKey: Keys.whisperModel)
+        self.whisperModel =
+            defaults.string(for: .whisperModel)
             ?? Defaults.whisperModel
-        self.language = defaults.string(forKey: Keys.language)
+        self.language =
+            defaults.string(for: .language)
             ?? Defaults.language
 
-        let nbSpeakerValue = defaults.integer(forKey: Keys.nbSpeaker)
+        let nbSpeakerValue = defaults.integer(for: .nbSpeaker)
         self.nbSpeaker = nbSpeakerValue == 0 ? Defaults.nbSpeaker : nbSpeakerValue
 
-        self.computeType = defaults.string(forKey: Keys.computeType)
+        self.computeType =
+            defaults.string(for: .computeType)
             ?? Defaults.computeType
-        self.autoRecordingEnabled = defaults.object(forKey: Keys.autoRecordingEnabled) as? Bool
+        self.autoRecordingEnabled =
+            defaults.object(for: .autoRecordingEnabled) as? Bool
             ?? Defaults.autoRecordingEnabled
 
-        Logger.shared.info("Settings loaded (transcription: \(transcriptionEnabled))", component: "SETTINGS")
+        Log.settings.info("Settings loaded (transcription: \(self.transcriptionEnabled))")
     }
 
     // MARK: - Public Methods
@@ -123,11 +117,11 @@ final class SettingsStore {
         nbSpeaker = Defaults.nbSpeaker
         computeType = Defaults.computeType
         autoRecordingEnabled = Defaults.autoRecordingEnabled
-        Logger.shared.info("Reset to defaults", component: "SETTINGS")
+        Log.settings.info("Reset to defaults")
     }
 
     /// Validate API URL format (http/https scheme required)
-    func isValidAPIURL(_ urlString: String) -> Bool {
+    static func isValidAPIURL(_ urlString: String) -> Bool {
         guard let url = URL(string: urlString) else {
             return false
         }

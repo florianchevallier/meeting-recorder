@@ -2,60 +2,44 @@ name: CI/CD Pipeline
 
 on:
   push:
+    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
 
 jobs:
-  test:
-    runs-on: macos-15
+  lint:
+    runs-on: macos-26
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: '16.0'
-    
-    - name: Get Package.swift hash
-      id: package-hash
-      run: |
-        if [ -f Package.swift ]; then
-          echo "hash=$(shasum -a 256 Package.swift | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-        else
-          echo "hash=no-package" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Cache Swift Package Manager
-      uses: actions/cache@v4
+        xcode-version: '26.5'
+
+    - name: swift-format lint
+      run: swift format lint --strict --recursive --parallel Sources Tests Package.swift
+
+  test:
+    runs-on: macos-26
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
       with:
-        path: .build
-        key: ${{ runner.os }}-spm-${{ steps.package-hash.outputs.hash }}
-        restore-keys: |
-          ${{ runner.os }}-spm-
-    
-    - name: Build for testing
-      run: swift build --configuration debug
-    
+        xcode-version: '26.5'
+
+    - name: Build (warnings as errors)
+      run: swift build --configuration debug -Xswiftc -warnings-as-errors
+
     - name: Run tests
-      run: |
-        # Skip tests if no test files exist
-        if [ -d "Tests" ] && [ -n "$(find Tests -name '*Tests.swift' 2>/dev/null)" ]; then
-          echo "Running tests..."
-          swift test --configuration debug --parallel
-        else
-          echo "⚠️ No tests found - skipping test phase"
-          echo "Tests can be added later in the Tests/ directory"
-        fi
-    
-    - name: Validate package structure
-      run: |
-        swift package describe --type json > package-info.json
-        cat package-info.json
-        
+      run: swift test --configuration debug --parallel -Xswiftc -warnings-as-errors
+
   build:
-    needs: test
-    runs-on: macos-15
+    needs: [lint, test]
+    runs-on: macos-26
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     outputs:
       app-path: ${{ steps.build.outputs.app-path }}
@@ -70,7 +54,7 @@ jobs:
     - name: Setup Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: '16.0'
+        xcode-version: '26.5'
     
     # ============================================
     # CODE SIGNING SETUP
@@ -150,7 +134,10 @@ jobs:
     - name: Build release
       id: build
       run: |
-        swift build --configuration release --arch arm64 --arch x86_64
+        swift build --configuration release
+        BIN_PATH="$(swift build --configuration release --show-bin-path)"
+        echo "Built architecture:"
+        lipo -info "$BIN_PATH/MeetingRecorder"
         
         # Create app bundle structure
         APP_NAME="MeetingRecorder"
@@ -159,13 +146,13 @@ jobs:
         mkdir -p "$APP_PATH/Contents/Resources"
         
         # Copy executable
-        cp .build/apple/Products/Release/${APP_NAME} "$APP_PATH/Contents/MacOS/"
+        cp ${BIN_PATH}/${APP_NAME} "$APP_PATH/Contents/MacOS/"
         
         # Copy Info.plist
         cp Info.plist "$APP_PATH/Contents/"
         
         # Copy localization bundle (critical for app startup)
-        LOCALIZATION_BUNDLE=".build/apple/Products/Release/${APP_NAME}_${APP_NAME}.bundle"
+        LOCALIZATION_BUNDLE="${BIN_PATH}/${APP_NAME}_${APP_NAME}.bundle"
         if [ -d "$LOCALIZATION_BUNDLE" ]; then
           echo "📦 Copying localization bundle: $LOCALIZATION_BUNDLE"
           cp -r "$LOCALIZATION_BUNDLE" "$APP_PATH/Contents/Resources/"
@@ -180,7 +167,7 @@ jobs:
         else
           echo "❌ ERROR: Localization bundle not found at $LOCALIZATION_BUNDLE"
           echo "Available files in build directory:"
-          ls -la .build/apple/Products/Release/
+          ls -la "$BIN_PATH/"
           exit 1
         fi
         
@@ -202,38 +189,32 @@ jobs:
       run: |
         APP_PATH="dist/Meety.app"
         
-        echo "🔐 Signing application with Developer ID..."
-        
-        # Sign all dylibs and frameworks first (if any)
-        find "$APP_PATH" -type f \( -name "*.dylib" -o -name "*.framework" \) -print0 | while IFS= read -r -d '' file; do
-          echo "  Signing: $(basename "$file")"
+        echo "🔐 Signing application with Developer ID (inside-out, no --deep)..."
+
+        # 1. Nested code first: the SwiftPM resource bundle.
+        RESOURCE_BUNDLE="$APP_PATH/Contents/Resources/MeetingRecorder_MeetingRecorder.bundle"
+        if [ -d "$RESOURCE_BUNDLE" ]; then
           codesign --force --sign "$SIGNING_IDENTITY" \
             --timestamp \
             --options runtime \
-            "$file" 2>/dev/null || true
-        done
-        
-        # Sign the main executable
+            "$RESOURCE_BUNDLE"
+        fi
+
+        # 2. The app bundle (signs Contents/MacOS/MeetingRecorder as the main
+        #    executable). Entitlements apply to the main executable only —
+        #    never combine --entitlements with --deep.
         codesign --force --sign "$SIGNING_IDENTITY" \
           --entitlements MeetingRecorder.entitlements \
           --timestamp \
           --options runtime \
-          --deep \
-          "$APP_PATH/Contents/MacOS/MeetingRecorder"
-        
-        # Sign the entire app bundle
-        codesign --force --sign "$SIGNING_IDENTITY" \
-          --entitlements MeetingRecorder.entitlements \
-          --timestamp \
-          --options runtime \
-          --deep \
           "$APP_PATH"
-        
+
         echo "✅ Application signed successfully"
-        
+
         # Verify signature
         echo "🔍 Verifying signature..."
         codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+        spctl --assess --type execute --verbose=2 "$APP_PATH" || echo "spctl assessment deferred until notarization"
         
         # Display signature info
         echo "📋 Signature details:"
@@ -262,8 +243,7 @@ jobs:
         
         📋 Required Permissions:
         - Microphone access (for voice recording)
-        - Screen recording (for system audio)
-        - Documents folder (for saving recordings)
+        - System Audio Recording (for the audio of Teams, Zoom… — no screen recording needed)
         - Accessibility (for Teams detection)
         
         🚀 Getting Started:
@@ -410,7 +390,7 @@ jobs:
         echo "release-notes-file=release-notes.md" >> $GITHUB_OUTPUT
     
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         name: "Meety v${{ needs.build.outputs.version }}"
         body_path: release-notes.md
@@ -418,7 +398,7 @@ jobs:
           release-artifacts/Meety-${{ needs.build.outputs.version }}.dmg
         draft: false
         prerelease: false
-        generate_release_notes: true
+        generate_release_notes: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     

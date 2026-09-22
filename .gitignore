@@ -40,3 +40,15 @@ test_*.wav
 
 # Documentation build
 docs/_build/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Other AI/editor tooling
+.cursor/
+.codex-preview/
+opencode.json
+
+# Scratch
+/tmp/
+/output/

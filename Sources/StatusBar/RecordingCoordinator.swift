@@ -1,10 +1,34 @@
+import os
 import Foundation
-import AVFoundation
+import Observation
 
-/// Owns the recording lifecycle: drives the `CaptureEngine` actor, converts the
-/// MOV to M4A, kicks off transcription, and reacts to Teams meeting changes.
-///
-/// Replaces the capture half of the old `StatusBarManager` god object.
+/// User-facing recording error with an optional one-tap remedy.
+struct RecordingError: Equatable, Sendable {
+    enum Remedy: Equatable, Sendable {
+        case openPrivacySettings(PermissionKind)
+        case openFolder(URL)
+
+        var title: String {
+            switch self {
+            case .openPrivacySettings: return L10n.menuErrorOpenPrivacySettings
+            case .openFolder: return L10n.menuErrorOpenFolder
+            }
+        }
+
+        var symbolName: String {
+            switch self {
+            case .openPrivacySettings: return "gear"
+            case .openFolder: return "folder"
+            }
+        }
+    }
+
+    let message: String
+    var remedy: Remedy? = nil
+}
+
+/// Owns the recording lifecycle: drives the `CaptureEngine` actor, kicks off
+/// transcription, and reacts to Teams meeting changes.
 @MainActor
 @Observable
 final class RecordingCoordinator {
@@ -12,12 +36,12 @@ final class RecordingCoordinator {
     // MARK: - Observable State
 
     private(set) var state: RecordingState = .idle
-    var errorMessage: String?
+    private(set) var error: RecordingError?
 
     // MARK: - Dependencies
 
     private let settings: SettingsStore
-    private let converter: MediaConverter
+    private let permissionMonitor: PermissionMonitor
     private let teamsMonitor: TeamsMonitor
 
     /// Transcription entry point.
@@ -28,11 +52,17 @@ final class RecordingCoordinator {
     private var engine: CaptureEngine?
     private var eventsTask: Task<Void, Never>?
     private var teamsEventsTask: Task<Void, Never>?
+    private var startTask: Task<Void, Never>?
+    private var stopTask: Task<Void, Never>?
+    private var permissionWatchTask: Task<Void, Never>?
 
     // MARK: - Computed
 
     var isRecording: Bool { state.isRecording }
+    var isStarting: Bool { state == .starting }
     var isStopping: Bool { state == .stopping }
+    /// True whenever a capture session exists or is being created/finalized.
+    var hasActiveSession: Bool { state != .idle }
     var recordingStartedAt: Date? { state.startedAt }
 
     /// Teams meeting currently detected (drives the status bar icon).
@@ -42,24 +72,40 @@ final class RecordingCoordinator {
 
     init(
         settings: SettingsStore,
-        converter: MediaConverter = MediaConverter(),
+        permissionMonitor: PermissionMonitor,
         teamsMonitor: TeamsMonitor = TeamsMonitor()
     ) {
         self.settings = settings
-        self.converter = converter
+        self.permissionMonitor = permissionMonitor
         self.teamsMonitor = teamsMonitor
         self.transcription = TranscriptionCoordinator(settings: settings)
+        watchMicrophoneRevocation()
+    }
+
+    /// Stops an in-flight recording if the microphone permission is revoked
+    /// (macOS applies the revocation live: input goes silent, the app survives).
+    private func watchMicrophoneRevocation() {
+        let monitor = permissionMonitor
+        permissionWatchTask = Task { [weak self] in
+            for await denied in Observations({ monitor.microphone == .denied }) where denied {
+                guard let self, self.state.isRecording else { continue }
+                Log.recording.warning("Microphone permission revoked mid-recording — stopping")
+                self.error = RecordingError(
+                    message: L10n.errorMicrophonePermission, remedy: .openPrivacySettings(.microphone))
+                self.stop()
+            }
+        }
     }
 
     // MARK: - Teams Monitoring Lifecycle
 
     /// Start the Teams monitor and consume its meeting-change stream.
     func startTeamsMonitoring() {
-        Task { await teamsMonitor.startMonitoring() }
-
+        teamsMonitor.start()
+        let changes = teamsMonitor.meetingChanges
         teamsEventsTask = Task { [weak self] in
-            guard let self else { return }
-            for await isActive in teamsMonitor.meetingChanges {
+            for await isActive in changes {
+                guard let self else { return }
                 self.teamsMeetingDidChange(isActive)
             }
         }
@@ -68,51 +114,103 @@ final class RecordingCoordinator {
     func stopTeamsMonitoring() {
         teamsEventsTask?.cancel()
         teamsEventsTask = nil
-        Task { await teamsMonitor.stopMonitoring() }
+        teamsMonitor.stop()
     }
 
-    func teamsStatus() async -> TeamsStatus {
-        await teamsMonitor.status()
-    }
+    // MARK: - State helper
 
-    func manualTeamsCheck() async -> Bool {
-        await teamsMonitor.checkNow()
+    private func apply(_ action: RecordingState.Action) {
+        guard let next = state.transition(action) else {
+            Log.recording.warning(
+                "Ignored action \(String(describing: action), privacy: .public) in state \(String(describing: self.state), privacy: .public)"
+            )
+            return
+        }
+        state = next
     }
 
     // MARK: - Start
 
     func start() {
-        Logger.shared.info("Recording start requested", component: "RECORDING")
-
+        Log.recording.info("Recording start requested")
         guard state == .idle else {
-            Logger.shared.warning("Start ignored — state is \(state)", component: "RECORDING")
+            Log.recording.warning("Start ignored — state is \(String(describing: self.state), privacy: .public)")
             return
         }
-        state = .starting
+        apply(.startRequested)
 
-        Task {
-            guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-                Logger.shared.error("Missing microphone permission", component: "RECORDING")
-                errorMessage = L10n.errorMicrophonePermission
-                state = .idle
+        startTask = Task { [weak self] in
+            await self?.performStart()
+            self?.startTask = nil
+        }
+    }
+
+    private func performStart() async {
+        permissionMonitor.refresh()
+        if permissionMonitor.microphone == .notDetermined {
+            await permissionMonitor.requestMicrophone()
+        }
+        guard permissionMonitor.microphone == .granted else {
+            Log.recording.error("Missing microphone permission")
+            error = RecordingError(message: L10n.errorMicrophonePermission, remedy: .openPrivacySettings(.microphone))
+            apply(.startFailed)
+            return
+        }
+        guard permissionMonitor.systemAudio != .denied else {
+            Log.recording.error("System audio permission denied")
+            error = RecordingError(message: L10n.errorSystemAudioPermission, remedy: .openPrivacySettings(.systemAudio))
+            apply(.startFailed)
+            return
+        }
+
+        let outputURL: URL
+        do {
+            let documents = try FileSystemUtilities.getDocumentsDirectoryOrThrow()
+            guard FileManager.default.isWritableFile(atPath: documents.path) else {
+                error = RecordingError(message: L10n.errorOutputFolderNotWritable, remedy: .openFolder(documents))
+                apply(.startFailed)
                 return
             }
+            let name = FileSystemUtilities.createTimestampedFilename(
+                prefix: Constants.Permissions.recordingPrefix,
+                extension: Constants.Permissions.recordingExtension
+            )
+            outputURL = documents.appendingPathComponent(name)
+        } catch {
+            self.error = RecordingError(message: L10n.errorRecordingFailed(error.localizedDescription))
+            apply(.startFailed)
+            return
+        }
 
-            let engine = CaptureEngine()
-            self.engine = engine
-            subscribeToEvents(of: engine)
+        let engine = CaptureEngine()
+        self.engine = engine
+        subscribeToEvents(of: engine)
 
-            do {
-                _ = try await engine.start()
-                state = .recording(startedAt: Date())
-                errorMessage = nil
-                Logger.shared.info("Recording started successfully", component: "RECORDING")
-            } catch {
-                Logger.shared.error("Recording start failed: \(error.localizedDescription)", component: "RECORDING")
-                errorMessage = L10n.errorRecordingFailed(error.localizedDescription)
-                state = .idle
-                self.engine = nil
+        do {
+            try await engine.start(outputURL: outputURL)
+            // A stop may have been requested while the TCC prompt was up.
+            guard state == .starting else {
+                Log.recording.info("Start completed after a stop request — finalizing immediately")
+                await performStop()
+                return
             }
+            apply(.started(Date()))
+            self.error = nil
+            Log.recording.info("Recording started")
+        } catch {
+            Log.recording.error("Recording start failed: \(error.localizedDescription, privacy: .public)")
+            if error == .systemAudioAccessDenied {
+                permissionMonitor.recordSystemAudioOutcome(.denied)
+                self.error = RecordingError(
+                    message: L10n.errorSystemAudioPermission, remedy: .openPrivacySettings(.systemAudio))
+            } else {
+                self.error = RecordingError(
+                    message: error.errorDescription ?? L10n.errorRecordingFailed(error.localizedDescription))
+            }
+            self.engine = nil
+            eventsTask?.cancel()
+            eventsTask = nil
+            apply(.startFailed)
         }
     }
 
@@ -120,95 +218,90 @@ final class RecordingCoordinator {
 
     func stop() {
         guard state.isRecording || state == .starting else {
-            Logger.shared.warning("Stop ignored — state is \(state)", component: "RECORDING")
+            Log.recording.warning("Stop ignored — state is \(String(describing: self.state), privacy: .public)")
             return
         }
-
-        Logger.shared.info("Recording stop requested", component: "RECORDING")
-        state = .stopping
-        Task { await performStop() }
+        Log.recording.info("Recording stop requested")
+        let wasStarting = state == .starting
+        apply(.stopRequested)
+        // While starting, `performStart` observes the `.stopping` state and finalizes itself.
+        guard !wasStarting else { return }
+        stopTask = Task { [weak self] in
+            await self?.performStop()
+            self?.stopTask = nil
+        }
     }
 
-    /// Termination path: stop and finalize synchronously (awaited by the AppDelegate).
+    /// Termination path: stop and finalize (awaited by the AppDelegate).
     func shutdown() async {
-        if state.isRecording || state == .starting {
-            Logger.shared.info("Shutdown while recording — finalizing…", component: "RECORDING")
-            state = .stopping
+        if let startTask { await startTask.value }
+        if let stopTask {
+            await stopTask.value
+            return
+        }
+        if state.isRecording {
+            Log.recording.info("Shutdown while recording — finalizing…")
+            apply(.stopRequested)
             await performStop()
         }
     }
 
     private func performStop() async {
-        var finalFileURL: URL?
-
         defer {
             engine = nil
             eventsTask?.cancel()
             eventsTask = nil
-            state = .idle
-            Logger.shared.info("Stop sequence completed", component: "RECORDING")
+            apply(.stopped)
+            Log.recording.info("Stop sequence completed")
         }
 
-        // Pre-indicate transcription (UI feedback before the conversion)
         let shouldTranscribe = settings.transcriptionEnabled
         if shouldTranscribe {
             transcription.preIndicate()
         }
 
-        if let movURL = await engine?.stop() {
-            finalFileURL = await convertAndCleanup(movURL: movURL, shouldTranscribe: shouldTranscribe)
+        var finalURL: URL?
+        do {
+            finalURL = try await engine?.stop()
+        } catch {
+            Log.recording.error("Stop failed: \(error.localizedDescription, privacy: .public)")
+            self.error = RecordingError(
+                message: (error as? CaptureFailure)?.errorDescription
+                    ?? L10n.errorRecordingFailed(error.localizedDescription))
+            finalURL = await engine?.recordingURL.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
         }
 
-        if let finalURL = finalFileURL {
-            Logger.shared.info("Final recording saved: \(finalURL.lastPathComponent)", component: "RECORDING")
-            if shouldTranscribe {
-                Logger.shared.info("Starting transcription for: \(finalURL.lastPathComponent)", component: "TRANSCRIPTION")
-                transcription.notifyUploadStarted()
-                Task { [transcription] in
-                    await transcription.transcribe(audioFileURL: finalURL)
-                }
-            }
-        } else {
-            Logger.shared.warning("No file generated", component: "RECORDING")
-            if shouldTranscribe {
-                transcription.notifyNoFileGenerated()
-            }
-        }
+        handleFinalFile(finalURL, transcribe: shouldTranscribe)
     }
 
-    /// Convert MOV → M4A and delete the MOV on success.
-    /// On conversion failure the MOV is kept and surfaced to the user.
-    private func convertAndCleanup(movURL: URL, shouldTranscribe: Bool) async -> URL? {
-        do {
-            if shouldTranscribe {
-                transcription.notifyConversionInProgress()
-            }
-            let m4aURL = try await converter.convertToM4A(movURL)
-            try FileManager.default.removeItem(at: movURL)
-            Logger.shared.debug("Original MOV file removed", component: "RECORDING")
-            return m4aURL
-        } catch {
-            Logger.shared.error("MOV to M4A conversion failed: \(error.localizedDescription)", component: "RECORDING")
-            errorMessage = L10n.errorRecordingFailed(error.localizedDescription)
-            return movURL // keep the MOV as the final artifact
+    private func handleFinalFile(_ url: URL?, transcribe: Bool) {
+        guard let url else {
+            Log.recording.warning("No file generated")
+            if transcribe { transcription.notifyNoFileGenerated() }
+            return
+        }
+        Log.recording.info("Final recording saved: \(url.lastPathComponent, privacy: .public)")
+        guard transcribe else { return }
+        transcription.notifyUploadStarted()
+        Task { [transcription] in
+            await transcription.transcribe(audioFileURL: url)
         }
     }
 
     // MARK: - Teams Auto-Recording
 
-    /// Called when the Teams meeting status flips.
     /// Auto-starts on meeting begin; recording intentionally continues after the meeting ends.
     func teamsMeetingDidChange(_ isActive: Bool) {
         isTeamsMeetingDetected = isActive
-        Logger.shared.info("Meeting status changed: \(isActive ? "DETECTED" : "ENDED")", component: "TEAMS")
+        Log.teams.info("Meeting status changed: \(isActive ? "DETECTED" : "ENDED", privacy: .public)")
 
         if isActive {
-            if settings.autoRecordingEnabled && !isRecording {
-                Logger.shared.info("Starting automatic recording for Teams meeting", component: "AUTO")
+            if settings.autoRecordingEnabled && !isRecording && state == .idle {
+                Log.recording.info("Starting automatic recording for Teams meeting")
                 start()
             }
         } else {
-            Logger.shared.info("Teams meeting ended (recording continues)", component: "AUTO")
+            Log.recording.info("Teams meeting ended (recording continues)")
         }
     }
 
@@ -219,47 +312,50 @@ final class RecordingCoordinator {
         eventsTask = Task { [weak self] in
             for await event in engine.events {
                 guard let self else { return }
-                handleCaptureEvent(event, engine: engine)
+                self.handleCaptureEvent(event)
             }
         }
     }
 
-    private func handleCaptureEvent(_ event: CaptureEvent, engine: CaptureEngine) {
+    private func handleCaptureEvent(_ event: CaptureEvent) {
         switch event {
-        case .recoveryAttempt(let attempt):
-            Logger.shared.info("Recovery attempt \(attempt)", component: "RECORDING")
-            errorMessage = "Tentative de récupération \(attempt)/\(Constants.Recording.maxRecoveryAttempts)..."
-            if case .recording(let startedAt) = state {
-                state = .recovering(startedAt: startedAt, attempt: attempt)
-            }
+        case .started:
+            break
 
-        case .recovered:
-            Logger.shared.info("Recovery successful", component: "RECORDING")
-            errorMessage = nil
-            if case .recovering(let startedAt, _) = state {
-                state = .recording(startedAt: startedAt)
-            }
+        case .restarting(let attempt, let reason):
+            Log.recording.info("Tap restarting (\(attempt)): \(reason, privacy: .public)")
+            error = RecordingError(message: L10n.errorRecoveryAttempt(attempt, Constants.Recording.maxRecoveryAttempts))
+            apply(.restarting(attempt: attempt))
 
-        case .criticalError(let error):
-            Logger.shared.error("Critical capture error: \(error.localizedDescription)", component: "RECORDING")
-            errorMessage = "Erreur critique d'enregistrement: \(error.localizedDescription)"
-            // Salvage the partial MOV instead of losing it silently
-            // (the old code left the timer running and dropped the file).
-            Task { [weak self] in
-                guard let self else { return }
-                if let partialURL = await engine.currentOutputURL,
-                   FileManager.default.fileExists(atPath: partialURL.path) {
-                    Logger.shared.info("Salvaging partial recording: \(partialURL.lastPathComponent)", component: "RECORDING")
-                    _ = await convertAndCleanup(movURL: partialURL, shouldTranscribe: false)
-                }
-                self.engine = nil
-                eventsTask?.cancel()
-                eventsTask = nil
-                state = .idle
-            }
+        case .restarted:
+            Log.recording.info("Tap restarted")
+            error = nil
+            apply(.restarted)
 
-        case .unhealthy(let detail):
-            Logger.shared.warning("Capture unhealthy: \(detail)", component: "HEALTH_MONITOR")
+        case .degraded(let verdict):
+            Log.recording.warning("Capture degraded: \(String(describing: verdict), privacy: .public)")
+            permissionMonitor.refresh()
+
+        case .systemAudioDetected:
+            permissionMonitor.recordSystemAudioOutcome(.granted)
+
+        case .failed(let failure, let file):
+            Log.recording.error("Capture failed: \(failure.localizedDescription, privacy: .public)")
+            if failure == .systemAudioAccessDenied {
+                permissionMonitor.recordSystemAudioOutcome(.denied)
+                error = RecordingError(
+                    message: L10n.errorSystemAudioPermission, remedy: .openPrivacySettings(.systemAudio))
+            } else {
+                error = RecordingError(message: L10n.errorCriticalRecording(failure.localizedDescription))
+            }
+            guard state.isRecording else { return }
+            apply(.failed)
+            engine = nil
+            eventsTask?.cancel()
+            eventsTask = nil
+            // The engine already finalized the file; never transcribe a salvaged recording.
+            handleFinalFile(file, transcribe: false)
+            apply(.stopped)
         }
     }
 }

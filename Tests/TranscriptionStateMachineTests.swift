@@ -28,7 +28,7 @@ struct TranscriptionStateMachineTests {
 
         #expect(state.currentJobId == "job-123")
         #expect(state.isTranscribing)
-        #expect(state.progress == uploadMessage) // not overwritten
+        #expect(state.progress == uploadMessage)  // not overwritten
         #expect(state.error == nil)
     }
 

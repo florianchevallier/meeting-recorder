@@ -42,7 +42,11 @@ fi
 rm -rf "/Applications/$APP_FILE_NAME"
 rm -rf "$APP_BUNDLE"
 
-# 2. Build Swift executable
+# 2. Build Swift executable (always with the Xcode toolchain: the CLT on
+#    macOS 27 lacks the SwiftUIMacros plugin needed by SwiftUI's @State macro)
+if [ -z "${DEVELOPER_DIR:-}" ] && [[ "$(xcode-select -p)" == *CommandLineTools* ]] && [ -d /Applications/Xcode.app ]; then
+    export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+fi
 echo "📦 Building Swift executable..."
 swift build -c "$BUILD_CONFIG"
 
@@ -77,11 +81,27 @@ else
     echo "⚠️  Warning: Resources bundle not found at $BUILD_PATH!"
 fi
 
-# 4. Install to Applications
+# 4. Sign with a stable identity so TCC grants survive rebuilds.
+#    An ad-hoc signature (-) has a designated requirement of `identifier AND
+#    cdhash`, i.e. every rebuild is a new app for TCC. A real certificate
+#    (Apple Development, or a self-signed "Meety Debug" code-signing cert)
+#    keeps the same designated requirement across builds.
+SIGN_IDENTITY="${MEETY_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep -m1 -E 'Apple Development|Developer ID Application|Meety Debug' | awk -F'"' '{print $2}')}"
+if [ -z "$SIGN_IDENTITY" ]; then
+    echo "⚠️  No code-signing identity found — signing ad hoc (TCC grants will reset on every rebuild)."
+    echo "    Set MEETY_SIGN_IDENTITY or create a self-signed code-signing certificate named 'Meety Debug'."
+    SIGN_IDENTITY="-"
+fi
+echo "🔏 Signing with identity: $SIGN_IDENTITY"
+codesign --force --sign "$SIGN_IDENTITY" --identifier "$BUNDLE_ID" \
+    --entitlements "$PROJECT_DIR/MeetingRecorder.entitlements" "$APP_BUNDLE"
+codesign --verify --strict "$APP_BUNDLE"
+
+# 5. Install to Applications
 echo "📦 Installing to /Applications/$APP_FILE_NAME..."
 mv "$APP_BUNDLE" "/Applications/$APP_FILE_NAME"
 
-# 5. Launch via `open` — critical for TCC: a bundle launched this way gets its
+# 6. Launch via `open` — critical for TCC: a bundle launched this way gets its
 # OWN entry in System Settings privacy panes (a bare binary launched from a
 # terminal is attributed to the terminal instead and never appears).
 echo "🚀 Launching app..."
@@ -89,8 +109,8 @@ open "/Applications/$APP_FILE_NAME"
 
 echo ""
 echo "✅ $APP_DISPLAY_NAME installed and launched"
-echo "📋 On first launch, grant the 4 permissions — the app appears as '$APP_DISPLAY_NAME'"
-echo "    in System Settings → Privacy & Security."
+echo "📋 On first launch, grant the 3 permissions (Microphone, System Audio Recording,"
+echo "    Accessibility) — the app appears as '$APP_DISPLAY_NAME' in System Settings → Privacy & Security."
 echo ""
 echo "📖 Streaming logs (subsystem: $BUNDLE_ID) — Ctrl+C to stop watching (the app keeps running)"
 echo ""

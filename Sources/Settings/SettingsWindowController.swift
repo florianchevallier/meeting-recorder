@@ -1,17 +1,27 @@
+import os
 import Cocoa
 import SwiftUI
 
-/// Owns the settings NSWindow: creation, reuse, and tab selection.
-///
-/// Reuse is by window identifier only — the old code also matched the French
-/// title, which created duplicate windows under non-French locales.
+/// Selected tab of the settings window, shared with the SwiftUI root so the
+/// controller can switch tabs without replacing the root view.
 @MainActor
-final class SettingsWindowController {
+@Observable
+final class SettingsWindowModel {
+    var selectedTab: SettingsWindow.SettingsTab = .general
+}
 
-    private weak var window: NSWindow?
+/// Owns the settings NSWindow: creation, reuse, tab selection, close callback.
+@MainActor
+final class SettingsWindowController: NSObject, NSWindowDelegate {
+
+    private var window: NSWindow?
+    private let model = SettingsWindowModel()
 
     private let settings: SettingsStore
     private let permissionMonitor: PermissionMonitor
+
+    /// Invoked when the user closes the window (used by onboarding).
+    var onClose: (() -> Void)?
 
     static let windowIdentifier = NSUserInterfaceItemIdentifier("settingsWindow")
 
@@ -21,22 +31,17 @@ final class SettingsWindowController {
     }
 
     func show(tab: SettingsWindow.SettingsTab = .general) {
-        Logger.shared.info("Opening settings window (tab: \(tab.rawValue))", component: "SETTINGS")
-        NSApp.activate(ignoringOtherApps: true)
+        Log.settings.debug("Opening settings window (tab: \(tab.rawValue))")
+        model.selectedTab = tab
 
-        if let existing = NSApp.windows.first(where: { $0.identifier == Self.windowIdentifier }) {
-            Logger.shared.debug("Reusing existing settings window", component: "SETTINGS")
-            if let hostingController = existing.contentViewController as? NSHostingController<SettingsWindow> {
-                hostingController.rootView = makeRootView(tab: tab)
-            }
-            existing.makeKeyAndOrderFront(nil)
-            existing.center()
-            window = existing
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
             return
         }
 
-        Logger.shared.debug("Creating settings window", component: "SETTINGS")
-        let hostingController = NSHostingController(rootView: makeRootView(tab: tab))
+        let rootView = SettingsWindow(settings: settings, permissionMonitor: permissionMonitor, model: model)
+        let hostingController = NSHostingController(rootView: rootView)
 
         let newWindow = NSWindow(
             contentRect: NSRect(
@@ -51,17 +56,18 @@ final class SettingsWindowController {
         newWindow.title = L10n.settingsWindowTitle
         newWindow.identifier = Self.windowIdentifier
         newWindow.contentViewController = hostingController
-        newWindow.center()
         newWindow.minSize = NSSize(width: Constants.UI.windowMinWidth, height: Constants.UI.windowMinHeight)
         newWindow.maxSize = NSSize(width: Constants.UI.windowMaxWidth, height: Constants.UI.windowMaxHeight)
         newWindow.isReleasedWhenClosed = false
+        newWindow.delegate = self
+        newWindow.center()
         newWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         window = newWindow
     }
 
-    private func makeRootView(tab: SettingsWindow.SettingsTab) -> SettingsWindow {
-        SettingsWindow(settings: settings, permissionMonitor: permissionMonitor, selectedTab: tab)
+    nonisolated func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated { onClose?() }
     }
 }

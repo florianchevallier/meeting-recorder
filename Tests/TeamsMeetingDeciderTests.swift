@@ -4,59 +4,41 @@ import Testing
 @Suite("TeamsMeetingDecider")
 struct TeamsMeetingDeciderTests {
 
-    @Test("Explicit START in logs always wins")
-    func explicitStart() {
-        for window in [true, false] {
-            for mic in [true, false] {
-                let decision = TeamsMeetingDecider.decide(
-                    for: .init(logResult: .explicitStart, hasMeetingWindow: window, microphoneActive: mic)
-                )
-                #expect(decision == .active(.logExplicitStart))
-            }
-        }
-    }
-
-    @Test("Explicit END in logs always loses")
-    func explicitEnd() {
-        for window in [true, false] {
-            for mic in [true, false] {
-                let decision = TeamsMeetingDecider.decide(
-                    for: .init(logResult: .explicitEnd, hasMeetingWindow: window, microphoneActive: mic)
-                )
-                #expect(decision == .inactive(.logExplicitEnd))
-            }
-        }
-    }
-
-    @Test("Window + mic without log events means active")
-    func fallbackWindowAndMic() {
-        let decision = TeamsMeetingDecider.decide(
-            for: .init(logResult: .noEvents, hasMeetingWindow: true, microphoneActive: true)
-        )
-        #expect(decision == .active(.fallbackWindowAndMic))
+    @Test("Window + mic means active")
+    func windowAndMic() {
+        let decision = TeamsMeetingDecider.decide(for: .init(hasMeetingWindow: true, microphoneActive: true))
+        #expect(decision == .active(.windowAndMic))
+        #expect(decision.isActive)
     }
 
     @Test("Window alone is not enough")
-    func fallbackWindowOnly() {
-        let decision = TeamsMeetingDecider.decide(
-            for: .init(logResult: .noEvents, hasMeetingWindow: true, microphoneActive: false)
-        )
-        #expect(decision == .inactive(.fallbackWindowOnly))
+    func windowOnly() {
+        #expect(
+            TeamsMeetingDecider.decide(for: .init(hasMeetingWindow: true, microphoneActive: false))
+                == .inactive(.windowOnly))
     }
 
     @Test("Mic alone is not enough")
-    func fallbackMicOnly() {
-        let decision = TeamsMeetingDecider.decide(
-            for: .init(logResult: .noEvents, hasMeetingWindow: false, microphoneActive: true)
-        )
-        #expect(decision == .inactive(.fallbackMicOnly))
+    func micOnly() {
+        #expect(
+            TeamsMeetingDecider.decide(for: .init(hasMeetingWindow: false, microphoneActive: true))
+                == .inactive(.micOnly))
     }
 
     @Test("No signals means inactive")
-    func fallbackNoSignals() {
-        let decision = TeamsMeetingDecider.decide(
-            for: .init(logResult: .noEvents, hasMeetingWindow: false, microphoneActive: false)
-        )
-        #expect(decision == .inactive(.fallbackNoSignals))
+    func noSignals() {
+        let decision = TeamsMeetingDecider.decide(for: .init(hasMeetingWindow: false, microphoneActive: false))
+        #expect(decision == .inactive(.noSignals))
+        #expect(!decision.isActive)
+    }
+
+    @Test(
+        "Teams bundle identifiers",
+        arguments: [
+            ("com.microsoft.teams2", true), ("com.microsoft.teams", true), ("com.microsoft.Teams", true),
+            ("com.microsoft.teams2.helper", true), ("com.apple.finder", false), (nil, false),
+        ])
+    func bundleIdentifiers(bundleID: String?, expected: Bool) {
+        #expect(TeamsApp.isTeams(bundleIdentifier: bundleID) == expected)
     }
 }

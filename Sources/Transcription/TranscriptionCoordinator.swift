@@ -1,3 +1,4 @@
+import os
 import Foundation
 
 /// Orchestrates the transcription workflow: upload → poll → download → save
@@ -48,7 +49,7 @@ final class TranscriptionCoordinator {
     /// Start transcription of a recorded audio file.
     /// Returns after the job is created and polling has started.
     func transcribe(audioFileURL: URL) async {
-        Logger.shared.info("Starting transcription for: \(audioFileURL.lastPathComponent)", component: "TRANSCRIPTION")
+        Log.transcription.info("Starting transcription for: \(audioFileURL.lastPathComponent)")
 
         do {
             let client = WhisperAPIClient(baseURL: settings.apiBaseURL)
@@ -58,18 +59,18 @@ final class TranscriptionCoordinator {
             )
 
             apply(.jobCreated(jobResponse.jobId))
-            Logger.shared.info("Job created: \(jobResponse.jobId)", component: "TRANSCRIPTION")
+            Log.transcription.info("Job created: \(jobResponse.jobId)")
 
             startPolling(client: client, jobId: jobResponse.jobId, audioFileURL: audioFileURL)
         } catch {
-            Logger.shared.error("Failed to start transcription: \(error.localizedDescription)", component: "TRANSCRIPTION")
+            Log.transcription.error("Failed to start transcription: \(error.localizedDescription, privacy: .public)")
             apply(.failed(error.localizedDescription))
         }
     }
 
     /// Cancel the ongoing transcription.
     func cancel() {
-        Logger.shared.info("Cancelling transcription", component: "TRANSCRIPTION")
+        Log.transcription.info("Cancelling transcription")
         pollingTask?.cancel()
         pollingTask = nil
         apply(.reset)
@@ -96,17 +97,17 @@ final class TranscriptionCoordinator {
 
                     if let lastLog = jobDetail.job.lastLog {
                         apply(.progressMessage(lastLog))
-                        Logger.shared.debug("Job log: \(lastLog)", component: "TRANSCRIPTION")
+                        Log.transcription.debug("Job log: \(lastLog)")
                     }
 
                     switch status {
                     case .completed:
-                        Logger.shared.info("Job completed, downloading result…", component: "TRANSCRIPTION")
+                        Log.transcription.info("Job completed, downloading result…")
                         await downloadAndSaveResult(client: client, jobId: jobId, audioFileURL: audioFileURL)
                         return
 
                     case .failed:
-                        Logger.shared.error("Job failed on server", component: "TRANSCRIPTION")
+                        Log.transcription.error("Job failed on server")
                         apply(.failed(L10n.transcriptionErrorJobFailed))
                         return
 
@@ -119,16 +120,17 @@ final class TranscriptionCoordinator {
                 } catch is CancellationError {
                     return
                 } catch {
-                    Logger.shared.warning("Polling error: \(error.localizedDescription)", component: "TRANSCRIPTION")
+                    Log.transcription.warning("Polling error: \(error.localizedDescription, privacy: .public)")
                     pollCount += 1
                     if pollCount < Constants.Transcription.maxPollingAttempts {
-                        try? await Task.sleep(nanoseconds: UInt64(Constants.Transcription.pollingInterval * 1_000_000_000))
+                        try? await Task.sleep(
+                            nanoseconds: UInt64(Constants.Transcription.pollingInterval * 1_000_000_000))
                     }
                 }
             }
 
             if pollCount >= Constants.Transcription.maxPollingAttempts {
-                Logger.shared.warning("Polling timeout", component: "TRANSCRIPTION")
+                Log.transcription.warning("Polling timeout")
                 apply(.failed(L10n.transcriptionErrorTooLong))
             }
         }
@@ -140,14 +142,14 @@ final class TranscriptionCoordinator {
             let outputURL = getTranscriptionURL(for: audioFileURL)
             try transcription.write(to: outputURL, atomically: true, encoding: .utf8)
 
-            Logger.shared.info("Transcription saved to: \(outputURL.path)", component: "TRANSCRIPTION")
+            Log.transcription.info("Transcription saved to: \(outputURL.path)")
             apply(.saved)
 
             // Show the success message briefly, then reset
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             apply(.reset)
         } catch {
-            Logger.shared.error("Failed to save result: \(error.localizedDescription)", component: "TRANSCRIPTION")
+            Log.transcription.error("Failed to save result: \(error.localizedDescription, privacy: .public)")
             apply(.failed(L10n.transcriptionErrorSaveFailed(error.localizedDescription)))
         }
     }
@@ -186,7 +188,8 @@ final class TranscriptionCoordinator {
         do {
             return try String(contentsOf: getTranscriptionURL(for: audioURL), encoding: .utf8)
         } catch {
-            Logger.shared.warning("Failed to read existing transcription: \(error.localizedDescription)", component: "TRANSCRIPTION")
+            Log.transcription.warning(
+                "Failed to read existing transcription: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }

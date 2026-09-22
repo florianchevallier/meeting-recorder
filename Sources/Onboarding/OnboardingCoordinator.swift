@@ -1,19 +1,22 @@
+import os
 import Foundation
+import Observation
 
-/// Minimal first-launch onboarding: opens the settings window on the
-/// Permissions tab until every permission has been granted.
-///
-/// The old flow's completion flag was never set (its view was dead code),
-/// so the window reappeared on every launch. Completion is now recorded
-/// as soon as all four permissions are granted.
+/// First-launch onboarding: opens the Permissions tab until microphone and
+/// accessibility are granted, or until the user dismisses the window.
 @MainActor
 final class OnboardingCoordinator {
+
+    enum Decision: Equatable, Sendable {
+        case alreadyComplete
+        case complete
+        case present
+    }
 
     private let defaults: UserDefaults
     private let permissionMonitor: PermissionMonitor
     private let settingsWindowController: SettingsWindowController
-
-    private let hasCompletedOnboardingKey = "hasCompletedOnboarding" // keep old key: preserves user state
+    private var completionTask: Task<Void, Never>?
 
     init(
         permissionMonitor: PermissionMonitor,
@@ -25,33 +28,47 @@ final class OnboardingCoordinator {
         self.settingsWindowController = settingsWindowController
     }
 
-    var shouldShowOnboarding: Bool {
-        !defaults.bool(forKey: hasCompletedOnboardingKey)
+    /// Pure decision, testable.
+    nonisolated static func decide(hasCompleted: Bool, microphone: PermissionStatus, accessibility: PermissionStatus)
+        -> Decision
+    {
+        if hasCompleted { return .alreadyComplete }
+        return (microphone == .granted && accessibility == .granted) ? .complete : .present
     }
 
-    /// Show the permissions tab on first launch. When everything is already
-    /// granted, mark onboarding as completed instead of nagging.
     func presentIfNeeded() {
-        guard shouldShowOnboarding else { return }
-
-        permissionMonitor.checkAllPermissions()
-        if permissionMonitor.allPermissionsGranted {
-            Logger.shared.info("All permissions granted — onboarding complete", component: "ONBOARDING")
-            markCompleted()
+        permissionMonitor.refresh()
+        let decision = Self.decide(
+            hasCompleted: defaults.bool(for: .hasCompletedOnboarding),
+            microphone: permissionMonitor.microphone,
+            accessibility: permissionMonitor.accessibility
+        )
+        switch decision {
+        case .alreadyComplete:
             return
+        case .complete:
+            Log.permissions.info("Permissions already granted — onboarding complete")
+            markCompleted()
+        case .present:
+            Log.permissions.info("First launch — presenting permissions onboarding")
+            settingsWindowController.onClose = { [weak self] in self?.markCompleted() }
+            settingsWindowController.show(tab: .permissions)
+            let monitor = permissionMonitor
+            completionTask = Task { [weak self] in
+                for await satisfied in Observations({ monitor.isOnboardingSatisfied }) where satisfied {
+                    self?.markCompleted()
+                    return
+                }
+            }
         }
-
-        Logger.shared.info("First launch — presenting permissions onboarding", component: "ONBOARDING")
-        settingsWindowController.show(tab: .permissions)
-    }
-
-    /// Called when permissions change; completes onboarding once all are granted.
-    func completeWhenReady() {
-        guard shouldShowOnboarding, permissionMonitor.allPermissionsGranted else { return }
-        markCompleted()
     }
 
     func markCompleted() {
-        defaults.set(true, forKey: hasCompletedOnboardingKey)
+        guard !defaults.bool(for: .hasCompletedOnboarding) else { return }
+        defaults.set(true, for: .hasCompletedOnboarding)
+        settingsWindowController.onClose = nil
+        completionTask?.cancel()
+        completionTask = nil
+        Log.permissions.info("Onboarding marked complete")
     }
 }
