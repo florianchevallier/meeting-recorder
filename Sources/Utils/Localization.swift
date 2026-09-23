@@ -318,4 +318,25 @@ extension L10n {
     static func settingsCalendarLeadMinutes(_ minutes: Int) -> String {
         L10n.string("settings.calendar.lead.minutes", minutes)
     }
+
+    // MARK: - Live Transcription
+    static let liveSpeakerMe = "live.speaker.me".localized
+    static let liveSpeakerThem = "live.speaker.them".localized
+    static let liveWindowTitle = "live.window.title".localized
+    static let liveCopy = "live.copy".localized
+    static let liveStatusIdle = "live.status.idle".localized
+    static let liveStatusPreparing = "live.status.preparing".localized
+    static let liveStatusRunning = "live.status.running".localized
+    static let livePlaceholderIdle = "live.placeholder.idle".localized
+    static let livePlaceholderListening = "live.placeholder.listening".localized
+    static let actionLiveTranscript = "action.live_transcript".localized
+    static let calendarOpenLiveTranscript = "calendar.open_live_transcript".localized
+    static let settingsGeneralLiveTitle = "settings.general.live.title".localized
+    static let settingsGeneralLiveSubtitle = "settings.general.live.subtitle".localized
+    static func liveErrorUnsupportedLanguage(_ code: String) -> String {
+        L10n.string("live.error.unsupported_language", code)
+    }
+    static func liveErrorUnavailable(_ detail: String) -> String {
+        L10n.string("live.error.unavailable", detail)
+    }
 }

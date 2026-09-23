@@ -11,6 +11,8 @@ struct AppDependencies {
     let reminderScheduler: MeetingReminderScheduler
     let transcription: TranscriptionCoordinator
     let coordinator: RecordingCoordinator
+    let live: LiveTranscriptionCoordinator
+    let livePanelController: LiveTranscriptPanelController
     let settingsWindowController: SettingsWindowController
     let speakerNamesWindowController: SpeakerNamesWindowController
     let statusBarController: StatusBarController
@@ -26,12 +28,15 @@ struct AppDependencies {
             permissionMonitor: permissionMonitor
         )
         let transcription = TranscriptionCoordinator(settings: settings)
+        let live = LiveTranscriptionCoordinator(settings: settings)
+        let livePanelController = LiveTranscriptPanelController(live: live)
         let coordinator = RecordingCoordinator(
             settings: settings,
             permissionMonitor: permissionMonitor,
             teamsMonitor: teamsMonitor,
             calendar: calendar,
-            transcription: transcription
+            transcription: transcription,
+            live: live
         )
         let reminderScheduler = MeetingReminderScheduler(
             calendar: calendar,
@@ -50,7 +55,8 @@ struct AppDependencies {
             calendar: calendar,
             settings: settings,
             settingsWindowController: settingsWindowController,
-            speakerNamesWindowController: speakerNamesWindowController
+            speakerNamesWindowController: speakerNamesWindowController,
+            livePanelController: livePanelController
         )
         let onboardingCoordinator = OnboardingCoordinator(
             permissionMonitor: permissionMonitor,
@@ -64,6 +70,8 @@ struct AppDependencies {
         self.reminderScheduler = reminderScheduler
         self.transcription = transcription
         self.coordinator = coordinator
+        self.live = live
+        self.livePanelController = livePanelController
         self.settingsWindowController = settingsWindowController
         self.speakerNamesWindowController = speakerNamesWindowController
         self.statusBarController = statusBarController

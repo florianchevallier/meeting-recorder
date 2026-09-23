@@ -17,6 +17,8 @@ struct RecordingFiles: Sendable, Equatable {
     var speakerNames: URL { sibling("speakers.json") }
     /// Server job in flight, so a relaunch resumes polling instead of re-uploading.
     var pendingJob: URL { sibling("transcription-job.json") }
+    /// On-device transcript written while recording (`LiveTranscriptionCoordinator`).
+    var liveTranscript: URL { sibling("live.md") }
 
     private func sibling(_ pathExtension: String) -> URL {
         audio.deletingPathExtension().appendingPathExtension(pathExtension)

@@ -103,6 +103,19 @@ private struct GeneralSettingsTab: View {
                         Toggle("", isOn: $settings.transcriptionEnabled)
                             .toggleStyle(.switch)
                     }
+
+                    Divider()
+                        .padding(.leading, 52)
+
+                    SettingRow(
+                        icon: "captions.bubble.fill",
+                        iconColor: .pink,
+                        title: L10n.settingsGeneralLiveTitle,
+                        subtitle: L10n.settingsGeneralLiveSubtitle
+                    ) {
+                        Toggle("", isOn: $settings.liveTranscriptionEnabled)
+                            .toggleStyle(.switch)
+                    }
                 }
 
                 SettingsCard {

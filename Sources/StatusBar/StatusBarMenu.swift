@@ -14,6 +14,7 @@ struct StatusBarMenu: View {
     let settings: SettingsStore
     let onOpenSettings: () -> Void
     let onEditSpeakers: (URL) -> Void
+    let onOpenLiveTranscript: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -280,6 +281,12 @@ struct StatusBarMenu: View {
 
             HStack(spacing: 0) {
                 QuickActionButton(icon: "folder.fill", title: L10n.actionFolder, action: openRecordingsFolder)
+
+                Divider()
+                    .frame(height: Constants.UI.quickActionHeight)
+
+                QuickActionButton(
+                    icon: "captions.bubble.fill", title: L10n.actionLiveTranscript, action: onOpenLiveTranscript)
 
                 Divider()
                     .frame(height: Constants.UI.quickActionHeight)

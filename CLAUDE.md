@@ -160,6 +160,11 @@ Sources/
 │   ├── EndpointResolver.swift     # Pure URLs: <base>/process, /jobs/{id}, /jobs/{id}/result
 │   ├── MultipartBuilder.swift     # Multipart body streamed to a temp file
 │   └── TranscriptionModels.swift  # Request/response models, PendingTranscriptionJob, APIError
+├── LiveTranscription/      # On-device live transcript while recording (Apple SpeechAnalyzer)
+│   ├── LiveTranscript.swift       # Pure: segments per speaker (volatile → final), Markdown lines
+│   ├── LiveSpeechTranscriber.swift # actor: one SpeechAnalyzer + SpeechTranscriber per source
+│   ├── LiveTranscriptionCoordinator.swift # @Observable: session per recording, `<rec>.live.md`
+│   └── LiveTranscriptPanel.swift  # Floating non-activating NSPanel + SwiftUI transcript view
 ├── Utils/
 │   ├── Log.swift                  # os.Logger per category (app, capture, recording, teams, …)
 │   ├── DefaultsKey.swift          # Every UserDefaults key (legacy raw values preserved)
@@ -308,6 +313,33 @@ Thresholds are first guesses, to calibrate on real recordings. Renaming re-rende
 Note: the app is **not sandboxed**. If sandboxing is ever enabled, add
 `com.apple.security.network.client = true` (uploads) to the entitlements.
 
+## Live Transcription (on-device)
+
+Settings → General → Live transcription (on by default). While recording, what's said
+shows up in a floating panel (opens at each session; `Transcript` in the popover) about
+0.5 s after it's spoken, split **Me** (microphone) / **Them** (system tap), and final
+segments are appended to `<rec>.live.md` as they come (crash-safe). No network, no model
+to ship: Apple's `SpeechTranscriber` (locale from the Transcription language setting,
+assets via `AssetInventory`, downloaded once by the system).
+- **Audio**: `AudioFileWriter` hands each source, already 48 kHz mono, to a `LiveAudioSink`
+  on its queue (inserted restart silence included, so times match the file). The sink only
+  yields into bounded `AsyncStream`s (`Constants.Live.maxBufferedChunks`, newest kept):
+  live text can drop, the recording never does.
+- **Engine**: `reportingOptions: [.volatileResults, .fastResults]` — `.fastResults` is what
+  gives ~0.5 s; without it volatile text lags 5–6 s. Volatile results are ~final prefixes
+  (≤ 1 % revised), finals cover long stretches (10–30 s), so the panel shows volatile text
+  greyed and the file only gets finals. `AnalysisContext.contextualStrings` has no effect
+  on `SpeechTranscriber` (measured), so there is no vocabulary setting.
+- **Stop**: after the writer finishes, `end()` drains the feeders, finalizes both analyzers,
+  waits for the last results; `Constants.Live.finalizationTimeout` (5 s) cancels past it.
+  A stop while the model is still downloading cancels the setup instead of waiting.
+- **Why Apple** (bench of Sept 2026 on an M4 Pro, 3 × 3 min of real meetings, hand-corrected
+  refs): WER ≈ 18 % vs 16 % for Voxtral Realtime 960 ms (best, but GPU-bound: two streams
+  fall behind real time), Parakeet v3 23 % (drifts to English, hallucinates in silences),
+  Nemotron 3.5 fr 26 %, WhisperKit turbo too slow for two streams. Two Apple streams ran
+  30 min with no latency drift, ~1 % CPU in-process (the work runs on the Neural Engine).
+- Known gap: with laptop speakers, "them" echoes into the mic and can show up under **Me**.
+
 ## Localization
 
 EN (default) + FR via `L10n` (`Bundle.resources`, **not** `Bundle.module`: the SwiftPM
@@ -372,6 +404,7 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
   `MultipartBuilderTests`, `TranscriptionStateMachineTests` (+ progress parsing), `L10nParityTests`
 - `TranscriptionHintsTests`, `TranscriptTests` (server JSON shape), `SpeakerLabelerTests`,
   `TranscriptRendererTests`, `VoiceActivityRecorderTests`, `RecordingFilesTests`
+- `LiveTranscriptTests` — volatile/final reducer, speaker interleaving, Markdown
 
 Manual smoke checklist after touching Capture: record 2 min with audio playing while
 switching output to AirPods and back → one file, `restarting → restarted` in logs, both

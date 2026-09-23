@@ -98,6 +98,22 @@ enum Constants {
         static let fragmentInterval: TimeInterval = 10.0
     }
 
+    // MARK: - Live Transcription Constants
+
+    enum Live {
+        /// Audio chunks buffered per source while the model loads or the analyzer lags
+        /// (one chunk per IO cycle, ~10 ms → ~60 s); older chunks are dropped, never the recording.
+        static let maxBufferedChunks = 6_000
+        /// Ceiling for flushing the last results after a recording stops
+        static let finalizationTimeout: TimeInterval = 5.0
+
+        static let panelInitialWidth: CGFloat = 420
+        static let panelInitialHeight: CGFloat = 520
+        static let panelMinWidth: CGFloat = 280
+        static let panelMinHeight: CGFloat = 200
+        static let panelAutosaveName = "LiveTranscriptPanel"
+    }
+
     // MARK: - App Lifecycle
 
     enum App {

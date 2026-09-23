@@ -13,6 +13,7 @@ struct RecordingFilesTests {
         #expect(files.voiceActivity.lastPathComponent == "meeting_2026-09-22_10-00-00_Point.activity.json")
         #expect(files.speakerNames.lastPathComponent == "meeting_2026-09-22_10-00-00_Point.speakers.json")
         #expect(files.pendingJob.lastPathComponent == "meeting_2026-09-22_10-00-00_Point.transcription-job.json")
+        #expect(files.liveTranscript.lastPathComponent == "meeting_2026-09-22_10-00-00_Point.live.md")
         #expect(MeetingMetadata.url(forRecording: files.audio) == files.meetingMetadata)
     }
 }

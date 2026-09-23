@@ -46,13 +46,14 @@ actor CaptureEngine {
     // MARK: - Start
 
     /// Opens `outputURL` (written as `<name>.partial.m4a` until `stop()`) and starts the tap.
-    func start(outputURL: URL) async throws(CaptureFailure) {
+    /// `liveSink` receives both sources as 48 kHz mono for the whole recording (live transcription).
+    func start(outputURL: URL, liveSink: LiveAudioSink? = nil) async throws(CaptureFailure) {
         guard state == .idle else { throw .alreadyRecording }
         finalURL = outputURL
         let partialURL = Self.partialURL(for: outputURL)
         try? FileManager.default.removeItem(at: partialURL)
 
-        let writer = try AudioFileWriter(outputURL: partialURL, counters: counters)
+        let writer = try AudioFileWriter(outputURL: partialURL, counters: counters, liveSink: liveSink)
         try writer.start()
         self.writer = writer
 

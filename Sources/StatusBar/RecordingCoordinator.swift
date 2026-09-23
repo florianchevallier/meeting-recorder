@@ -44,6 +44,7 @@ final class RecordingCoordinator {
     private let permissionMonitor: PermissionMonitor
     private let teamsMonitor: TeamsMonitor
     private let calendar: CalendarMonitor?
+    private let live: LiveTranscriptionCoordinator?
 
     /// Transcription entry point.
     let transcription: TranscriptionCoordinator
@@ -78,13 +79,15 @@ final class RecordingCoordinator {
         permissionMonitor: PermissionMonitor,
         teamsMonitor: TeamsMonitor = TeamsMonitor(),
         calendar: CalendarMonitor? = nil,
-        transcription: TranscriptionCoordinator? = nil
+        transcription: TranscriptionCoordinator? = nil,
+        live: LiveTranscriptionCoordinator? = nil
     ) {
         self.settings = settings
         self.permissionMonitor = permissionMonitor
         self.teamsMonitor = teamsMonitor
         self.calendar = calendar
         self.transcription = transcription ?? TranscriptionCoordinator(settings: settings)
+        self.live = live
         watchMicrophoneRevocation()
     }
 
@@ -199,9 +202,10 @@ final class RecordingCoordinator {
         let engine = CaptureEngine()
         self.engine = engine
         subscribeToEvents(of: engine)
+        let liveSink = live?.begin(recordingURL: outputURL)
 
         do {
-            try await engine.start(outputURL: outputURL)
+            try await engine.start(outputURL: outputURL, liveSink: liveSink)
             // A stop may have been requested while the TCC prompt was up.
             guard state == .starting else {
                 Log.recording.info("Start completed after a stop request — finalizing immediately")
@@ -224,6 +228,7 @@ final class RecordingCoordinator {
             self.engine = nil
             eventsTask?.cancel()
             eventsTask = nil
+            await live?.end()
             apply(.startFailed)
         }
     }
@@ -288,6 +293,8 @@ final class RecordingCoordinator {
         }
 
         handleFinalFile(finalURL, transcribe: shouldTranscribe)
+        // The writer is finished, so no more audio reaches the live sink: flush its last results.
+        await live?.end()
     }
 
     private func handleFinalFile(_ url: URL?, transcribe: Bool) {
@@ -377,6 +384,7 @@ final class RecordingCoordinator {
             eventsTask = nil
             // The engine already finalized the file; never transcribe a salvaged recording.
             handleFinalFile(file, transcribe: false)
+            Task { [live] in await live?.end() }
             apply(.stopped)
         }
     }

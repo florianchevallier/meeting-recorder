@@ -26,6 +26,7 @@ struct SettingsStoreTests {
         #expect(store.calendarRemindersEnabled == false)
         #expect(store.calendarReminderLeadMinutes == 1)
         #expect(store.calendarSelectedIDs == nil)
+        #expect(store.liveTranscriptionEnabled == true)
     }
 
     @Test("Calendar selection persists, and nil removes the key")
@@ -44,12 +45,14 @@ struct SettingsStoreTests {
         store.language = "en"
         store.nbSpeaker = 4
         store.autoRecordingEnabled = false
+        store.liveTranscriptionEnabled = false
 
         let reloaded = SettingsStore(defaults: defaults)
         #expect(reloaded.whisperModel == "small")
         #expect(reloaded.language == "en")
         #expect(reloaded.nbSpeaker == 4)
         #expect(reloaded.autoRecordingEnabled == false)
+        #expect(reloaded.liveTranscriptionEnabled == false)
     }
 
     @Test("resetToDefaults restores every default")

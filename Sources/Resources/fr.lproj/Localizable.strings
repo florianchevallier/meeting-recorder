@@ -209,3 +209,20 @@
 "speakers.save" = "Enregistrer";
 "speakers.cancel" = "Annuler";
 "speakers.unavailable" = "Aucune transcription à modifier pour cet enregistrement.";
+
+/* Live transcription */
+"live.speaker.me" = "Moi";
+"live.speaker.them" = "Eux";
+"live.window.title" = "Transcript en direct";
+"live.copy" = "Copier";
+"live.status.idle" = "Pas d'enregistrement en cours";
+"live.status.preparing" = "Préparation du modèle local…";
+"live.status.running" = "En direct · sur l'appareil";
+"live.placeholder.idle" = "Le transcript s'affiche ici pendant l'enregistrement.";
+"live.placeholder.listening" = "À l'écoute… les mots apparaissent environ une demi-seconde après avoir été prononcés.";
+"live.error.unsupported_language" = "La transcription en direct n'est pas disponible pour « %@ » sur ce Mac.";
+"live.error.unavailable" = "Transcription en direct indisponible : %@";
+"action.live_transcript" = "Transcript";
+"settings.general.live.title" = "Transcription en direct";
+"settings.general.live.subtitle" = "Affiche ce qui est dit pendant l'enregistrement, en local (Moi / Eux), et l'enregistre à côté du fichier audio";
+"calendar.open_live_transcript" = "Ouvrir le transcript en direct";

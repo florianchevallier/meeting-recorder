@@ -91,6 +91,36 @@ struct AudioFileWriterTests {
         #expect(writer.voiceActivity == nil)
     }
 
+    @Test("The live sink gets each source as 48 kHz mono, inserted silence included")
+    func liveSink() async throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let received = Mutex<(system: Int, microphone: Int)>((0, 0))
+        let writer = try AudioFileWriter(outputURL: url, counters: CaptureCounters()) { system, microphone in
+            received.withLock {
+                $0.system += system.count
+                $0.microphone += microphone.count
+            }
+        }
+        try writer.start()
+        let tapFormat = CaptureFormat.halStreamFormat(sampleRate: 44_100, channels: 2)!
+        let micFormat = CaptureFormat.halStreamFormat(sampleRate: 16_000, channels: 1)!
+        writer.configure(systemFormat: tapFormat, microphoneFormat: micFormat)
+        for _ in 0..<20 {
+            writer.enqueue(
+                system: sine(format: tapFormat, seconds: 0.1, frequency: 440),
+                microphone: sine(format: micFormat, seconds: 0.1, frequency: 220)
+            )
+        }
+        writer.insertSilence(seconds: 1.0)
+        _ = try await writer.finish()
+
+        let (system, microphone) = received.withLock { ($0.system, $0.microphone) }
+        // 2 s of audio + 1 s of silence at 48 kHz, give or take the converters' priming.
+        #expect(abs(system - 144_000) < 2_400)
+        #expect(abs(microphone - 144_000) < 2_400)
+    }
+
     @Test("Partial URL sits next to the final file with a .partial infix")
     func partialURL() {
         let final = URL(fileURLWithPath: "/Users/me/Documents/meeting_2026-09-21_10-00-00.m4a")

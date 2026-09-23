@@ -209,3 +209,20 @@
 "speakers.save" = "Save";
 "speakers.cancel" = "Cancel";
 "speakers.unavailable" = "No transcript to edit for this recording.";
+
+/* Live transcription */
+"live.speaker.me" = "Me";
+"live.speaker.them" = "Them";
+"live.window.title" = "Live transcript";
+"live.copy" = "Copy";
+"live.status.idle" = "Not recording";
+"live.status.preparing" = "Preparing the on-device model…";
+"live.status.running" = "Live · on-device";
+"live.placeholder.idle" = "The transcript appears here while you record.";
+"live.placeholder.listening" = "Listening… words appear about half a second after they are spoken.";
+"live.error.unsupported_language" = "Live transcription isn't available for “%@” on this Mac.";
+"live.error.unavailable" = "Live transcription unavailable: %@";
+"action.live_transcript" = "Transcript";
+"settings.general.live.title" = "Live transcription";
+"settings.general.live.subtitle" = "Show what's said while recording, on-device (Me / Them), and save it next to the recording";
+"calendar.open_live_transcript" = "Open the live transcript";
