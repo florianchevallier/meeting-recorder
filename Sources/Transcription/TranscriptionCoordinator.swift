@@ -177,7 +177,8 @@ final class TranscriptionCoordinator {
         apply(.uploadStarted)
         let event = (try? MeetingMetadata.read(forRecording: audioURL))?.event
         let hints = TranscriptionHints.make(
-            event: event, glossary: settings.transcriptionGlossary, maxSpeakers: settings.nbSpeaker)
+            event: event, glossary: settings.transcriptionGlossary, maxSpeakers: settings.nbSpeaker,
+            packTerms: VocabularyPack.terms(for: settings.vocabularyPacks, custom: settings.customVocabularyPacks))
         Log.transcription.info(
             "Speakers \(hints.minSpeakers ?? 0)…\(hints.maxSpeakers ?? 0), prompt \(hints.initialPrompt?.count ?? 0) chars"
         )

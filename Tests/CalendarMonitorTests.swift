@@ -103,6 +103,26 @@ struct CalendarMonitorTests {
         #expect(harness.monitor.events.map(\.id) == ["review"])
         #expect(!harness.monitor.isSelected(birthdays))
     }
+
+    @Test("Check all goes back to every calendar, uncheck all to none")
+    func selectAll() async {
+        let harness = Harness(granted: true)
+        harness.source.calendarList = ["work", "birthdays"].map {
+            CalendarInfo(id: $0, title: $0, account: "", color: nil)
+        }
+        harness.monitor.start()
+        defer { harness.monitor.stop() }
+        await settle { harness.monitor.calendars.count == 2 }
+        #expect(harness.monitor.allSelected)
+
+        harness.monitor.setAllSelected(false)
+        #expect(harness.settings.calendarSelectedIDs == [])
+        #expect(!harness.monitor.allSelected)
+
+        harness.monitor.setAllSelected(true)
+        #expect(harness.settings.calendarSelectedIDs == nil)
+        #expect(harness.monitor.allSelected)
+    }
 }
 
 @Suite("CalendarSelection")
@@ -117,5 +137,13 @@ struct CalendarSelectionTests {
         #expect(!CalendarSelection.isSelected("b", in: first))
         #expect(CalendarSelection.toggled("b", in: first, all: all) == ["a", "b", "c"])
         #expect(CalendarSelection.toggled("a", in: ["a"], all: all).isEmpty)
+    }
+
+    @Test("All selected only when every known calendar is checked")
+    func allSelected() {
+        #expect(CalendarSelection.allSelected(in: nil, all: all))
+        #expect(CalendarSelection.allSelected(in: ["a", "b", "c", "gone"], all: all))
+        #expect(!CalendarSelection.allSelected(in: ["a", "b"], all: all))
+        #expect(!CalendarSelection.allSelected(in: [], all: all))
     }
 }

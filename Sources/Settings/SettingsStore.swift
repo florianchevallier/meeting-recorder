@@ -24,6 +24,7 @@ final class SettingsStore {
         static let calendarRemindersEnabled = false
         static let calendarReminderLeadMinutes = Constants.Calendar.defaultReminderLeadMinutes
         static let liveTranscriptionEnabled = true
+        static let transcriptionOnlyWithMeeting = false
     }
 
     // MARK: - Properties
@@ -125,6 +126,28 @@ final class SettingsStore {
         }
     }
 
+    /// Automatic transcription skips recordings without a calendar event.
+    var transcriptionOnlyWithMeeting: Bool {
+        didSet {
+            defaults.set(transcriptionOnlyWithMeeting, for: .transcriptionOnlyWithMeeting)
+            Log.settings.debug("Transcription only with meeting: \(self.transcriptionOnlyWithMeeting)")
+        }
+    }
+
+    /// Selected `VocabularyPack` raw values.
+    var vocabularyPacks: Set<String> {
+        didSet {
+            defaults.set(Array(vocabularyPacks).sorted(), for: .vocabularyPacks)
+        }
+    }
+
+    /// Packs made by the user, in creation order.
+    var customVocabularyPacks: [CustomVocabularyPack] {
+        didSet {
+            defaults.set(try? JSONEncoder().encode(customVocabularyPacks), for: .customVocabularyPacks)
+        }
+    }
+
     // MARK: - Initialization
 
     init(defaults: UserDefaults = .standard) {
@@ -168,6 +191,13 @@ final class SettingsStore {
         self.liveTranscriptionEnabled =
             defaults.object(for: .liveTranscriptionEnabled) as? Bool
             ?? Defaults.liveTranscriptionEnabled
+        self.transcriptionOnlyWithMeeting =
+            defaults.object(for: .transcriptionOnlyWithMeeting) as? Bool
+            ?? Defaults.transcriptionOnlyWithMeeting
+        self.vocabularyPacks = Set(defaults.object(for: .vocabularyPacks) as? [String] ?? [])
+        self.customVocabularyPacks =
+            (defaults.object(for: .customVocabularyPacks) as? Data)
+            .flatMap { try? JSONDecoder().decode([CustomVocabularyPack].self, from: $0) } ?? []
 
         Log.settings.info("Settings loaded (transcription: \(self.transcriptionEnabled))")
     }
@@ -189,7 +219,41 @@ final class SettingsStore {
         calendarReminderLeadMinutes = Defaults.calendarReminderLeadMinutes
         calendarSelectedIDs = nil
         liveTranscriptionEnabled = Defaults.liveTranscriptionEnabled
+        transcriptionOnlyWithMeeting = Defaults.transcriptionOnlyWithMeeting
+        vocabularyPacks = []
         Log.settings.info("Reset to defaults")
+    }
+
+    /// Adds a new pack (selected right away) or replaces the one with the same id.
+    func saveCustomPack(_ pack: CustomVocabularyPack) {
+        if let index = customVocabularyPacks.firstIndex(where: { $0.id == pack.id }) {
+            customVocabularyPacks[index] = pack
+        } else {
+            customVocabularyPacks.append(pack)
+            vocabularyPacks.insert(pack.id)
+        }
+    }
+
+    func deleteCustomPack(id: String) {
+        customVocabularyPacks.removeAll { $0.id == id }
+        vocabularyPacks.remove(id)
+    }
+
+    /// Resets what the Transcription tab's Reset button covers; the server and the
+    /// user's own packs stay (packs are only unchecked).
+    func resetTranscriptionOptions() {
+        whisperModel = Defaults.whisperModel
+        language = Defaults.language
+        nbSpeaker = Defaults.nbSpeaker
+        computeType = Defaults.computeType
+        transcriptionGlossary = Defaults.transcriptionGlossary
+        vocabularyPacks = []
+        Log.settings.info("Transcription options reset")
+    }
+
+    /// Whether a recording that just ended goes to the transcription queue.
+    func shouldAutoTranscribe(hasMeeting: Bool) -> Bool {
+        transcriptionEnabled && (hasMeeting || !transcriptionOnlyWithMeeting)
     }
 
     /// Validate API URL format (http/https scheme required)

@@ -14,7 +14,10 @@ struct TranscriptionHints: Sendable, Equatable {
     ///   - event: The meeting the recording belongs to, if known.
     ///   - glossary: Free-form vocabulary from the settings.
     ///   - maxSpeakers: Upper bound from the settings, used without an event.
-    static func make(event: CalendarEvent?, glossary: String, maxSpeakers: Int) -> TranscriptionHints {
+    ///   - packTerms: Terms of the selected vocabulary packs; last, so the cut drops them first.
+    static func make(
+        event: CalendarEvent?, glossary: String, maxSpeakers: Int, packTerms: [String] = []
+    ) -> TranscriptionHints {
         // The invitee count is an upper bound, not a head count: some people never speak.
         let upperBound = event?.expectedSpeakerCount ?? maxSpeakers
         let clamped = min(max(upperBound, 1), Constants.Transcription.maxSpeakers)
@@ -29,6 +32,9 @@ struct TranscriptionHints: Sendable, Equatable {
         }
         if !glossary.isEmpty {
             parts.append(glossary)
+        }
+        if !packTerms.isEmpty {
+            parts.append(packTerms.joined(separator: ", "))
         }
         let prompt = sanitizedPrompt(parts.map { sanitized($0) }.filter { !$0.isEmpty }.joined(separator: ". "))
 

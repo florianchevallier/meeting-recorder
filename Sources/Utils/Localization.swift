@@ -240,6 +240,10 @@ extension L10n {
     static let settingsGeneralAutoRecordingSubtitle = "settings.general.auto_recording.subtitle".localized
     static let settingsGeneralTranscriptionTitle = "settings.general.transcription.title".localized
     static let settingsGeneralTranscriptionSubtitle = "settings.general.transcription.subtitle".localized
+    static let settingsGeneralTranscriptionOnlyMeetingTitle =
+        "settings.general.transcription_only_meeting.title".localized
+    static let settingsGeneralTranscriptionOnlyMeetingSubtitle =
+        "settings.general.transcription_only_meeting.subtitle".localized
     static let settingsGeneralQuitTitle = "settings.general.quit.title".localized
     static let settingsGeneralQuitSubtitle = "settings.general.quit.subtitle".localized
 
@@ -254,7 +258,6 @@ extension L10n {
     static let settingsTranscriptionModelHelp = "settings.transcription.model.help".localized
     static let settingsTranscriptionLanguageTitle = "settings.transcription.language.title".localized
     static let settingsTranscriptionLanguageHelp = "settings.transcription.language.help".localized
-    static let settingsTranscriptionLanguageCodeFormat = "settings.transcription.language.code".localized
     static let settingsTranscriptionSpeakersTitle = "settings.transcription.speakers.title".localized
     static let settingsTranscriptionSpeakersHelp = "settings.transcription.speakers.help".localized
     static let settingsTranscriptionSpeakersCountFormat = "settings.transcription.speakers.count".localized
@@ -267,6 +270,26 @@ extension L10n {
     static let settingsTranscriptionGlossaryTitle = "settings.transcription.glossary.title".localized
     static let settingsTranscriptionGlossaryPlaceholder = "settings.transcription.glossary.placeholder".localized
     static let settingsTranscriptionGlossaryHelp = "settings.transcription.glossary.help".localized
+    static let settingsTranscriptionServerTitle = "settings.transcription.server.title".localized
+    static let settingsTranscriptionServerKeySet = "settings.transcription.server.key_set".localized
+    static let settingsTranscriptionServerNoKey = "settings.transcription.server.no_key".localized
+    static let settingsTranscriptionServerEdit = "settings.transcription.server.edit".localized
+    static let settingsTranscriptionServerDone = "settings.transcription.server.done".localized
+    static let settingsTranscriptionAdvancedTitle = "settings.transcription.advanced.title".localized
+    static let settingsTranscriptionPacksTitle = "settings.transcription.packs.title".localized
+    static let settingsTranscriptionPacksHelp = "settings.transcription.packs.help".localized
+    static let settingsTranscriptionPacksNew = "settings.transcription.packs.new".localized
+    static let settingsTranscriptionPacksEdit = "settings.transcription.packs.edit".localized
+    static let settingsTranscriptionPacksDelete = "settings.transcription.packs.delete".localized
+    static let settingsPackEditorTitleNew = "settings.transcription.pack_editor.title_new".localized
+    static let settingsPackEditorTitleEdit = "settings.transcription.pack_editor.title_edit".localized
+    static let settingsPackEditorName = "settings.transcription.pack_editor.name".localized
+    static let settingsPackEditorNamePlaceholder = "settings.transcription.pack_editor.name_placeholder".localized
+    static let settingsPackEditorTerms = "settings.transcription.pack_editor.terms".localized
+    static let settingsPackEditorTermsPlaceholder = "settings.transcription.pack_editor.terms_placeholder".localized
+    static let settingsPackEditorHelp = "settings.transcription.pack_editor.help".localized
+    static let settingsPackEditorSave = "settings.transcription.pack_editor.save".localized
+    static let settingsPackEditorCancel = "settings.transcription.pack_editor.cancel".localized
 
     // MARK: - Settings - Permissions
     static let settingsPermissionsHeaderTitle = "settings.permissions.header.title".localized
@@ -315,6 +338,8 @@ extension L10n {
     static let settingsCalendarPickerTitle = "settings.calendar.picker.title".localized
     static let settingsCalendarPickerHelp = "settings.calendar.picker.help".localized
     static let settingsCalendarPickerOtherAccount = "settings.calendar.picker.other_account".localized
+    static let settingsCalendarPickerSelectAll = "settings.calendar.picker.select_all".localized
+    static let settingsCalendarPickerDeselectAll = "settings.calendar.picker.deselect_all".localized
     static func settingsCalendarLeadMinutes(_ minutes: Int) -> String {
         L10n.string("settings.calendar.lead.minutes", minutes)
     }

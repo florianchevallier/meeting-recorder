@@ -104,6 +104,21 @@ private struct GeneralSettingsTab: View {
                             .toggleStyle(.switch)
                     }
 
+                    if settings.transcriptionEnabled {
+                        Divider()
+                            .padding(.leading, 52)
+
+                        SettingRow(
+                            icon: "calendar.badge.checkmark",
+                            iconColor: .purple,
+                            title: L10n.settingsGeneralTranscriptionOnlyMeetingTitle,
+                            subtitle: L10n.settingsGeneralTranscriptionOnlyMeetingSubtitle
+                        ) {
+                            Toggle("", isOn: $settings.transcriptionOnlyWithMeeting)
+                                .toggleStyle(.switch)
+                        }
+                    }
+
                     Divider()
                         .padding(.leading, 52)
 
@@ -147,6 +162,10 @@ private struct TranscriptionSettingsTab: View {
     @State private var apiURLDraft: String
     @State private var apiKeyDraft: String
     @State private var glossaryDraft: String
+    /// The server is set up once: shown as a summary as soon as its URL is valid.
+    @State private var isEditingServer: Bool
+    @State private var showsAdvanced = false
+    @State private var editingPack: CustomVocabularyPack?
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -154,10 +173,15 @@ private struct TranscriptionSettingsTab: View {
         self._apiKeyDraft = State(
             initialValue: KeychainStore.string(for: KeychainStore.transcriptionAPIKeyAccount) ?? "")
         self._glossaryDraft = State(initialValue: settings.transcriptionGlossary)
+        self._isEditingServer = State(initialValue: !SettingsStore.isValidAPIURL(settings.apiBaseURL))
     }
 
     private var isDraftValid: Bool {
         apiURLDraft.isEmpty || SettingsStore.isValidAPIURL(apiURLDraft)
+    }
+
+    private var trimmedAPIKey: String {
+        apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -170,173 +194,369 @@ private struct TranscriptionSettingsTab: View {
                     subtitle: L10n.settingsTranscriptionHeaderSubtitle
                 )
 
-                SettingsCard {
-                    SettingsField(
-                        icon: "link.circle.fill",
-                        iconColor: .blue,
-                        title: L10n.settingsTranscriptionApiTitle,
-                        help: L10n.settingsTranscriptionApiHelp
-                    ) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            TextField(L10n.settingsTranscriptionApiPlaceholder, text: $apiURLDraft)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 12, design: .monospaced))
-                                .onSubmit { settings.apiBaseURL = apiURLDraft }
-                                // Debounced write: one UserDefaults update per pause, not per keystroke.
-                                .task(id: apiURLDraft) {
-                                    try? await Task.sleep(for: .milliseconds(400))
-                                    guard !Task.isCancelled, isDraftValid else { return }
-                                    settings.apiBaseURL = apiURLDraft
-                                }
-
-                            if !isDraftValid {
-                                Text(L10n.settingsTranscriptionApiInvalid)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.red)
-                            }
-                        }
-                    }
-
-                    Divider()
-
-                    SettingsField(
-                        icon: "key.fill",
-                        iconColor: .gray,
-                        title: L10n.settingsTranscriptionApiKeyTitle,
-                        help: L10n.settingsTranscriptionApiKeyHelp
-                    ) {
-                        SecureField(L10n.settingsTranscriptionApiKeyPlaceholder, text: $apiKeyDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
-                            // Debounced write: one keychain update per pause, not per keystroke.
-                            .task(id: apiKeyDraft) {
-                                try? await Task.sleep(for: .milliseconds(400))
-                                guard !Task.isCancelled else { return }
-                                let trimmed = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                                guard
-                                    trimmed != KeychainStore.string(for: KeychainStore.transcriptionAPIKeyAccount) ?? ""
-                                else { return }
-                                KeychainStore.set(trimmed, for: KeychainStore.transcriptionAPIKeyAccount)
-                            }
-                    }
-
-                    Divider()
-
-                    SettingsField(
-                        icon: "text.book.closed.fill",
-                        iconColor: .teal,
-                        title: L10n.settingsTranscriptionGlossaryTitle,
-                        help: L10n.settingsTranscriptionGlossaryHelp
-                    ) {
-                        TextField(L10n.settingsTranscriptionGlossaryPlaceholder, text: $glossaryDraft, axis: .vertical)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(2...4)
-                            .task(id: glossaryDraft) {
-                                try? await Task.sleep(for: .milliseconds(400))
-                                guard !Task.isCancelled else { return }
-                                settings.transcriptionGlossary = glossaryDraft
-                            }
-                    }
-
-                    Divider()
-
-                    SettingsField(
-                        icon: "cpu.fill",
-                        iconColor: .purple,
-                        title: L10n.settingsTranscriptionModelTitle,
-                        help: L10n.settingsTranscriptionModelHelp
-                    ) {
-                        Picker("", selection: $settings.whisperModel) {
-                            Text("tiny").tag("tiny")
-                            Text("base").tag("base")
-                            Text("small").tag("small")
-                            Text("medium").tag("medium")
-                            Text("large-v3").tag("large-v3")
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    Divider()
-
-                    SettingsField(
-                        icon: "globe",
-                        iconColor: .green,
-                        title: L10n.settingsTranscriptionLanguageTitle,
-                        help: L10n.settingsTranscriptionLanguageHelp
-                    ) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Picker("", selection: $settings.language) {
-                                Text("🇫🇷 Français").tag("fr")
-                                Text("🇬🇧 English").tag("en")
-                                Text("🇪🇸 Español").tag("es")
-                                Text("🇩🇪 Deutsch").tag("de")
-                            }
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: 200, alignment: .leading)
-
-                            Text(
-                                String(
-                                    format: L10n.settingsTranscriptionLanguageCodeFormat,
-                                    settings.language.uppercased()
-                                )
-                            )
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Divider()
-
-                    SettingsField(
-                        icon: "person.2.fill",
-                        iconColor: .orange,
-                        title: L10n.settingsTranscriptionSpeakersTitle,
-                        help: L10n.settingsTranscriptionSpeakersHelp
-                    ) {
-                        Stepper(value: $settings.nbSpeaker, in: 1...20) {
-                            Text(
-                                String(
-                                    format: L10n.settingsTranscriptionSpeakersCountFormat,
-                                    settings.nbSpeaker,
-                                    settings.nbSpeaker > 1 ? "s" : ""
-                                )
-                            )
-                            .font(.system(size: 12, weight: .medium))
-                        }
-                    }
-
-                    Divider()
-
-                    SettingsField(
-                        icon: "speedometer",
-                        iconColor: .red,
-                        title: L10n.settingsTranscriptionComputeTitle,
-                        help: L10n.settingsTranscriptionComputeHelp
-                    ) {
-                        Picker("", selection: $settings.computeType) {
-                            Text("int8 (Apple Silicon)").tag("int8")
-                            Text("float16 (GPU NVIDIA)").tag("float16")
-                            Text("float32 (CPU)").tag("float32")
-                        }
-                        .pickerStyle(.radioGroup)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                if isEditingServer {
+                    serverEditor
+                } else {
+                    serverSummary
                 }
 
-                HStack {
-                    Button(L10n.settingsTranscriptionReset) {
-                        settings.resetToDefaults()
-                    }
-                    .buttonStyle(.bordered)
+                essentials
 
-                    Spacer()
+                DisclosureGroup(isExpanded: $showsAdvanced) {
+                    advanced
+                        .padding(.top, 12)
+                } label: {
+                    Text(L10n.settingsTranscriptionAdvancedTitle)
+                        .font(.system(size: 14, weight: .medium))
                 }
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 32)
         }
         .background(Color(.windowBackgroundColor))
+        // Reset changes the glossary behind the draft.
+        .onChange(of: settings.transcriptionGlossary) { _, newValue in
+            if newValue != glossaryDraft { glossaryDraft = newValue }
+        }
+    }
+
+    // MARK: Server
+
+    private var serverSummary: some View {
+        SettingsCard {
+            SettingRow(
+                icon: "server.rack",
+                iconColor: .blue,
+                title: L10n.settingsTranscriptionServerTitle,
+                subtitle: settings.apiBaseURL + " · "
+                    + (trimmedAPIKey.isEmpty
+                        ? L10n.settingsTranscriptionServerNoKey : L10n.settingsTranscriptionServerKeySet)
+            ) {
+                Button(L10n.settingsTranscriptionServerEdit) {
+                    isEditingServer = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    private var serverEditor: some View {
+        SettingsCard {
+            SettingsField(
+                icon: "link.circle.fill",
+                iconColor: .blue,
+                title: L10n.settingsTranscriptionApiTitle,
+                help: L10n.settingsTranscriptionApiHelp
+            ) {
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField(L10n.settingsTranscriptionApiPlaceholder, text: $apiURLDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .onSubmit { settings.apiBaseURL = apiURLDraft }
+                        // Debounced write: one UserDefaults update per pause, not per keystroke.
+                        .task(id: apiURLDraft) {
+                            try? await Task.sleep(for: .milliseconds(400))
+                            guard !Task.isCancelled, isDraftValid else { return }
+                            settings.apiBaseURL = apiURLDraft
+                        }
+
+                    if !isDraftValid {
+                        Text(L10n.settingsTranscriptionApiInvalid)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+
+            Divider()
+
+            SettingsField(
+                icon: "key.fill",
+                iconColor: .gray,
+                title: L10n.settingsTranscriptionApiKeyTitle,
+                help: L10n.settingsTranscriptionApiKeyHelp
+            ) {
+                SecureField(L10n.settingsTranscriptionApiKeyPlaceholder, text: $apiKeyDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                    // Debounced write: one keychain update per pause, not per keystroke.
+                    .task(id: apiKeyDraft) {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        guard !Task.isCancelled else { return }
+                        saveAPIKey()
+                    }
+            }
+
+            HStack {
+                Spacer()
+                Button(L10n.settingsTranscriptionServerDone) {
+                    settings.apiBaseURL = apiURLDraft
+                    saveAPIKey()
+                    isEditingServer = false
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(!SettingsStore.isValidAPIURL(apiURLDraft))
+            }
+        }
+    }
+
+    private func saveAPIKey() {
+        guard trimmedAPIKey != KeychainStore.string(for: KeychainStore.transcriptionAPIKeyAccount) ?? "" else {
+            return
+        }
+        KeychainStore.set(trimmedAPIKey, for: KeychainStore.transcriptionAPIKeyAccount)
+    }
+
+    // MARK: Essentials
+
+    private var essentials: some View {
+        SettingsCard {
+            SettingsField(
+                icon: "globe",
+                iconColor: .green,
+                title: L10n.settingsTranscriptionLanguageTitle,
+                help: L10n.settingsTranscriptionLanguageHelp
+            ) {
+                Picker("", selection: $settings.language) {
+                    Text("🇫🇷 Français").tag("fr")
+                    Text("🇬🇧 English").tag("en")
+                    Text("🇪🇸 Español").tag("es")
+                    Text("🇩🇪 Deutsch").tag("de")
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 200, alignment: .leading)
+            }
+
+            Divider()
+
+            SettingsField(
+                icon: "text.book.closed.fill",
+                iconColor: .teal,
+                title: L10n.settingsTranscriptionGlossaryTitle,
+                help: L10n.settingsTranscriptionGlossaryHelp
+            ) {
+                TextField(L10n.settingsTranscriptionGlossaryPlaceholder, text: $glossaryDraft, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(2...4)
+                    .task(id: glossaryDraft) {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        guard !Task.isCancelled, glossaryDraft != settings.transcriptionGlossary else { return }
+                        settings.transcriptionGlossary = glossaryDraft
+                    }
+            }
+
+            Divider()
+
+            SettingsField(
+                icon: "square.stack.3d.up.fill",
+                iconColor: .indigo,
+                title: L10n.settingsTranscriptionPacksTitle,
+                help: L10n.settingsTranscriptionPacksHelp
+            ) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(VocabularyPack.allCases) { pack in
+                        Toggle(isOn: packBinding(pack.rawValue)) {
+                            Label(pack.title, systemImage: pack.icon)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .toggleStyle(.button)
+                        .help(pack.terms.joined(separator: ", "))
+                    }
+
+                    ForEach(settings.customVocabularyPacks) { pack in
+                        Toggle(isOn: packBinding(pack.id)) {
+                            Label(pack.name, systemImage: "star.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .toggleStyle(.button)
+                        .help(pack.terms.joined(separator: ", "))
+                        .contextMenu {
+                            Button(L10n.settingsTranscriptionPacksEdit) { editingPack = pack }
+                            Button(L10n.settingsTranscriptionPacksDelete, role: .destructive) {
+                                settings.deleteCustomPack(id: pack.id)
+                            }
+                        }
+                    }
+
+                    Button {
+                        editingPack = CustomVocabularyPack()
+                    } label: {
+                        Label(L10n.settingsTranscriptionPacksNew, systemImage: "plus")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .sheet(item: $editingPack) { pack in
+                    VocabularyPackEditor(
+                        pack: pack,
+                        isNew: !settings.customVocabularyPacks.contains { $0.id == pack.id },
+                        onSave: { settings.saveCustomPack($0) },
+                        onDelete: { settings.deleteCustomPack(id: pack.id) }
+                    )
+                }
+            }
+        }
+    }
+
+    private func packBinding(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { settings.vocabularyPacks.contains(id) },
+            set: { isOn in
+                if isOn {
+                    settings.vocabularyPacks.insert(id)
+                } else {
+                    settings.vocabularyPacks.remove(id)
+                }
+            }
+        )
+    }
+
+    // MARK: Advanced
+
+    private var advanced: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SettingsCard {
+                SettingsField(
+                    icon: "cpu.fill",
+                    iconColor: .purple,
+                    title: L10n.settingsTranscriptionModelTitle,
+                    help: L10n.settingsTranscriptionModelHelp
+                ) {
+                    Picker("", selection: $settings.whisperModel) {
+                        Text("tiny").tag("tiny")
+                        Text("base").tag("base")
+                        Text("small").tag("small")
+                        Text("medium").tag("medium")
+                        Text("large-v3").tag("large-v3")
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Divider()
+
+                SettingsField(
+                    icon: "person.2.fill",
+                    iconColor: .orange,
+                    title: L10n.settingsTranscriptionSpeakersTitle,
+                    help: L10n.settingsTranscriptionSpeakersHelp
+                ) {
+                    Stepper(value: $settings.nbSpeaker, in: 1...20) {
+                        Text(
+                            String(
+                                format: L10n.settingsTranscriptionSpeakersCountFormat,
+                                settings.nbSpeaker,
+                                settings.nbSpeaker > 1 ? "s" : ""
+                            )
+                        )
+                        .font(.system(size: 12, weight: .medium))
+                    }
+                }
+
+                Divider()
+
+                SettingsField(
+                    icon: "speedometer",
+                    iconColor: .red,
+                    title: L10n.settingsTranscriptionComputeTitle,
+                    help: L10n.settingsTranscriptionComputeHelp
+                ) {
+                    Picker("", selection: $settings.computeType) {
+                        Text("int8 (Apple Silicon)").tag("int8")
+                        Text("float16 (GPU NVIDIA)").tag("float16")
+                        Text("float32 (CPU)").tag("float32")
+                    }
+                    .pickerStyle(.radioGroup)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            Button(L10n.settingsTranscriptionReset) {
+                settings.resetTranscriptionOptions()
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+}
+
+// MARK: - Vocabulary Pack Editor
+
+private struct VocabularyPackEditor: View {
+    private let pack: CustomVocabularyPack
+    private let isNew: Bool
+    private let onSave: (CustomVocabularyPack) -> Void
+    private let onDelete: () -> Void
+    @State private var name: String
+    @State private var termsText: String
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        pack: CustomVocabularyPack, isNew: Bool, onSave: @escaping (CustomVocabularyPack) -> Void,
+        onDelete: @escaping () -> Void
+    ) {
+        self.pack = pack
+        self.isNew = isNew
+        self.onSave = onSave
+        self.onDelete = onDelete
+        self._name = State(initialValue: pack.name)
+        self._termsText = State(initialValue: pack.terms.joined(separator: "\n"))
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var terms: [String] {
+        CustomVocabularyPack.parse(termsText)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(isNew ? L10n.settingsPackEditorTitleNew : L10n.settingsPackEditorTitleEdit)
+                .font(.system(size: 15, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.settingsPackEditorName)
+                    .font(.system(size: 12, weight: .medium))
+                TextField(L10n.settingsPackEditorNamePlaceholder, text: $name)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.settingsPackEditorTerms)
+                    .font(.system(size: 12, weight: .medium))
+                TextField(L10n.settingsPackEditorTermsPlaceholder, text: $termsText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(5...10)
+                Text(L10n.settingsPackEditorHelp)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                if !isNew {
+                    Button(L10n.settingsTranscriptionPacksDelete, role: .destructive) {
+                        onDelete()
+                        dismiss()
+                    }
+                }
+
+                Spacer()
+
+                Button(L10n.settingsPackEditorCancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+
+                Button(L10n.settingsPackEditorSave) {
+                    onSave(CustomVocabularyPack(id: pack.id, name: trimmedName, terms: terms))
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(trimmedName.isEmpty || terms.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 400)
     }
 }
 
@@ -435,12 +655,25 @@ private struct CalendarSettingsTab: View {
 
                 if settings.calendarEnabled, !calendar.calendars.isEmpty {
                     SettingsCard {
-                        Label {
-                            Text(L10n.settingsCalendarPickerTitle)
-                                .font(.system(size: 14, weight: .medium))
-                        } icon: {
-                            Image(systemName: "checklist")
-                                .foregroundColor(.red)
+                        HStack {
+                            Label {
+                                Text(L10n.settingsCalendarPickerTitle)
+                                    .font(.system(size: 14, weight: .medium))
+                            } icon: {
+                                Image(systemName: "checklist")
+                                    .foregroundColor(.red)
+                            }
+
+                            Spacer()
+
+                            Button(
+                                calendar.allSelected
+                                    ? L10n.settingsCalendarPickerDeselectAll : L10n.settingsCalendarPickerSelectAll
+                            ) {
+                                calendar.setAllSelected(!calendar.allSelected)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
 
                         Text(L10n.settingsCalendarPickerHelp)

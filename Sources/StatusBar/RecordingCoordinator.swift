@@ -276,7 +276,7 @@ final class RecordingCoordinator {
             Log.recording.info("Stop sequence completed")
         }
 
-        let shouldTranscribe = settings.transcriptionEnabled
+        let shouldTranscribe = settings.shouldAutoTranscribe(hasMeeting: sessionEvent != nil)
         if shouldTranscribe {
             transcription.preIndicate()
         }
