@@ -124,6 +124,17 @@ enum CoreAudioProperties {
         (try? string(deviceID, kAudioObjectPropertyName, operation: "DeviceName")) ?? "?"
     }
 
+    /// UIDs of every audio device the HAL lists for this process.
+    static func deviceUIDs() -> Set<String> {
+        var address = self.address(kAudioHardwarePropertyDevices)
+        var size: UInt32 = 0
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr, size > 0 else { return [] }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &ids) == noErr else { return [] }
+        return Set(ids.compactMap { try? deviceUID($0) })
+    }
+
     static func nominalSampleRate(_ deviceID: AudioObjectID) throws(CaptureFailure) -> Double {
         try value(deviceID, kAudioDevicePropertyNominalSampleRate, initial: Double(0), operation: "NominalSampleRate")
     }

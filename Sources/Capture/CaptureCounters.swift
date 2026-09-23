@@ -4,6 +4,8 @@ import Synchronization
 /// Lock-free counters written by the IO callback and read by the health loop.
 final class CaptureCounters: Sendable {
     let ioCallbacks = Atomic<UInt64>(0)
+    /// Frames delivered by the device (dropped cycles included): the effective sample rate.
+    let ioFrames = Atomic<UInt64>(0)
     let droppedFrames = Atomic<UInt64>(0)
     /// `mach_absolute_time` of the last IO callback (0 = none yet).
     let lastIOHostTime = Atomic<UInt64>(0)
@@ -21,6 +23,7 @@ final class CaptureCounters: Sendable {
     func snapshot() -> HealthSnapshot {
         HealthSnapshot(
             ioCallbacks: ioCallbacks.load(ordering: .relaxed),
+            ioFrames: ioFrames.load(ordering: .relaxed),
             droppedFrames: droppedFrames.load(ordering: .relaxed),
             systemPeak: Float(bitPattern: systemPeakBits.exchange(0, ordering: .relaxed)),
             microphonePeak: Float(bitPattern: microphonePeakBits.exchange(0, ordering: .relaxed))

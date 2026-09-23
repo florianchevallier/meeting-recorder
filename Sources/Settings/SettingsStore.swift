@@ -23,6 +23,7 @@ final class SettingsStore {
         static let calendarEnabled = true
         static let calendarRemindersEnabled = false
         static let calendarReminderLeadMinutes = Constants.Calendar.defaultReminderLeadMinutes
+        static let liveTranscriptionEnabled = true
     }
 
     // MARK: - Properties
@@ -116,6 +117,14 @@ final class SettingsStore {
         }
     }
 
+    /// On-device transcript shown live while recording (and saved as `<recording>.live.md`).
+    var liveTranscriptionEnabled: Bool {
+        didSet {
+            defaults.set(liveTranscriptionEnabled, for: .liveTranscriptionEnabled)
+            Log.settings.debug("Live transcription: \(self.liveTranscriptionEnabled)")
+        }
+    }
+
     // MARK: - Initialization
 
     init(defaults: UserDefaults = .standard) {
@@ -156,6 +165,9 @@ final class SettingsStore {
             defaults.object(for: .calendarReminderLeadMinutes) as? Int
             ?? Defaults.calendarReminderLeadMinutes
         self.calendarSelectedIDs = (defaults.object(for: .calendarSelectedIDs) as? [String]).map(Set.init)
+        self.liveTranscriptionEnabled =
+            defaults.object(for: .liveTranscriptionEnabled) as? Bool
+            ?? Defaults.liveTranscriptionEnabled
 
         Log.settings.info("Settings loaded (transcription: \(self.transcriptionEnabled))")
     }
@@ -176,6 +188,7 @@ final class SettingsStore {
         calendarRemindersEnabled = Defaults.calendarRemindersEnabled
         calendarReminderLeadMinutes = Defaults.calendarReminderLeadMinutes
         calendarSelectedIDs = nil
+        liveTranscriptionEnabled = Defaults.liveTranscriptionEnabled
         Log.settings.info("Reset to defaults")
     }
 

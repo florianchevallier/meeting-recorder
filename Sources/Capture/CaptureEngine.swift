@@ -32,6 +32,8 @@ actor CaptureEngine {
     private var retryCount = 0
     private var lastDegradation: HealthVerdict = .healthy
     private var systemAudioDetected = false
+    /// Tap rebuilds caused by a sample-rate change (capped: see `checkHealth`).
+    private var rateRestarts = 0
     private var finalURL: URL?
 
     init() {
@@ -44,13 +46,14 @@ actor CaptureEngine {
     // MARK: - Start
 
     /// Opens `outputURL` (written as `<name>.partial.m4a` until `stop()`) and starts the tap.
-    func start(outputURL: URL) async throws(CaptureFailure) {
+    /// `liveSink` receives both sources as 48 kHz mono for the whole recording (live transcription).
+    func start(outputURL: URL, liveSink: LiveAudioSink? = nil) async throws(CaptureFailure) {
         guard state == .idle else { throw .alreadyRecording }
         finalURL = outputURL
         let partialURL = Self.partialURL(for: outputURL)
         try? FileManager.default.removeItem(at: partialURL)
 
-        let writer = try AudioFileWriter(outputURL: partialURL, counters: counters)
+        let writer = try AudioFileWriter(outputURL: partialURL, counters: counters, liveSink: liveSink)
         try writer.start()
         self.writer = writer
 
@@ -162,7 +165,7 @@ actor CaptureEngine {
                 writer: writer)
         }
         self.tap = tap
-        health.reset()
+        health.reset(expectedSampleRate: systemFormat.sampleRate)
     }
 
     /// IO path (runs on the tap's IO queue): copy each stream into its own PCM
@@ -180,11 +183,12 @@ actor CaptureEngine {
 
         let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inputData))
         guard !formats.isEmpty else { return }
+        let cycleFrames = list.first.map { Int($0.mDataByteSize) / max(1, Int($0.mNumberChannels) * 4) } ?? 0
+        counters.ioFrames.add(UInt64(cycleFrames), ordering: .relaxed)
 
         // Back-pressure: if the writer lags more than a few seconds, drop this cycle.
         if counters.pendingFrames.load(ordering: .relaxed) > Constants.Recording.maxPendingFrames {
-            let frames = list.first.map { Int($0.mDataByteSize) / max(1, Int($0.mNumberChannels) * 4) } ?? 0
-            counters.droppedFrames.add(UInt64(frames), ordering: .relaxed)
+            counters.droppedFrames.add(UInt64(cycleFrames), ordering: .relaxed)
             return
         }
 
@@ -289,10 +293,16 @@ actor CaptureEngine {
     private func startHealthMonitoring() {
         healthTask = Task { [weak self] in
             let interval = Constants.Recording.healthPollInterval
+            let clock = ContinuousClock()
+            var last = clock.now
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(interval))
                 guard !Task.isCancelled else { return }
-                await self?.checkHealth(elapsed: interval)
+                // Measured, not nominal: the effective sample rate is frames / real time.
+                let now = clock.now
+                let elapsed = (now - last) / .seconds(1)
+                last = now
+                await self?.checkHealth(elapsed: elapsed)
             }
         }
     }
@@ -310,6 +320,17 @@ actor CaptureEngine {
             lastDegradation = .healthy
         case .stalled:
             scheduleRestart(reason: "no IO callback for \(Int(Constants.Recording.healthStallTimeout))s")
+        case .sampleRateMismatch(let effective, let expected):
+            guard rateRestarts < Constants.Recording.maxSampleRateRestarts else {
+                if verdict != lastDegradation {
+                    lastDegradation = verdict
+                    Log.capture.error("Sample rate still off after \(self.rateRestarts) rebuilds — giving up")
+                    eventContinuation.yield(.degraded(verdict))
+                }
+                return
+            }
+            rateRestarts += 1
+            scheduleRestart(reason: "device runs at \(Int(effective)) Hz, formats built for \(Int(expected)) Hz")
         case .dropping, .systemSilent:
             if verdict != lastDegradation {
                 lastDegradation = verdict

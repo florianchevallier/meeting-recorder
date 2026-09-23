@@ -194,6 +194,10 @@ private struct EventRow: View {
                     IconButton(icon: "doc.text", help: L10n.calendarOpenTranscript) {
                         NSWorkspace.shared.open(files.transcriptText)
                     }
+                } else if FileManager.default.fileExists(atPath: files.liveTranscript.path) {
+                    IconButton(icon: "captions.bubble", help: L10n.calendarOpenLiveTranscript) {
+                        NSWorkspace.shared.open(files.liveTranscript)
+                    }
                 }
                 if FileManager.default.fileExists(atPath: files.transcriptJSON.path) {
                     IconButton(icon: "person.2", help: L10n.calendarEditSpeakers) {

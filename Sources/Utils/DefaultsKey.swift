@@ -16,6 +16,7 @@ enum DefaultsKey: String, CaseIterable, Sendable {
     case calendarRemindersEnabled
     case calendarReminderLeadMinutes
     case calendarSelectedIDs
+    case liveTranscriptionEnabled
 
     // Onboarding / permissions
     case hasCompletedOnboarding = "hasCompletedOnboarding"

@@ -11,6 +11,11 @@ struct PCMTransfer: @unchecked Sendable {
     let buffer: AVAudioPCMBuffer
 }
 
+/// Receives each source as 48 kHz mono samples right after conversion, on the
+/// writer queue (empty array = no audio from that source this cycle). Must
+/// return immediately: it runs inline with the file encoding.
+typealias LiveAudioSink = @Sendable (_ system: [Float], _ microphone: [Float]) -> Void
+
 /// Encodes the mixed mono stream to AAC in an `.m4a` via `AVAssetWriter`.
 ///
 /// All mutable state is confined to `queue`; `enqueue` is the only entry point
@@ -23,6 +28,7 @@ final class AudioFileWriter: @unchecked Sendable {
     private let input: AVAssetWriterInput
     private let canonical = CaptureFormat.canonical()
     private let counters: CaptureCounters
+    private let liveSink: LiveAudioSink?
     let outputURL: URL
 
     // Per-source conversion state (rebuilt on every tap start).
@@ -43,9 +49,10 @@ final class AudioFileWriter: @unchecked Sendable {
 
     // MARK: - Init
 
-    init(outputURL: URL, counters: CaptureCounters) throws(CaptureFailure) {
+    init(outputURL: URL, counters: CaptureCounters, liveSink: LiveAudioSink? = nil) throws(CaptureFailure) {
         self.outputURL = outputURL
         self.counters = counters
+        self.liveSink = liveSink
         do {
             writer = try AVAssetWriter(outputURL: outputURL, fileType: .m4a)
         } catch {
@@ -106,12 +113,17 @@ final class AudioFileWriter: @unchecked Sendable {
         queue.async { [self] in
             defer { counters.pendingFrames.subtract(frames, ordering: .relaxed) }
             guard started, !finished else { return }
+            var system: [Float] = []
+            var microphone: [Float] = []
             if let systemTransfer, let systemConverter {
-                systemFIFO.append(contentsOf: convertToMono(systemTransfer.buffer, using: systemConverter))
+                system = convertToMono(systemTransfer.buffer, using: systemConverter)
             }
             if let microphoneTransfer, let microphoneConverter {
-                microphoneFIFO.append(contentsOf: convertToMono(microphoneTransfer.buffer, using: microphoneConverter))
+                microphone = convertToMono(microphoneTransfer.buffer, using: microphoneConverter)
             }
+            liveSink?(system, microphone)
+            systemFIFO.append(contentsOf: system)
+            microphoneFIFO.append(contentsOf: microphone)
             drainMix(flush: false)
         }
     }
@@ -124,7 +136,9 @@ final class AudioFileWriter: @unchecked Sendable {
             guard started, !finished else { return }
             drainMix(flush: true)
             activity.addSilence(frames: frames)
-            append(samples: [Float](repeating: 0, count: frames))
+            let silence = [Float](repeating: 0, count: frames)
+            liveSink?(silence, hasMicrophone ? silence : [])
+            append(samples: silence)
         }
     }
 
