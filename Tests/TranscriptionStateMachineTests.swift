@@ -79,3 +79,32 @@ struct TranscriptionStateMachineTests {
         #expect(state.error == nil)
     }
 }
+
+@Suite("TranscriptionProgress")
+struct TranscriptionProgressTests {
+    @Test("Server log lines lose their timestamp and give a percentage")
+    func parse() {
+        let parsed = TranscriptionProgress.parse("[2026-09-22T20:41:27.559Z] [40%] - Transcription...")
+        #expect(parsed.message == "Transcription...")
+        #expect(parsed.percent == 40)
+    }
+
+    @Test("Lines without a percentage keep their text")
+    func noPercent() {
+        let parsed = TranscriptionProgress.parse("[2026-09-22T20:41:25.284Z] Nombre de locuteurs: 2")
+        #expect(parsed.message == "Nombre de locuteurs: 2")
+        #expect(parsed.percent == nil)
+    }
+
+    @Test("The reducer keeps the last known percentage and resets it for a new job")
+    func reducer() {
+        var state = TranscriptionState()
+        TranscriptionStateReducer.reduce(&state, .prepare)
+        TranscriptionStateReducer.reduce(&state, .progressMessage("[2026-09-22T20:41:29.945Z] [80%] - Diarisation..."))
+        #expect(state.percent == 80)
+        TranscriptionStateReducer.reduce(&state, .progressMessage("[2026-09-22T20:41:30.000Z] loading model"))
+        #expect(state.percent == 80)
+        TranscriptionStateReducer.reduce(&state, .jobCreated("next"))
+        #expect(state.percent == nil)
+    }
+}

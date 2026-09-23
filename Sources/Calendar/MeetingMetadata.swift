@@ -18,7 +18,7 @@ struct MeetingMetadata: Codable, Sendable, Equatable {
     // MARK: Files
 
     static func url(forRecording recordingURL: URL) -> URL {
-        recordingURL.deletingPathExtension().appendingPathExtension("meeting.json")
+        RecordingFiles(audio: recordingURL).meetingMetadata
     }
 
     func write(nextTo recordingURL: URL) throws {

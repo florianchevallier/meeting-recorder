@@ -13,6 +13,7 @@ struct StatusBarMenu: View {
     let calendar: CalendarMonitor
     let settings: SettingsStore
     let onOpenSettings: () -> Void
+    let onEditSpeakers: (URL) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,7 +21,13 @@ struct StatusBarMenu: View {
             mainControlSection
             errorSection
             transcriptionSection
-            CalendarMenuSection(calendar: calendar, permissionMonitor: permissionMonitor, settings: settings)
+            CalendarMenuSection(
+                calendar: calendar,
+                permissionMonitor: permissionMonitor,
+                settings: settings,
+                transcription: coordinator.transcription,
+                onEditSpeakers: onEditSpeakers
+            )
             quickActionsSection
         }
         .frame(width: Constants.UI.menuWidth)
@@ -196,14 +203,34 @@ struct StatusBarMenu: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+
+                        if let percent = coordinator.transcription.state.percent {
+                            ProgressView(value: Double(percent), total: 100)
+                                .controlSize(.small)
+                                .tint(.purple)
+                        }
+
+                        if !coordinator.transcription.queue.isEmpty {
+                            Text(L10n.menuTranscriptionQueued(coordinator.transcription.queue.count))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     Spacer()
 
-                    if coordinator.transcription.state.status == .running {
+                    if coordinator.transcription.state.status == .running,
+                        coordinator.transcription.state.percent == nil
+                    {
                         ProgressView()
                             .controlSize(.small)
                             .scaleEffect(0.8)
+                    }
+
+                    if coordinator.transcription.current != nil {
+                        Button(L10n.menuTranscriptionCancel) { coordinator.transcription.cancel() }
+                            .buttonStyle(.borderless)
+                            .font(.system(size: 11, weight: .medium))
                     }
                 }
                 .padding(.horizontal, 20)
@@ -231,6 +258,12 @@ struct StatusBarMenu: View {
                     }
 
                     Spacer()
+
+                    if coordinator.transcription.lastFailed != nil {
+                        Button(L10n.menuTranscriptionRetry) { coordinator.transcription.retry() }
+                            .buttonStyle(.borderless)
+                            .font(.system(size: 11, weight: .medium))
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)

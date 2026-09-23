@@ -77,13 +77,14 @@ final class RecordingCoordinator {
         settings: SettingsStore,
         permissionMonitor: PermissionMonitor,
         teamsMonitor: TeamsMonitor = TeamsMonitor(),
-        calendar: CalendarMonitor? = nil
+        calendar: CalendarMonitor? = nil,
+        transcription: TranscriptionCoordinator? = nil
     ) {
         self.settings = settings
         self.permissionMonitor = permissionMonitor
         self.teamsMonitor = teamsMonitor
         self.calendar = calendar
-        self.transcription = TranscriptionCoordinator(settings: settings)
+        self.transcription = transcription ?? TranscriptionCoordinator(settings: settings)
         watchMicrophoneRevocation()
     }
 
@@ -305,11 +306,8 @@ final class RecordingCoordinator {
             }
         }
         guard transcribe else { return }
-        transcription.notifyUploadStarted()
-        let speakerCount = sessionEvent?.event.expectedSpeakerCount
-        Task { [transcription] in
-            await transcription.transcribe(audioFileURL: url, speakerCount: speakerCount)
-        }
+        // The sidecar written above gives the transcription its speaker bounds and prompt.
+        transcription.enqueue(url)
     }
 
     // MARK: - Teams Auto-Recording

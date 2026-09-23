@@ -117,8 +117,8 @@
 "settings.transcription.language.title" = "Language";
 "settings.transcription.language.help" = "Choose the primary language of your meetings";
 "settings.transcription.language.code" = "Code: %@";
-"settings.transcription.speakers.title" = "Number of speakers";
-"settings.transcription.speakers.help" = "Helps diarization separate each voice";
+"settings.transcription.speakers.title" = "Maximum number of speakers";
+"settings.transcription.speakers.help" = "Upper bound for diarization when the recording has no calendar event (otherwise the invitees count)";
 "settings.transcription.speakers.count" = "%d speaker%@";
 "settings.transcription.compute.title" = "Hardware optimization";
 "settings.transcription.compute.help" = "Pick the mode that fits your machine";
@@ -142,7 +142,6 @@
 "transcription.error.timeout_status" = "Timeout while checking status";
 "transcription.error.too_long" = "Transcription is taking too long";
 "transcription.error.no_file" = "No audio file generated";
-"transcription.error.save_failed" = "Save failed: %@";
 "transcription.error.prefixed" = "❌ Error: %@";
 "api.error.invalid_url" = "Invalid API URL";
 "api.error.invalid_response" = "Invalid API response";
@@ -184,3 +183,29 @@
 "settings.calendar.picker.title" = "Calendars";
 "settings.calendar.picker.help" = "Only meetings from checked calendars appear in the menu, name recordings and trigger reminders. Calendars added later stay unchecked once you have made a choice.";
 "settings.calendar.picker.other_account" = "Other";
+
+/* Transcription 2026 */
+"api.error.unauthorized" = "The transcription server refused the API key: check it in Settings → Transcription";
+"transcript.participants" = "Participants";
+"transcript.self_speaker" = "Me";
+"transcript.unknown_speaker" = "Speaker %d";
+"calendar.transcribe" = "Transcribe";
+"calendar.retranscribe" = "Transcribe again";
+"calendar.transcription_pending" = "Transcription in progress";
+"calendar.edit_speakers" = "Name the speakers";
+"menu.transcription.cancel" = "Cancel";
+"menu.transcription.retry" = "Retry";
+"menu.transcription.queued" = "%d more waiting";
+"settings.transcription.api_key.title" = "API key";
+"settings.transcription.api_key.placeholder" = "Optional";
+"settings.transcription.api_key.help" = "Sent in the X-API-Key header when the server requires one. Stored in the keychain.";
+"settings.transcription.glossary.title" = "Vocabulary";
+"settings.transcription.glossary.placeholder" = "Product names, acronyms, jargon…";
+"settings.transcription.glossary.help" = "Added to the meeting title and participant names to help spell them right";
+"speakers.window.title" = "Speakers";
+"speakers.help" = "Name each voice; the transcript is updated right away. Names guessed from the microphone and the calendar are pre-filled.";
+"speakers.name_placeholder" = "Name";
+"speakers.participants" = "Participants";
+"speakers.save" = "Save";
+"speakers.cancel" = "Cancel";
+"speakers.unavailable" = "No transcript to edit for this recording.";

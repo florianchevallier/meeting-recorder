@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dependencies.statusBarController.setup()
         dependencies.permissionMonitor.start()
         dependencies.calendar.start()
+        dependencies.transcription.resumePending(in: CalendarMonitor.recordingsInDocuments())
         dependencies.reminderScheduler.start()
         dependencies.coordinator.startTeamsMonitoring()
         dependencies.onboardingCoordinator.presentIfNeeded()

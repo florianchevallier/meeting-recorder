@@ -170,6 +170,27 @@ extension L10n {
     // MARK: - Status Bar Menu
     static let menuTranscriptionRunning = "menu.transcription.running".localized
     static let menuTranscriptionError = "menu.transcription.error".localized
+    static let menuTranscriptionCancel = "menu.transcription.cancel".localized
+    static let menuTranscriptionRetry = "menu.transcription.retry".localized
+    static func menuTranscriptionQueued(_ count: Int) -> String {
+        L10n.string("menu.transcription.queued", count)
+    }
+
+    // MARK: - Transcript
+    static let transcriptParticipants = "transcript.participants".localized
+    static let transcriptSelfSpeaker = "transcript.self_speaker".localized
+    static func transcriptUnknownSpeaker(_ index: Int) -> String {
+        L10n.string("transcript.unknown_speaker", index)
+    }
+
+    // MARK: - Speakers window
+    static let speakersWindowTitle = "speakers.window.title".localized
+    static let speakersHelp = "speakers.help".localized
+    static let speakersNamePlaceholder = "speakers.name_placeholder".localized
+    static let speakersParticipants = "speakers.participants".localized
+    static let speakersSave = "speakers.save".localized
+    static let speakersCancel = "speakers.cancel".localized
+    static let speakersUnavailable = "speakers.unavailable".localized
     static let menuErrorOpenPrivacySettings = "menu.error.open_privacy_settings".localized
     static let menuErrorOpenFolder = "menu.error.open_folder".localized
 
@@ -189,9 +210,6 @@ extension L10n {
     static let transcriptionErrorTimeoutStatus = "transcription.error.timeout_status".localized
     static let transcriptionErrorTooLong = "transcription.error.too_long".localized
     static let transcriptionErrorNoFile = "transcription.error.no_file".localized
-    static func transcriptionErrorSaveFailed(_ message: String) -> String {
-        L10n.string("transcription.error.save_failed", message)
-    }
     static func transcriptionErrorPrefixed(_ message: String) -> String {
         L10n.string("transcription.error.prefixed", message)
     }
@@ -204,6 +222,7 @@ extension L10n {
     static let apiErrorJobNotCompleted = "api.error.job_not_completed".localized
     static let apiErrorResultNotFound = "api.error.result_not_found".localized
     static let apiErrorMissingBaseURL = "api.error.missing_base_url".localized
+    static let apiErrorUnauthorized = "api.error.unauthorized".localized
     static func apiErrorBadRequest(_ message: String) -> String {
         L10n.string("api.error.bad_request", message)
     }
@@ -242,6 +261,12 @@ extension L10n {
     static let settingsTranscriptionComputeTitle = "settings.transcription.compute.title".localized
     static let settingsTranscriptionComputeHelp = "settings.transcription.compute.help".localized
     static let settingsTranscriptionReset = "settings.transcription.reset".localized
+    static let settingsTranscriptionApiKeyTitle = "settings.transcription.api_key.title".localized
+    static let settingsTranscriptionApiKeyPlaceholder = "settings.transcription.api_key.placeholder".localized
+    static let settingsTranscriptionApiKeyHelp = "settings.transcription.api_key.help".localized
+    static let settingsTranscriptionGlossaryTitle = "settings.transcription.glossary.title".localized
+    static let settingsTranscriptionGlossaryPlaceholder = "settings.transcription.glossary.placeholder".localized
+    static let settingsTranscriptionGlossaryHelp = "settings.transcription.glossary.help".localized
 
     // MARK: - Settings - Permissions
     static let settingsPermissionsHeaderTitle = "settings.permissions.header.title".localized
@@ -263,6 +288,10 @@ extension L10n {
     static let calendarPlayRecording = "calendar.play_recording".localized
     static let calendarShowInFinder = "calendar.show_in_finder".localized
     static let calendarOpenTranscript = "calendar.open_transcript".localized
+    static let calendarTranscribe = "calendar.transcribe".localized
+    static let calendarRetranscribe = "calendar.retranscribe".localized
+    static let calendarTranscriptionPending = "calendar.transcription_pending".localized
+    static let calendarEditSpeakers = "calendar.edit_speakers".localized
     static let calendarReminderRecordAction = "calendar.reminder.record".localized
 
     static func calendarStartsIn(_ minutes: Int) -> String {

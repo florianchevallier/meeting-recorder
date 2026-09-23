@@ -2,35 +2,57 @@ import Foundation
 
 // MARK: - API Request Models
 
-/// Request body for starting audio transcription
-struct TranscriptionRequest: Codable, Sendable {
-    let outputFormat: String
-    let model: String
-    let language: String
-    let batchSize: Int
-    let computeType: String
-    let diarize: Bool
-    let nbSpeaker: Int
-    let debug: Bool
+/// Form fields of `POST /process`. Optional values are left out of the form
+/// so the server applies its own default.
+struct TranscriptionRequest: Sendable, Equatable {
+    var outputFormat = "json"
+    var model: String
+    var language: String
+    var batchSize = 8
+    var computeType: String
+    var diarize = true
+    /// Exact speaker count; takes precedence over the range on the server.
+    var nbSpeaker: Int?
+    var minSpeakers: Int?
+    var maxSpeakers: Int?
+    var initialPrompt: String?
+    var debug = false
 
-    init(
-        outputFormat: String = "txt",
-        model: String = "large-v3",
-        language: String = "fr",
-        batchSize: Int = 8,
-        computeType: String = "float16",
-        diarize: Bool = true,
-        nbSpeaker: Int = 2,
-        debug: Bool = false
-    ) {
-        self.outputFormat = outputFormat
-        self.model = model
-        self.language = language
-        self.batchSize = batchSize
-        self.computeType = computeType
-        self.diarize = diarize
-        self.nbSpeaker = nbSpeaker
-        self.debug = debug
+    /// Ordered `(name, value)` pairs, optional fields only when set.
+    var formFields: [(String, String)] {
+        var fields: [(String, String)] = [
+            ("outputFormat", outputFormat),
+            ("model", model),
+            ("language", language),
+            ("batchSize", String(batchSize)),
+            ("computeType", computeType),
+            ("diarize", String(diarize)),
+        ]
+        if let nbSpeaker { fields.append(("nbSpeaker", String(nbSpeaker))) }
+        if let minSpeakers { fields.append(("minSpeakers", String(minSpeakers))) }
+        if let maxSpeakers { fields.append(("maxSpeakers", String(maxSpeakers))) }
+        if let initialPrompt, !initialPrompt.isEmpty { fields.append(("initialPrompt", initialPrompt)) }
+        fields.append(("debug", String(debug)))
+        return fields
+    }
+}
+
+/// Server job in flight for a recording (`<name>.transcription-job.json`):
+/// lets a relaunch resume polling instead of uploading again.
+struct PendingTranscriptionJob: Codable, Sendable, Equatable {
+    let jobId: String
+    let submittedAt: Date
+
+    func write(to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(self).write(to: url, options: .atomic)
+    }
+
+    static func read(from url: URL) throws -> PendingTranscriptionJob {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(PendingTranscriptionJob.self, from: Data(contentsOf: url))
     }
 }
 
@@ -101,6 +123,7 @@ enum APIError: LocalizedError {
     case jobNotCompleted
     case resultNotFound
     case missingBaseURL
+    case unauthorized
 
     var errorDescription: String? {
         switch self {
@@ -124,6 +147,8 @@ enum APIError: LocalizedError {
             return L10n.apiErrorResultNotFound
         case .missingBaseURL:
             return L10n.apiErrorMissingBaseURL
+        case .unauthorized:
+            return L10n.apiErrorUnauthorized
         }
     }
 }

@@ -63,6 +63,11 @@ enum Constants {
         static let defaultTimeout: TimeInterval = 30.0
         /// URLSession resource timeout (upload of large audio files)
         static let uploadTimeout: TimeInterval = 300.0
+
+        /// Diarization bound accepted by the server.
+        static let maxSpeakers: Int = 20
+        /// Header required by the server when it defines `API_KEY`.
+        static let apiKeyHeader = "X-API-Key"
     }
 
     // MARK: - Recording Constants

@@ -1,10 +1,8 @@
 import Foundation
 
-/// Pure endpoint logic for the Whisper API.
+/// Pure endpoint logic for the WhisperX API. The base URL ends with the API
+/// prefix (`https://host/api`).
 enum EndpointResolver {
-
-    /// Candidate paths for starting a transcription, tried in order.
-    static let startEndpointCandidates = ["process", "jobs", "transcriptions", "transcribe"]
 
     /// Trim whitespace and trailing slashes.
     static func sanitizeBaseURL(_ url: String) -> String {
@@ -15,23 +13,17 @@ enum EndpointResolver {
         return sanitized
     }
 
-    /// Full candidate URLs for the start endpoint, in fallback order.
-    static func startEndpoints(baseURL: String) -> [URL] {
-        startEndpointCandidates.compactMap { endpointURL(baseURL: baseURL, path: $0) }
+    static func processURL(baseURL: String) -> URL? {
+        endpointURL(baseURL: baseURL, path: "process")
     }
 
-    static func jobStatusURL(baseURL: String, jobId: String) -> URL? {
+    /// Status (GET) and deletion (DELETE) of a job.
+    static func jobURL(baseURL: String, jobId: String) -> URL? {
         endpointURL(baseURL: baseURL, path: "jobs/\(jobId)")
     }
 
     static func jobResultURL(baseURL: String, jobId: String) -> URL? {
         endpointURL(baseURL: baseURL, path: "jobs/\(jobId)/result")
-    }
-
-    /// Only a 404 means "wrong endpoint, try the next candidate".
-    /// Any other status is a real answer (success or error) and stops the fallback.
-    static func shouldTryNextEndpoint(statusCode: Int) -> Bool {
-        statusCode == 404
     }
 
     private static func endpointURL(baseURL: String, path: String) -> URL? {

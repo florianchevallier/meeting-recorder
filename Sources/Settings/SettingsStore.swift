@@ -18,6 +18,7 @@ final class SettingsStore {
         static let language = "fr"
         static let nbSpeaker = 2
         static let computeType = "float16"
+        static let transcriptionGlossary = ""
         static let autoRecordingEnabled = true
         static let calendarEnabled = true
         static let calendarRemindersEnabled = false
@@ -66,6 +67,13 @@ final class SettingsStore {
         didSet {
             defaults.set(computeType, for: .computeType)
             Log.settings.debug("Compute type: \(self.computeType)")
+        }
+    }
+
+    /// Words WhisperX should expect (jargon, product names), added to the prompt.
+    var transcriptionGlossary: String {
+        didSet {
+            defaults.set(transcriptionGlossary, for: .transcriptionGlossary)
         }
     }
 
@@ -132,6 +140,9 @@ final class SettingsStore {
         self.computeType =
             defaults.string(for: .computeType)
             ?? Defaults.computeType
+        self.transcriptionGlossary =
+            defaults.string(for: .transcriptionGlossary)
+            ?? Defaults.transcriptionGlossary
         self.autoRecordingEnabled =
             defaults.object(for: .autoRecordingEnabled) as? Bool
             ?? Defaults.autoRecordingEnabled
@@ -159,6 +170,7 @@ final class SettingsStore {
         language = Defaults.language
         nbSpeaker = Defaults.nbSpeaker
         computeType = Defaults.computeType
+        transcriptionGlossary = Defaults.transcriptionGlossary
         autoRecordingEnabled = Defaults.autoRecordingEnabled
         calendarEnabled = Defaults.calendarEnabled
         calendarRemindersEnabled = Defaults.calendarRemindersEnabled

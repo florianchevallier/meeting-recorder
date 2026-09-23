@@ -63,6 +63,13 @@ struct AudioFileWriterTests {
         #expect(asbd.mSampleRate == 48_000)
         #expect(asbd.mChannelsPerFrame == 1)
         #expect(counters.droppedFrames.load(ordering: .relaxed) == 0)
+
+        // 3 s of both streams → 12 windows of 250 ms, both around −13 dBFS (0.3 sine).
+        let activity = try #require(writer.voiceActivity)
+        #expect(activity.microphone.count == 12)
+        #expect(activity.system.count == 12)
+        #expect(activity.microphone.dropLast().allSatisfy { (-16)...(-10) ~= $0 })
+        #expect(activity.system.dropLast().allSatisfy { (-16)...(-10) ~= $0 })
     }
 
     @Test("Inserted silence extends the file and finish is idempotent")
@@ -80,6 +87,8 @@ struct AudioFileWriterTests {
 
         let duration = try await AVURLAsset(url: url).load(.duration).seconds
         #expect(abs(duration - 3.0) < 0.15)
+        // No microphone was ever captured: no activity sidecar.
+        #expect(writer.voiceActivity == nil)
     }
 
     @Test("Partial URL sits next to the final file with a .partial infix")

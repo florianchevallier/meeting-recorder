@@ -113,6 +113,7 @@ Sources/
 │   ├── AudioFileWriter.swift      # AVAssetWriter .m4a (AAC mono 48 kHz), converters, mixdown
 │   ├── DeviceChangeObserver.swift # Default in/out device listeners → AsyncStream
 │   ├── CaptureCounters.swift      # Atomic counters/peaks written by the IO path
+│   ├── VoiceActivity.swift        # Mic vs system RMS per 250 ms → `<rec>.activity.json`
 │   ├── CaptureHealth.swift        # HealthEvaluator (pure): stalled / dropping / systemSilent
 │   ├── CaptureStreamLayout.swift  # Aggregate buffer index → tap / microphone (pure)
 │   ├── CaptureFormat.swift        # Canonical format + AAC settings
@@ -146,19 +147,27 @@ Sources/
 │   └── SettingsWindowController.swift # NSWindow (created once), NSWindowDelegate → onClose
 ├── Onboarding/
 │   └── OnboardingCoordinator.swift # decide() pure + Observations-driven completion
-├── Transcription/          # Whisper API client (unchanged in the 2026 modernization)
-│   ├── TranscriptionCoordinator.swift # @Observable: upload → poll → save .txt
-│   ├── TranscriptionState.swift   # struct + pure reducer (testable)
-│   ├── WhisperAPIClient.swift     # Sendable HTTP client
-│   ├── EndpointResolver.swift     # Pure endpoint fallback (404 → next)
-│   ├── MultipartBuilder.swift     # Pure multipart body
-│   └── TranscriptionModels.swift  # Codable models + APIError
+├── Transcription/          # WhisperX server client + transcript rendering
+│   ├── TranscriptionCoordinator.swift # @Observable queue: upload → poll → JSON → .txt, resume, cancel
+│   ├── TranscriptionState.swift   # struct + pure reducer + TranscriptionProgress (log → %)
+│   ├── TranscriptionHints.swift   # Pure: calendar → speaker range + sanitized prompt
+│   ├── Transcript.swift           # WhisperX JSON model (segments, words, SPEAKER_xx)
+│   ├── SpeakerLabeler.swift       # Pure: manual names > mic-dominant "me" > last 1:1 match
+│   ├── TranscriptRenderer.swift   # Pure: header + `[mm:ss] Name: text` turns
+│   ├── TranscriptFiles.swift      # Sidecars ↔ Document, (re)writes the .txt, saves names
+│   ├── SpeakerNamesWindow.swift   # NSWindow + SwiftUI to name speakers
+│   ├── WhisperAPIClient.swift     # Sendable HTTP client (X-API-Key, upload from file, DELETE)
+│   ├── EndpointResolver.swift     # Pure URLs: <base>/process, /jobs/{id}, /jobs/{id}/result
+│   ├── MultipartBuilder.swift     # Multipart body streamed to a temp file
+│   └── TranscriptionModels.swift  # Request/response models, PendingTranscriptionJob, APIError
 ├── Utils/
 │   ├── Log.swift                  # os.Logger per category (app, capture, recording, teams, …)
 │   ├── DefaultsKey.swift          # Every UserDefaults key (legacy raw values preserved)
 │   ├── Localization.swift         # L10n (EN/FR)
 │   ├── Constants.swift            # UI, TeamsDetection, Recording, App, Transcription, Permissions
-│   └── FileSystemUtilities.swift  # Documents access, timestamped filenames (local TZ)
+│   ├── FileSystemUtilities.swift  # Documents access, timestamped filenames (local TZ)
+│   ├── RecordingFiles.swift       # Every sidecar URL of a recording
+│   └── KeychainStore.swift        # Generic passwords (transcription API key)
 └── Resources/              # en/fr .strings, app icons
 ```
 
@@ -252,18 +261,41 @@ open, and the end of each recording. No polling.
   Linking reads the start from the filename, so it works for old recordings too.
 - **Filename**: `meeting_<timestamp>_<sanitized title>.m4a` (≤60 chars, no `/:\?*"<>|`).
 - **Sidecar**: `<recording>.meeting.json` (event, organizer, attendees + status) for
-  diarization; the attendee count (minus declined, ≥2) overrides `nbSpeaker` for Whisper.
+  diarization: the attendee count (minus declined, ≥2) becomes `maxSpeakers`, the title and
+  names go into the prompt (see Transcription).
 - **Reminders** (Settings → Calendar, off by default): notifications N min before, `Record`
   action → `coordinator.start()`. Replaced wholesale on every change (`meety.reminder.` ids).
   Inert when run as a bare binary (`UNUserNotificationCenter` needs a bundle id).
 
-## Transcription (Whisper API)
+## Transcription (WhisperX server)
 
-Optional (Settings → Transcription). Flow: multipart POST (field `audio` + 8 params)
-to candidate endpoints `[process, jobs, transcriptions, transcribe]` until non-404 →
-202 + jobId → poll `GET /jobs/{id}` every 5s (max 360) → download result →
-`<recording>.txt` next to the M4A. UI state is a pure reducer (`TranscriptionStateReducer`).
-Scheduled for a full redesign (on-device `SpeechAnalyzer`, file-based upload, real cancel).
+Server: `apps/api` of `~/Projects/innovation-transcript` (WhisperX + pyannote). Base URL
+setting ends with `/api`. Optional API key (Settings → Transcription, stored in the keychain)
+goes in `X-API-Key`; every request also sends `ngrok-skip-browser-warning`.
+
+Automatic after a recording when Settings → General → Transcription is on, or on demand
+from the popover (Transcribe / Transcribe again on past meetings). `TranscriptionCoordinator`
+runs one recording at a time from a queue:
+1. `TranscriptionHints` (pure) from the `.meeting.json` event: `minSpeakers = 1`,
+   `maxSpeakers = invitees` (a range: `nbSpeaker` would force pyannote to find exactly that
+   many voices); without an event `maxSpeakers` = the setting. `initialPrompt` = title +
+   participant names + glossary setting, quotes/`$`/backticks/control chars stripped, ≤ 400 chars.
+2. `POST /process` (`outputFormat=json`), body streamed from a temp file →
+   `<rec>.transcription-job.json` {jobId} so a relaunch resumes (`resumePending` at launch).
+3. Poll `GET /jobs/{id}` every 5 s (max 360); `[NN%]` in `lastLog` feeds the progress bar.
+4. `GET /jobs/{id}/result` → `<rec>.transcript.json` (raw) → `<rec>.txt` rendered →
+   `DELETE /jobs/{id}` (audio and result gone from the server).
+Network errors keep the job file (resumed next launch); a failed/unknown job deletes it
+(Retry re-uploads). Cancel deletes the server job.
+
+**Speaker names** (`SpeakerLabeler`, pure), in priority order: names typed in the
+Speakers window (`<rec>.speakers.json`); "me" = the speaker whose words mostly (≥ 60 %,
+25 pts ahead of the next) fall in windows where the mic is ≥ −40 dBFS and ≥ 10 dB above the
+system audio (`<rec>.activity.json`, written by `AudioFileWriter` at finalize, not written
+without a microphone); then, if exactly one speaker and one expected participant are left,
+they match (names both sides of a 1:1). Rooms and laptop-speaker echo give no "me".
+Thresholds are first guesses, to calibrate on real recordings. Renaming re-renders the
+`.txt` from the JSON, no network.
 
 Note: the app is **not sandboxed**. If sandboxing is ever enabled, add
 `com.apple.security.network.client = true` (uploads) to the entitlements.
@@ -329,11 +361,13 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
 - `CalendarMatcherTests`, `CalendarAgendaTests` (+ reminder planner), `MeetingMetadataTests`,
   `CalendarMonitorTests` (fake source)
 - `FilenameGenerationTests`, `SettingsStoreTests`, `EndpointResolverTests`,
-  `MultipartBuilderTests`, `TranscriptionStateMachineTests`, `L10nParityTests`
+  `MultipartBuilderTests`, `TranscriptionStateMachineTests` (+ progress parsing), `L10nParityTests`
+- `TranscriptionHintsTests`, `TranscriptTests` (server JSON shape), `SpeakerLabelerTests`,
+  `TranscriptRendererTests`, `VoiceActivityRecorderTests`, `RecordingFilesTests`
 
 Manual smoke checklist after touching Capture: record 2 min with audio playing while
 switching output to AirPods and back → one file, `restarting → restarted` in logs, both
-voices audible; Cmd-Q while recording → finalized in < 15 s; `tccutil reset All <bundle>`
+voices audible, `<rec>.activity.json` present; Cmd-Q while recording → finalized in < 15 s; `tccutil reset All <bundle>`
 then deny the prompt → Verify reports denied and the deep link opens the pane.
 
 ## Coding guidelines (Karpathy-inspired)

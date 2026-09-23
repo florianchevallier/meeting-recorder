@@ -117,8 +117,8 @@
 "settings.transcription.language.title" = "Langue";
 "settings.transcription.language.help" = "Choisissez la langue principale des réunions";
 "settings.transcription.language.code" = "Code : %@";
-"settings.transcription.speakers.title" = "Nombre de locuteurs";
-"settings.transcription.speakers.help" = "Aide la diarisation pour séparer les voix";
+"settings.transcription.speakers.title" = "Nombre maximal de locuteurs";
+"settings.transcription.speakers.help" = "Borne haute de la diarisation quand l'enregistrement n'a pas d'événement de calendrier (sinon, le nombre d'invités)";
 "settings.transcription.speakers.count" = "%d locuteur%@";
 "settings.transcription.compute.title" = "Optimisation matérielle";
 "settings.transcription.compute.help" = "Sélectionnez le mode adapté à votre machine";
@@ -142,7 +142,6 @@
 "transcription.error.timeout_status" = "Timeout lors de la vérification du statut";
 "transcription.error.too_long" = "La transcription prend trop de temps";
 "transcription.error.no_file" = "Pas de fichier audio généré";
-"transcription.error.save_failed" = "Échec de la sauvegarde: %@";
 "transcription.error.prefixed" = "❌ Erreur: %@";
 "api.error.invalid_url" = "URL de l'API invalide";
 "api.error.invalid_response" = "Réponse de l'API invalide";
@@ -184,3 +183,29 @@
 "settings.calendar.picker.title" = "Calendriers";
 "settings.calendar.picker.help" = "Seules les réunions des calendriers cochés apparaissent dans le menu, nomment les enregistrements et déclenchent les rappels. Une fois un choix fait, les calendriers ajoutés plus tard restent décochés.";
 "settings.calendar.picker.other_account" = "Autres";
+
+/* Transcription 2026 */
+"api.error.unauthorized" = "Le serveur de transcription refuse la clé d'API : vérifiez-la dans Réglages → Transcription";
+"transcript.participants" = "Participants";
+"transcript.self_speaker" = "Moi";
+"transcript.unknown_speaker" = "Intervenant %d";
+"calendar.transcribe" = "Transcrire";
+"calendar.retranscribe" = "Retranscrire";
+"calendar.transcription_pending" = "Transcription en cours";
+"calendar.edit_speakers" = "Nommer les intervenants";
+"menu.transcription.cancel" = "Annuler";
+"menu.transcription.retry" = "Réessayer";
+"menu.transcription.queued" = "%d autre(s) en attente";
+"settings.transcription.api_key.title" = "Clé d'API";
+"settings.transcription.api_key.placeholder" = "Facultative";
+"settings.transcription.api_key.help" = "Envoyée dans l'en-tête X-API-Key si le serveur en exige une. Stockée dans le trousseau.";
+"settings.transcription.glossary.title" = "Vocabulaire";
+"settings.transcription.glossary.placeholder" = "Noms de produits, sigles, jargon…";
+"settings.transcription.glossary.help" = "Ajouté au titre de la réunion et aux noms des participants pour les orthographier correctement";
+"speakers.window.title" = "Intervenants";
+"speakers.help" = "Nommez chaque voix : la transcription est mise à jour aussitôt. Les noms devinés grâce au micro et au calendrier sont pré-remplis.";
+"speakers.name_placeholder" = "Nom";
+"speakers.participants" = "Participants";
+"speakers.save" = "Enregistrer";
+"speakers.cancel" = "Annuler";
+"speakers.unavailable" = "Aucune transcription à modifier pour cet enregistrement.";
