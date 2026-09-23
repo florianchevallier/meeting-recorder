@@ -38,10 +38,7 @@ struct FakeSystemAudioProbe: SystemAudioAccessProbing {
 struct PermissionMonitorTests {
 
     private func makeDefaults() -> UserDefaults {
-        let suite = "PermissionMonitorTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return defaults
+        ScratchDefaults.make()
     }
 
     @Test("Microphone status maps straight from the probe")

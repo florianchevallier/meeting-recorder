@@ -16,7 +16,7 @@ struct CalendarMonitorTests {
         let monitor: CalendarMonitor
 
         init(granted: Bool, now: Date = F.date(10, 15)) {
-            let defaults = UserDefaults(suiteName: "CalendarMonitorTests-\(UUID().uuidString)")!
+            let defaults = ScratchDefaults.make()
             probes.calendar = granted ? .granted : .notDetermined
             settings = SettingsStore(defaults: defaults)
             permissions = PermissionMonitor(probes: probes, systemAudioProbe: nil, defaults: defaults)

@@ -7,8 +7,7 @@ import Foundation
 struct SettingsStoreTests {
 
     private func makeStore() -> (SettingsStore, UserDefaults) {
-        let suiteName = "meety-tests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = ScratchDefaults.make()
         return (SettingsStore(defaults: defaults), defaults)
     }
 

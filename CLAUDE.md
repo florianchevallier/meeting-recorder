@@ -426,6 +426,9 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
 - `TranscriptionHintsTests`, `VocabularyPackTests`, `TranscriptTests` (server JSON shape), `SpeakerLabelerTests`,
   `TranscriptRendererTests`, `VoiceActivityRecorderTests`, `RecordingFilesTests`
 - `LiveTranscriptTests` — volatile/final reducer, speaker interleaving, Markdown
+- Tests needing `UserDefaults` use `ScratchDefaults.make()` (in-memory subclass), never
+  `UserDefaults(suiteName:)`: cfprefsd persists every suite to `~/Library/Preferences`,
+  asynchronously and even after the process exits, so cleanup can't keep up.
 
 Manual smoke checklist after touching Capture: record 2 min with audio playing while
 switching output to AirPods and back → one file, `restarting → restarted` in logs, both
