@@ -182,6 +182,14 @@ Sources/
   recording; a device change or a stall (no IO callback for 3 s) rebuilds only the tap
   (≤3 attempts, 1 s apart) and inserts silence for the gap (capped at 10 s) so the file
   stays aligned with wall-clock time. Fragments every 10 s keep a crashed recording playable.
+- **Sample-rate changes rebuild the tap.** A Bluetooth headset in A2DP (44.1/48 kHz) drops
+  to its hands-free profile (16 kHz) as soon as the mic opens; formats built for the old
+  rate made the whole file (and the live transcript) play ~3× fast. `DeviceChangeObserver`
+  listens to the default devices' nominal rate, and `HealthEvaluator` compares the frames
+  actually delivered per second with the format's rate (`.sampleRateMismatch`, ≥ 10 % over
+  2 intervals, ≤ `maxSampleRateRestarts` rebuilds) as a safety net. Device-list changes
+  ignore Meety's own private aggregates (`aggregateUIDPrefix`), otherwise every rebuild
+  triggered the next one (restart loop every ~1.6 s).
 - **Deterministic stop.** `stop()` returns the same task to concurrent callers, awaits any
   restart in flight, tears the tap down, finishes the writer (10 s ceiling) and renames
   `<name>.partial.m4a` → `<name>.m4a`. No stored continuation, no file-stability polling.

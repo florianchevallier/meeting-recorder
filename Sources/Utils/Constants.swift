@@ -87,6 +87,8 @@ enum Constants {
         static let systemSilenceTimeout: TimeInterval = 30.0
         /// Writer back-pressure: drop IO cycles above this many queued frames (≈5 s at 48 kHz)
         static let maxPendingFrames: Int = 240_000
+        /// Tap rebuilds allowed per recording for a sample-rate change (Bluetooth A2DP ↔ HFP)
+        static let maxSampleRateRestarts: Int = 5
 
         // Finalization
         static let finalizationTimeout: TimeInterval = 10.0

@@ -66,3 +66,15 @@ struct CaptureStreamLayoutTests {
             ) == nil)
     }
 }
+
+@Suite("DeviceChangeObserver")
+struct DeviceChangeObserverTests {
+    @Test("Meety's own aggregates never count as a device-list change")
+    func ignoresOwnAggregates() {
+        let own = ProcessTapController.aggregateUIDPrefix + "1234"
+        #expect(DeviceChangeObserver.externalDevices(["BuiltInSpeaker", own]) == ["BuiltInSpeaker"])
+        #expect(
+            DeviceChangeObserver.externalDevices(["BuiltInSpeaker", own])
+                == DeviceChangeObserver.externalDevices(["BuiltInSpeaker"]))
+    }
+}

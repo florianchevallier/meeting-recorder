@@ -138,6 +138,10 @@ final class ProcessTapController {
 
     private var tapUUID = UUID()
 
+    /// Our private aggregates come and go with every tap (re)build; the device
+    /// observer ignores them (otherwise each restart would trigger the next one).
+    static let aggregateUIDPrefix = "com.meetingrecorder.meety.aggregate."
+
     private func createAggregate(outputUID: String, microphoneUID: String?) throws(CaptureFailure) {
         var subDevices: [[String: Any]] = [[kAudioSubDeviceUIDKey: outputUID]]
         if let microphoneUID, microphoneUID != outputUID {
@@ -148,7 +152,7 @@ final class ProcessTapController {
         }
         let description: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Meety Capture",
-            kAudioAggregateDeviceUIDKey: "com.meetingrecorder.meety.aggregate." + UUID().uuidString,
+            kAudioAggregateDeviceUIDKey: Self.aggregateUIDPrefix + UUID().uuidString,
             kAudioAggregateDeviceMainSubDeviceKey: outputUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,
