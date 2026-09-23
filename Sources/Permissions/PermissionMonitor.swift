@@ -95,6 +95,10 @@ final class PermissionMonitor {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var observers: [any NSObjectProtocol] = []
     @ObservationIgnored private var recheckTask: Task<Void, Never>?
+    /// `EKEventStore.authorizationStatus` can keep returning its launch value
+    /// (`notDetermined`) after `requestFullAccessToEvents()` succeeded, until the
+    /// app relaunches: the request's answer wins over that stale value.
+    @ObservationIgnored private var calendarGrantedByRequest = false
 
     init(
         probes: any PermissionProbes = SystemPermissionProbes(),
@@ -160,7 +164,8 @@ final class PermissionMonitor {
         if mic != microphone { microphone = mic }
         if axStatus != accessibility { accessibility = axStatus }
         if audio != systemAudio { systemAudio = audio }
-        let cal = probes.calendarStatus()
+        var cal = probes.calendarStatus()
+        if cal == .notDetermined && calendarGrantedByRequest { cal = .granted }
         if cal != calendar { calendar = cal }
     }
 
@@ -195,7 +200,7 @@ final class PermissionMonitor {
     /// Prompts when undetermined; deep-links to the Calendars pane once denied.
     func requestCalendar() async {
         if calendar == .notDetermined {
-            _ = await probes.requestCalendar()
+            calendarGrantedByRequest = await probes.requestCalendar()
         }
         refresh()
         if calendar == .denied {

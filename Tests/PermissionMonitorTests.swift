@@ -9,6 +9,8 @@ final class FakeProbes: PermissionProbes, @unchecked Sendable {
     var microphoneRequestAnswer = true
     var calendar: PermissionStatus = .notDetermined
     var calendarRequestAnswer = true
+    /// Mimics `EKEventStore.authorizationStatus` keeping the launch value after a grant.
+    var calendarStatusIsStale = false
     private(set) var calendarRequests = 0
 
     func microphoneStatus() -> PermissionStatus { microphone }
@@ -21,7 +23,7 @@ final class FakeProbes: PermissionProbes, @unchecked Sendable {
     func calendarStatus() -> PermissionStatus { calendar }
     func requestCalendar() async -> Bool {
         calendarRequests += 1
-        calendar = calendarRequestAnswer ? .granted : .denied
+        if !calendarStatusIsStale { calendar = calendarRequestAnswer ? .granted : .denied }
         return calendarRequestAnswer
     }
 }
@@ -151,5 +153,21 @@ struct PermissionMonitorTests {
 
         await monitor.requestCalendar()
         #expect(probes.calendarRequests == 1)
+    }
+
+    @Test("A granted request counts even when the system status stays stale until relaunch")
+    func calendarStaleStatus() async {
+        let probes = FakeProbes()
+        probes.calendarStatusIsStale = true
+        let monitor = PermissionMonitor(probes: probes, systemAudioProbe: nil, defaults: makeDefaults())
+
+        await monitor.requestCalendar()
+        #expect(monitor.calendar == .granted)
+        monitor.refresh()  // app activation: the probe still says notDetermined
+        #expect(monitor.calendar == .granted)
+
+        probes.calendar = .denied  // revoked in System Settings
+        monitor.refresh()
+        #expect(monitor.calendar == .denied)
     }
 }
