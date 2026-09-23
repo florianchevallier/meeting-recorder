@@ -1,8 +1,8 @@
 // Meeting Recorder - English Localization
 
 // MARK: - App Info
-"app.name" = "Meeting Recorder";
-"app.subtitle" = "Professional Audio";
+"app.name" = "Meety";
+"app.subtitle" = "Meeting recorder";
 
 // MARK: - Status Bar Menu
 "status.ready" = "Ready to record";
@@ -226,3 +226,6 @@
 "settings.general.live.title" = "Live transcription";
 "settings.general.live.subtitle" = "Show what's said while recording, on-device (Me / Them), and save it next to the recording";
 "calendar.open_live_transcript" = "Open the live transcript";
+"live.jump_to_latest" = "Back to live";
+"live.copy.all" = "Copy everything";
+"live.copy.last_minutes" = "Copy the last %d minutes";

@@ -112,6 +112,9 @@ enum Constants {
         static let panelMinWidth: CGFloat = 280
         static let panelMinHeight: CGFloat = 200
         static let panelAutosaveName = "LiveTranscriptPanel"
+        static let panelCornerRadius: CGFloat = 16
+        /// "Copy the last N minutes" choices in the panel's Copy menu
+        static let copyWindowsMinutes = [5, 10, 30]
     }
 
     // MARK: - App Lifecycle

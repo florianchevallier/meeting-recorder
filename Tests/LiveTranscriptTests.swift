@@ -82,3 +82,19 @@ struct LiveLocaleTests {
         #expect(LiveSpeechTranscriber.requestedLocale(for: "en", current: french).identifier == "en_US")
     }
 }
+
+@Suite("LiveTranscript clipboard")
+struct LiveTranscriptClipboardTests {
+    @Test("Copying the last N minutes keeps the segments that started in that window")
+    func lastMinutes() {
+        var transcript = LiveTranscript()
+        for (start, text) in [(10.0, "début"), (390.0, "milieu"), (650.0, "presque"), (700.0, "fin")] {
+            transcript.apply(LiveTranscriptUpdate(speaker: .them, text: text, start: start, isFinal: true))
+        }
+        let them = LiveSpeaker.them.label
+        #expect(transcript.plainText(lastMinutes: 5) == "[10:50] \(them) : presque\n[11:40] \(them) : fin")
+        #expect(transcript.plainText(lastMinutes: 10).components(separatedBy: "\n").count == 3)
+        #expect(transcript.plainText().components(separatedBy: "\n").count == 4)
+        #expect(LiveTranscript().plainText(lastMinutes: 5).isEmpty)
+    }
+}

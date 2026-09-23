@@ -1,15 +1,15 @@
 // Meeting Recorder - Localisation Française
 
 // MARK: - App Info
-"app.name" = "Meeting Recorder";
-"app.subtitle" = "Audio professionnel";
+"app.name" = "Meety";
+"app.subtitle" = "Enregistreur de réunions";
 
 // MARK: - Status Bar Menu
 "status.ready" = "Prêt à enregistrer";
 "status.recording" = "Enregistrement en cours...";
 "status.teams_detected" = "Réunion Teams détectée";
 "status.teams_active" = "Réunion Teams active";
-"status.idle" = "IDLE";
+"status.idle" = "PRÊT";
 "status.finishing" = "Finalisation de l'enregistrement...";
 "status.recording_short" = "REC";
 "status.teams_short" = "TEAMS";
@@ -226,3 +226,6 @@
 "settings.general.live.title" = "Transcription en direct";
 "settings.general.live.subtitle" = "Affiche ce qui est dit pendant l'enregistrement, en local (Moi / Eux), et l'enregistre à côté du fichier audio";
 "calendar.open_live_transcript" = "Ouvrir le transcript en direct";
+"live.jump_to_latest" = "Revenir au direct";
+"live.copy.all" = "Tout copier";
+"live.copy.last_minutes" = "Copier les %d dernières minutes";

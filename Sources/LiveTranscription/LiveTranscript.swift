@@ -64,6 +64,16 @@ struct LiveTranscript: Equatable, Sendable {
         segments.filter(\.isFinal).map(Self.markdownLine).joined(separator: "\n\n")
     }
 
+    /// Plain text for the clipboard: every segment (`lastMinutes == nil`) or those that
+    /// started within the last N minutes of speech (relative to the latest segment).
+    func plainText(lastMinutes: Int? = nil) -> String {
+        let latest = segments.map(\.start).max() ?? 0
+        let cutoff = lastMinutes.map { latest - TimeInterval($0 * 60) } ?? -.infinity
+        return segments.filter { $0.start >= cutoff }
+            .map { "[\(Self.timestamp($0.start))] \($0.speaker.label) : \($0.text)" }
+            .joined(separator: "\n")
+    }
+
     static func timestamp(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds))
         let hours = total / 3600

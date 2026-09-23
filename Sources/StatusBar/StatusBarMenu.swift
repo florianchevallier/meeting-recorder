@@ -84,8 +84,8 @@ struct StatusBarMenu: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(.controlBackgroundColor).opacity(0.5))
-        .clipShape(Capsule())
+        .background(activity.tint.opacity(activity == .idle ? 0.08 : 0.14), in: .capsule)
+        .animation(.smooth, value: activity)
     }
 
     // MARK: - Main Control Section
@@ -93,10 +93,6 @@ struct StatusBarMenu: View {
     private var mainControlSection: some View {
         VStack(spacing: 16) {
             ZStack {
-                Circle()
-                    .stroke(Color(.separatorColor), lineWidth: 1)
-                    .frame(width: Constants.UI.controlCircleSize, height: Constants.UI.controlCircleSize)
-
                 if let startedAt = coordinator.recordingStartedAt {
                     ProgressRing(startedAt: startedAt)
                 }
@@ -294,8 +290,9 @@ struct StatusBarMenu: View {
                 QuickActionButton(icon: "gearshape.fill", title: L10n.actionSettings, action: onOpenSettings)
             }
             .frame(height: Constants.UI.quickActionHeight)
+            .padding(.horizontal, 6)
+            .padding(.bottom, 6)
         }
-        .background(Color(.controlBackgroundColor).opacity(0.3))
     }
 
     // MARK: - Error Message
@@ -430,12 +427,6 @@ private enum MenuStyle {
         colors: [.gray.opacity(0.3), .gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
     static let ringGradient = LinearGradient(
         colors: [.red, .orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing)
-    static let recordButtonGradient = LinearGradient(
-        colors: [.red.opacity(0.8), .red], startPoint: .top, endPoint: .bottom)
-    static let idleButtonGradient = LinearGradient(
-        colors: [.blue.opacity(0.8), .blue], startPoint: .top, endPoint: .bottom)
-    static let durationGradient = LinearGradient(
-        colors: [.primary, .secondary], startPoint: .leading, endPoint: .trailing)
 }
 
 // MARK: - Ticking subviews (only exist while recording)
@@ -464,8 +455,10 @@ private struct DurationLabel: View {
     var body: some View {
         TimelineView(.periodic(from: startedAt, by: 1.0)) { context in
             Text(Self.format(context.date.timeIntervalSince(startedAt)))
-                .font(.system(size: 24, weight: .bold, design: .monospaced))
-                .foregroundStyle(MenuStyle.durationGradient)
+                .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(.primary)
+                .contentTransition(.numericText())
+                .animation(.snappy, value: Int(context.date.timeIntervalSince(startedAt)))
         }
     }
 
@@ -489,23 +482,31 @@ private struct RecordButton: View {
     @State private var isHovering = false
 
     var body: some View {
+        // The primary action, always in color. Tinted glass (`.glassProminent`, `.glassEffect(.tint)`)
+        // renders grey in the menu bar popover, so this is a filled disc with a glass-like rim.
+        let tint: Color = isRecording ? .red : .blue
         Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(isRecording ? MenuStyle.recordButtonGradient : MenuStyle.idleButtonGradient)
-                    .frame(width: Constants.UI.controlButtonSize, height: Constants.UI.controlButtonSize)
-                    .scaleEffect(isHovering ? 1.05 : 1.0)
-
-                Image(systemName: isRecording ? "stop.fill" : "record.circle")
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(.white)
-                    .scaleEffect(isRecording ? 0.8 : 1.0)
-            }
+            Image(systemName: isRecording ? "stop.fill" : "record.circle")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(.white)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: Constants.UI.controlButtonSize, height: Constants.UI.controlButtonSize)
+                .background(tint.gradient, in: .circle)
+                .overlay {
+                    Circle().strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.55), .white.opacity(0.05)], startPoint: .top,
+                            endPoint: .bottom),
+                        lineWidth: 1)
+                }
+                .shadow(color: tint.opacity(0.35), radius: isHovering ? 12 : 8, y: 3)
+                .contentShape(.circle)
         }
         .buttonStyle(.plain)
+        .scaleEffect(isHovering ? 1.04 : 1.0)
         .onHover { isHovering = $0 }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isRecording)
+        .animation(.smooth, value: isRecording)
     }
 }
 
@@ -529,10 +530,10 @@ struct QuickActionButton: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .scaleEffect(isHovering ? 1.05 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(isHovering ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 10))
+            .contentShape(.rect(cornerRadius: 10))
+            .animation(.smooth(duration: 0.15), value: isHovering)
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }

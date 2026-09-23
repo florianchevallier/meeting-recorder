@@ -338,6 +338,16 @@ assets via `AssetInventory`, downloaded once by the system).
   fall behind real time), Parakeet v3 23 % (drifts to English, hallucinates in silences),
   Nemotron 3.5 fr 26 %, WhisperKit turbo too slow for two streams. Two Apple streams ran
   30 min with no latency drift, ~1 % CPU in-process (the work runs on the Neural Engine).
+- **Panel UI** (Liquid Glass): the `NSPanel`'s content view is one `NSGlassEffectView`
+  (regular) hosting the SwiftUI view, with a transparent full-size title bar whose row holds
+  the status badge and the Copy menu (all / last 5, 10, 30 min of speech, relative to the
+  latest segment). Non-key glass looks frosted on macOS 26 — fine for text. **Follow tail**:
+  on until the content offset moves up (only the user scrolls up: wheel or trackpad, scroll
+  phases aren't emitted for a mouse wheel), back on at the bottom or via the glass "Back to
+  live" pill. Glass only on controls (pill), never on rows.
+- **Popover record button** is a filled gradient disc with a light rim, not tinted glass:
+  `.glassProminent` / `.glassEffect(.tint)` render grey in the status-item popover (the app
+  isn't activated when it opens, so its glass is drawn inactive).
 - Known gap: with laptop speakers, "them" echoes into the mic and can show up under **Me**.
 
 ## Localization

@@ -324,6 +324,11 @@ extension L10n {
     static let liveSpeakerThem = "live.speaker.them".localized
     static let liveWindowTitle = "live.window.title".localized
     static let liveCopy = "live.copy".localized
+    static let liveJumpToLatest = "live.jump_to_latest".localized
+    static let liveCopyAll = "live.copy.all".localized
+    static func liveCopyLastMinutes(_ minutes: Int) -> String {
+        L10n.string("live.copy.last_minutes", minutes)
+    }
     static let liveStatusIdle = "live.status.idle".localized
     static let liveStatusPreparing = "live.status.preparing".localized
     static let liveStatusRunning = "live.status.running".localized
