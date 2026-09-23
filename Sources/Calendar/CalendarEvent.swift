@@ -93,4 +93,8 @@ enum CalendarSelection {
         if result.contains(id) { result.remove(id) } else { result.insert(id) }
         return result
     }
+
+    static func allSelected(in selection: Set<String>?, all: [CalendarInfo]) -> Bool {
+        all.allSatisfy { isSelected($0.id, in: selection) }
+    }
 }

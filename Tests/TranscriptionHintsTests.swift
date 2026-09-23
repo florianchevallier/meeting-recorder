@@ -40,6 +40,21 @@ struct TranscriptionHintsTests {
         #expect(prompt == "Point hebdo (id). Florian, Alice, Bob. WhisperX, Kubernetes")
     }
 
+    @Test("Pack terms come after the glossary, so the cut drops them first")
+    func packTerms() {
+        let prompt = TranscriptionHints.make(
+            event: nil, glossary: "Meety", maxSpeakers: 2, packTerms: ["sprint", "backlog"]
+        ).initialPrompt
+        #expect(prompt == "Meety. sprint, backlog")
+
+        let glossary = Array(repeating: "mot", count: 99).joined(separator: " ")
+        let long =
+            TranscriptionHints.make(event: nil, glossary: glossary, maxSpeakers: 2, packTerms: ["sprint"])
+            .initialPrompt ?? ""
+        #expect(long.hasPrefix(glossary))
+        #expect(!long.contains("sprint"))
+    }
+
     @Test("The prompt is cut at a word boundary")
     func promptLength() {
         let glossary = Array(repeating: "mot", count: 200).joined(separator: " ")

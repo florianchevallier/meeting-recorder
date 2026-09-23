@@ -116,6 +116,15 @@ final class CalendarMonitor {
             calendar.id, in: settings.calendarSelectedIDs, all: calendars)
     }
 
+    var allSelected: Bool {
+        CalendarSelection.allSelected(in: settings.calendarSelectedIDs, all: calendars)
+    }
+
+    /// Checking all goes back to `nil`, so calendars added later are included too.
+    func setAllSelected(_ selected: Bool) {
+        settings.calendarSelectedIDs = selected ? nil : []
+    }
+
     // MARK: Queries
 
     /// The event a recording starting at `date` belongs to (refreshes first).

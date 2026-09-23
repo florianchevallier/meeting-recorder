@@ -151,6 +151,7 @@ Sources/
 │   ├── TranscriptionCoordinator.swift # @Observable queue: upload → poll → JSON → .txt, resume, cancel
 │   ├── TranscriptionState.swift   # struct + pure reducer + TranscriptionProgress (log → %)
 │   ├── TranscriptionHints.swift   # Pure: calendar → speaker range + sanitized prompt
+│   ├── VocabularyPack.swift       # Ready-made jargon packs (dev, DevOps, agile, data, design, business)
 │   ├── Transcript.swift           # WhisperX JSON model (segments, words, SPEAKER_xx)
 │   ├── SpeakerLabeler.swift       # Pure: manual names > mic-dominant "me" > last 1:1 match
 │   ├── TranscriptRenderer.swift   # Pure: header + `[mm:ss] Name: text` turns
@@ -267,6 +268,7 @@ open, and the end of each recording. No polling.
 - **Calendar picker** (Settings → Calendar): `calendarSelectedIDs` (`EKCalendar.calendarIdentifier`);
   `nil` = all (default). The first toggle makes it explicit, so calendars added later stay out.
   Filtering happens in the EventKit predicate; an empty selection means no events.
+  "Check all" resets to `nil` (future calendars included), "Uncheck all" to `[]`.
 - **Popover**: up to 3 upcoming (incl. in progress, "in N min", join link) and 3 past
   meetings of today; past ones link their recording (▶︎ / transcript / Finder).
 - **Recording ↔ event** (`CalendarMatcher`, pure): a recording started in
@@ -286,13 +288,18 @@ Server: `apps/api` of `~/Projects/innovation-transcript` (WhisperX + pyannote). 
 setting ends with `/api`. Optional API key (Settings → Transcription, stored in the keychain)
 goes in `X-API-Key`; every request also sends `ngrok-skip-browser-warning`.
 
-Automatic after a recording when Settings → General → Transcription is on, or on demand
+Automatic after a recording when Settings → General → Transcription is on (optionally only
+for recordings with a calendar event: `transcriptionOnlyWithMeeting`, decided by
+`SettingsStore.shouldAutoTranscribe`), or on demand
 from the popover (Transcribe / Transcribe again on past meetings). `TranscriptionCoordinator`
 runs one recording at a time from a queue:
 1. `TranscriptionHints` (pure) from the `.meeting.json` event: `minSpeakers = 1`,
    `maxSpeakers = invitees` (a range: `nbSpeaker` would force pyannote to find exactly that
    many voices); without an event `maxSpeakers` = the setting. `initialPrompt` = title +
-   participant names + glossary setting, quotes/`$`/backticks/control chars stripped, ≤ 400 chars.
+   participant names + glossary setting + selected pack terms, the user's
+   `CustomVocabularyPack`s (Settings → Transcription: "New pack", right-click to edit, JSON in
+   `customVocabularyPacks`) before the built-in `VocabularyPack`s (last, so the 400-char cut
+   drops them first), quotes/`$`/backticks/control chars stripped, ≤ 400 chars.
 2. `POST /process` (`outputFormat=json`), body streamed from a temp file →
    `<rec>.transcription-job.json` {jobId} so a relaunch resumes (`resumePending` at launch).
 3. Poll `GET /jobs/{id}` every 5 s (max 360); `[NN%]` in `lastLog` feeds the progress bar.
@@ -309,6 +316,10 @@ without a microphone); then, if exactly one speaker and one expected participant
 they match (names both sides of a 1:1). Rooms and laptop-speaker echo give no "me".
 Thresholds are first guesses, to calibrate on real recordings. Renaming re-renders the
 `.txt` from the JSON, no network.
+
+**Settings tab layout**: the server (URL + key) collapses to a summary once the URL is valid
+(Edit reopens it); essentials = language, vocabulary, packs; model / max speakers / compute
+sit under "Advanced options", whose Reset (`resetTranscriptionOptions`) keeps the server.
 
 Note: the app is **not sandboxed**. If sandboxing is ever enabled, add
 `com.apple.security.network.client = true` (uploads) to the entitlements.
@@ -412,7 +423,7 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
   `CalendarMonitorTests` (fake source)
 - `FilenameGenerationTests`, `SettingsStoreTests`, `EndpointResolverTests`,
   `MultipartBuilderTests`, `TranscriptionStateMachineTests` (+ progress parsing), `L10nParityTests`
-- `TranscriptionHintsTests`, `TranscriptTests` (server JSON shape), `SpeakerLabelerTests`,
+- `TranscriptionHintsTests`, `VocabularyPackTests`, `TranscriptTests` (server JSON shape), `SpeakerLabelerTests`,
   `TranscriptRendererTests`, `VoiceActivityRecorderTests`, `RecordingFilesTests`
 - `LiveTranscriptTests` — volatile/final reducer, speaker interleaving, Markdown
 
