@@ -95,6 +95,19 @@ private struct GeneralSettingsTab: View {
                         .padding(.leading, 52)
 
                     SettingRow(
+                        icon: "arrow.up.forward.app.fill",
+                        iconColor: .blue,
+                        title: L10n.settingsGeneralAutoJoinTitle,
+                        subtitle: L10n.settingsGeneralAutoJoinSubtitle
+                    ) {
+                        Toggle("", isOn: $settings.autoJoinMeetings)
+                            .toggleStyle(.switch)
+                    }
+
+                    Divider()
+                        .padding(.leading, 52)
+
+                    SettingRow(
                         icon: "text.bubble.fill",
                         iconColor: .purple,
                         title: L10n.settingsGeneralTranscriptionTitle,

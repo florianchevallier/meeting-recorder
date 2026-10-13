@@ -226,7 +226,10 @@ Event-driven, zero periodic work while Teams is not running (`TeamsMonitor`, `@M
    while Teams runs; nothing at all without Accessibility.
 3. **Mic active** — trigger: `kAudioDevicePropertyDeviceIsRunningSomewhere` on the default
    input (plus process-list / default-device listeners); truth: `kAudioProcessPropertyIsRunningInput`
-   read for every Teams process object, so Meety's own capture never counts.
+   read for every Teams process object, so Meety's own capture never counts. Teams audio
+   objects are matched by `kAudioProcessPropertyBundleID`, not by pid: new Teams opens the
+   mic from `ModuleHost` (`LSBackgroundOnly`), whose launch NSWorkspace never notifies, so a
+   Teams restart after Meety's launch made the mic invisible (no auto-record).
 
 Decision (pure, tested): window **and** mic → active. Transitions are debounced 3 s.
 The old `logs.txt` signal was removed (new Teams never writes it).
@@ -281,6 +284,9 @@ open, and the end of each recording. No polling.
 - **Reminders** (Settings → Calendar, off by default): notifications N min before, `Record`
   action → `coordinator.start()`. Replaced wholesale on every change (`meety.reminder.` ids).
   Inert when run as a bare binary (`UNUserNotificationCenter` needs a bundle id).
+- **Auto-join** (Settings → General, off by default): `MeetingAutoJoiner` keeps one timer for
+  the next event with a meeting link that hasn't started (`MeetingAutoJoinPlanner`, pure) and
+  opens the link with `NSWorkspace.open` (default browser) at its start, unless already over.
 
 ## Transcription (WhisperX server)
 

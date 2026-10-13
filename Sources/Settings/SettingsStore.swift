@@ -20,6 +20,7 @@ final class SettingsStore {
         static let computeType = "float16"
         static let transcriptionGlossary = ""
         static let autoRecordingEnabled = true
+        static let autoJoinMeetings = false
         static let calendarEnabled = true
         static let calendarRemindersEnabled = false
         static let calendarReminderLeadMinutes = Constants.Calendar.defaultReminderLeadMinutes
@@ -85,6 +86,14 @@ final class SettingsStore {
         didSet {
             defaults.set(autoRecordingEnabled, for: .autoRecordingEnabled)
             Log.settings.debug("Auto recording: \(self.autoRecordingEnabled)")
+        }
+    }
+
+    /// Opens the calendar event's meeting link in the default browser when it starts.
+    var autoJoinMeetings: Bool {
+        didSet {
+            defaults.set(autoJoinMeetings, for: .autoJoinMeetings)
+            Log.settings.debug("Auto join: \(self.autoJoinMeetings)")
         }
     }
 
@@ -178,6 +187,9 @@ final class SettingsStore {
         self.autoRecordingEnabled =
             defaults.object(for: .autoRecordingEnabled) as? Bool
             ?? Defaults.autoRecordingEnabled
+        self.autoJoinMeetings =
+            defaults.object(for: .autoJoinMeetings) as? Bool
+            ?? Defaults.autoJoinMeetings
         self.calendarEnabled =
             defaults.object(for: .calendarEnabled) as? Bool
             ?? Defaults.calendarEnabled
@@ -214,6 +226,7 @@ final class SettingsStore {
         computeType = Defaults.computeType
         transcriptionGlossary = Defaults.transcriptionGlossary
         autoRecordingEnabled = Defaults.autoRecordingEnabled
+        autoJoinMeetings = Defaults.autoJoinMeetings
         calendarEnabled = Defaults.calendarEnabled
         calendarRemindersEnabled = Defaults.calendarRemindersEnabled
         calendarReminderLeadMinutes = Defaults.calendarReminderLeadMinutes

@@ -102,6 +102,8 @@
 "settings.general.header.subtitle" = "Activez les automatisations principales de Meety";
 "settings.general.auto_recording.title" = "Enregistrement automatique";
 "settings.general.auto_recording.subtitle" = "Démarre automatiquement lors d'une réunion Teams détectée";
+"settings.general.auto_join.title" = "Rejoindre automatiquement";
+"settings.general.auto_join.subtitle" = "Ouvre le lien de la réunion du calendrier quand elle commence";
 "settings.general.transcription.title" = "Transcription automatique";
 "settings.general.transcription.subtitle" = "Transcrit vos réunions avec Whisper après chaque enregistrement";
 "settings.general.quit.title" = "Quitter Meety";

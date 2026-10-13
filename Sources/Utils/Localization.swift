@@ -238,6 +238,8 @@ extension L10n {
     static let settingsGeneralHeaderSubtitle = "settings.general.header.subtitle".localized
     static let settingsGeneralAutoRecordingTitle = "settings.general.auto_recording.title".localized
     static let settingsGeneralAutoRecordingSubtitle = "settings.general.auto_recording.subtitle".localized
+    static let settingsGeneralAutoJoinTitle = "settings.general.auto_join.title".localized
+    static let settingsGeneralAutoJoinSubtitle = "settings.general.auto_join.subtitle".localized
     static let settingsGeneralTranscriptionTitle = "settings.general.transcription.title".localized
     static let settingsGeneralTranscriptionSubtitle = "settings.general.transcription.subtitle".localized
     static let settingsGeneralTranscriptionOnlyMeetingTitle =

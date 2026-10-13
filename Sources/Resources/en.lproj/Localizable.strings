@@ -102,6 +102,8 @@
 "settings.general.header.subtitle" = "Control Meety's core automations";
 "settings.general.auto_recording.title" = "Auto-record Teams recordings";
 "settings.general.auto_recording.subtitle" = "Start automatically whenever a Teams meeting is detected";
+"settings.general.auto_join.title" = "Join meetings automatically";
+"settings.general.auto_join.subtitle" = "Opens the calendar event's meeting link when it starts";
 "settings.general.transcription.title" = "Auto-transcription";
 "settings.general.transcription.subtitle" = "Send recordings to Whisper to generate transcripts";
 "settings.general.quit.title" = "Quit Meety";

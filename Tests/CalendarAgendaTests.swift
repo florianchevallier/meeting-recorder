@@ -61,3 +61,21 @@ struct MeetingReminderPlannerTests {
         #expect(reminders.first?.fireDate == F.date(10, 29))
     }
 }
+
+@Suite("MeetingAutoJoinPlanner")
+struct MeetingAutoJoinPlannerTests {
+    typealias F = CalendarFixtures
+    let link = URL(string: "https://teams.microsoft.com/l/meetup-join/abc")!
+
+    @Test("Next joinable event: has a link and hasn't started yet")
+    func next() {
+        let events = [
+            F.event("in progress", F.date(9), F.date(11), meetingURL: link),
+            F.event("later", F.date(11), F.date(12), meetingURL: link),
+            F.event("no link", F.date(10, 30), F.date(11)),
+            F.event("soon", F.date(10, 30), F.date(11), meetingURL: link),
+        ]
+        #expect(MeetingAutoJoinPlanner.next(in: events, now: F.date(10))?.id == "soon")
+        #expect(MeetingAutoJoinPlanner.next(in: events, now: F.date(11)) == nil)
+    }
+}

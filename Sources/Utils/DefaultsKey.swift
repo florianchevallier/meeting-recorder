@@ -12,6 +12,7 @@ enum DefaultsKey: String, CaseIterable, Sendable {
     case computeType
     case transcriptionGlossary
     case autoRecordingEnabled
+    case autoJoinMeetings
     case calendarEnabled
     case calendarRemindersEnabled
     case calendarReminderLeadMinutes

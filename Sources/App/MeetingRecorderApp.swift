@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dependencies.calendar.start()
         dependencies.transcription.resumePending(in: CalendarMonitor.recordingsInDocuments())
         dependencies.reminderScheduler.start()
+        dependencies.autoJoiner.start()
         dependencies.livePanelController.start()
         dependencies.coordinator.startTeamsMonitoring()
         dependencies.onboardingCoordinator.presentIfNeeded()
@@ -68,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         dependencies?.permissionMonitor.stop()
         dependencies?.reminderScheduler.stop()
+        dependencies?.autoJoiner.stop()
         dependencies?.calendar.stop()
         dependencies?.statusBarController.tearDown()
     }

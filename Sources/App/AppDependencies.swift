@@ -9,6 +9,7 @@ struct AppDependencies {
     let teamsMonitor: TeamsMonitor
     let calendar: CalendarMonitor
     let reminderScheduler: MeetingReminderScheduler
+    let autoJoiner: MeetingAutoJoiner
     let transcription: TranscriptionCoordinator
     let coordinator: RecordingCoordinator
     let live: LiveTranscriptionCoordinator
@@ -43,6 +44,7 @@ struct AppDependencies {
             settings: settings,
             onRecord: { coordinator.start() }
         )
+        let autoJoiner = MeetingAutoJoiner(calendar: calendar, settings: settings)
         let settingsWindowController = SettingsWindowController(
             settings: settings,
             permissionMonitor: permissionMonitor,
@@ -68,6 +70,7 @@ struct AppDependencies {
         self.teamsMonitor = teamsMonitor
         self.calendar = calendar
         self.reminderScheduler = reminderScheduler
+        self.autoJoiner = autoJoiner
         self.transcription = transcription
         self.coordinator = coordinator
         self.live = live
