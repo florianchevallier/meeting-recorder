@@ -7,7 +7,9 @@ import CoreAudio
 /// Trigger: the device-level `kAudioDevicePropertyDeviceIsRunningSomewhere`
 /// listener (reliable on macOS 26) plus the process-object list. Truth: a read
 /// of `kAudioProcessPropertyIsRunningInput` for every Teams process object, so
-/// Meety's own capture never counts.
+/// Meety's own capture never counts. Teams processes are matched by the audio
+/// object's bundle id, not by pid: the process that opens the mic (new Teams'
+/// `ModuleHost`) is `LSBackgroundOnly`, so NSWorkspace never reports its launch.
 @MainActor
 final class TeamsMicrophoneObserver {
     private let onChange: @MainActor (Bool) -> Void
@@ -96,14 +98,14 @@ final class TeamsMicrophoneObserver {
     // MARK: - Evaluation
 
     private func evaluate() {
-        let active = !teamsPIDs.isEmpty && Self.isAnyProcessRunningInput(pids: teamsPIDs)
+        let active = !teamsPIDs.isEmpty && Self.isAnyTeamsProcessRunningInput()
         guard active != isActive else { return }
         isActive = active
         Log.teams.debug("Teams microphone active: \(active)")
         onChange(active)
     }
 
-    nonisolated static func isAnyProcessRunningInput(pids: Set<pid_t>) -> Bool {
+    nonisolated static func isAnyTeamsProcessRunningInput() -> Bool {
         let system = AudioObjectID(kAudioObjectSystemObject)
         guard
             let objects: [AudioObjectID] = try? CoreAudioProperties.array(
@@ -112,11 +114,9 @@ final class TeamsMicrophoneObserver {
         else { return false }
 
         for object in objects {
-            guard
-                let pid: pid_t = try? CoreAudioProperties.value(
-                    object, kAudioProcessPropertyPID, initial: pid_t(0), operation: "ProcessPID"
-                ), pids.contains(pid)
-            else { continue }
+            let bundleID = try? CoreAudioProperties.string(
+                object, kAudioProcessPropertyBundleID, operation: "ProcessBundleID")
+            guard TeamsApp.isTeams(bundleIdentifier: bundleID) else { continue }
             let running: UInt32 =
                 (try? CoreAudioProperties.value(
                     object, kAudioProcessPropertyIsRunningInput, initial: UInt32(0), operation: "ProcessIsRunningInput"
