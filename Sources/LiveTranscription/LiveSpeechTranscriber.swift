@@ -122,13 +122,15 @@ actor LiveSpeechTranscriber {
             return
         }
         let source = PCMTransfer(buffer: buffer)
-        let consumed = Atomic<Bool>(false)
+        // Synchronous input block; an `Atomic` here crashes the Swift 6.4 compiler.
+        nonisolated(unsafe) var consumed = false
         var error: NSError?
         let status = converter.convert(to: converted, error: &error) { _, outStatus in
-            if consumed.exchange(true, ordering: .relaxed) {
+            if consumed {
                 outStatus.pointee = .noDataNow
                 return nil
             }
+            consumed = true
             outStatus.pointee = .haveData
             return source.buffer
         }

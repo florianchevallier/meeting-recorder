@@ -234,13 +234,16 @@ final class AudioFileWriter: @unchecked Sendable {
         guard let out = AVAudioPCMBuffer(pcmFormat: converter.outputFormat, frameCapacity: capacity) else { return [] }
 
         let source = PCMTransfer(buffer: buffer)
-        let consumed = Atomic<Bool>(false)
+        // The input block runs synchronously inside `convert`, on this thread. (An `Atomic`
+        // here crashes the Swift 6.4 compiler: "copy of noncopyable typed value".)
+        nonisolated(unsafe) var consumed = false
         var error: NSError?
         let status = converter.convert(to: out, error: &error) { _, outStatus in
-            if consumed.exchange(true, ordering: .relaxed) {
+            if consumed {
                 outStatus.pointee = .noDataNow
                 return nil
             }
+            consumed = true
             outStatus.pointee = .haveData
             return source.buffer
         }
