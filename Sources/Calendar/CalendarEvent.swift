@@ -23,6 +23,11 @@ struct Participant: Codable, Sendable, Equatable {
     var displayName: String {
         name ?? email ?? "?"
     }
+
+    /// Identity used to deduplicate participants: email, else the displayed name.
+    var key: String {
+        email?.lowercased() ?? displayName
+    }
 }
 
 // MARK: - Calendar Event
@@ -45,8 +50,7 @@ struct CalendarEvent: Codable, Sendable, Equatable, Identifiable {
         var seen = Set<String>()
         var result: [Participant] = []
         for participant in [organizer].compactMap(\.self) + attendees where participant.status != .declined {
-            let key = participant.email?.lowercased() ?? participant.displayName
-            if seen.insert(key).inserted { result.append(participant) }
+            if seen.insert(participant.key).inserted { result.append(participant) }
         }
         return result
     }

@@ -174,9 +174,9 @@ final class RecordingCoordinator {
 
         let outputURL: URL
         do {
-            let documents = try FileSystemUtilities.getDocumentsDirectoryOrThrow()
-            guard FileManager.default.isWritableFile(atPath: documents.path) else {
-                error = RecordingError(message: L10n.errorOutputFolderNotWritable, remedy: .openFolder(documents))
+            let directory = try FileSystemUtilities.recordingsDirectory()
+            guard FileManager.default.isWritableFile(atPath: directory.path) else {
+                error = RecordingError(message: L10n.errorOutputFolderNotWritable, remedy: .openFolder(directory))
                 apply(.startFailed)
                 return
             }
@@ -192,7 +192,7 @@ final class RecordingCoordinator {
                 date: startedAt,
                 title: event?.title
             )
-            outputURL = documents.appendingPathComponent(name)
+            outputURL = directory.appendingPathComponent(name)
         } catch {
             self.error = RecordingError(message: L10n.errorRecordingFailed(error.localizedDescription))
             apply(.startFailed)

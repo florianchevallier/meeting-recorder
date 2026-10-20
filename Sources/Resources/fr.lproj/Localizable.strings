@@ -260,3 +260,31 @@
 "settings.transcription.pack_editor.help" = "Le prompt complet est limité à 400 caractères : gardez des packs courts.";
 "settings.transcription.pack_editor.save" = "Enregistrer";
 "settings.transcription.pack_editor.cancel" = "Annuler";
+
+/* Library */
+"action.library" = "Bibliothèque";
+"library.window.title" = "Enregistrements";
+"library.search.prompt" = "Titre, participant, mot prononcé…";
+"library.empty" = "Aucun enregistrement pour l'instant";
+"library.no_results" = "Aucun résultat";
+"library.no_selection" = "Choisissez un enregistrement";
+"library.tab.transcript" = "Transcription";
+"library.tab.live" = "Live";
+"library.tab.participants" = "Participants";
+"library.rename" = "Renommer";
+"library.rename.title" = "Renommer la réunion";
+"library.rename.message" = "Le titre et tous les fichiers de l'enregistrement sont renommés.";
+"library.rename.placeholder" = "Titre";
+"library.cancel" = "Annuler";
+"library.link_event" = "Associer à une réunion du calendrier";
+"library.link_event.none" = "Aucune réunion ce jour-là dans le calendrier";
+"library.participants.empty" = "Aucun participant connu. Associez l'enregistrement à une réunion du calendrier.";
+"library.participants.hint" = "Les participants indiquent à la transcription combien de voix attendre et quels noms écrire. Retranscrivez après une modification.";
+"library.participant.remove" = "Retirer de la réunion";
+"library.participant.organizer" = "Organisateur";
+"library.participant.me" = "Moi";
+"library.participant.accepted" = "Accepté";
+"library.participant.tentative" = "Peut-être";
+"library.participant.pending" = "Sans réponse";
+"library.error.name_taken" = "Un fichier d'enregistrement s'appelle déjà « %@ ».";
+"library.file" = "Fichier";

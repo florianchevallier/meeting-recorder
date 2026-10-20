@@ -56,6 +56,7 @@ final class StatusBarController {
     private let settings: SettingsStore
     private let settingsWindowController: SettingsWindowController
     private let speakerNamesWindowController: SpeakerNamesWindowController
+    private let libraryWindowController: LibraryWindowController
     private let livePanelController: LiveTranscriptPanelController
 
     init(
@@ -65,6 +66,7 @@ final class StatusBarController {
         settings: SettingsStore,
         settingsWindowController: SettingsWindowController,
         speakerNamesWindowController: SpeakerNamesWindowController,
+        libraryWindowController: LibraryWindowController,
         livePanelController: LiveTranscriptPanelController
     ) {
         self.coordinator = coordinator
@@ -73,6 +75,7 @@ final class StatusBarController {
         self.settings = settings
         self.settingsWindowController = settingsWindowController
         self.speakerNamesWindowController = speakerNamesWindowController
+        self.libraryWindowController = libraryWindowController
         self.livePanelController = livePanelController
     }
 
@@ -108,6 +111,10 @@ final class StatusBarController {
             onOpenLiveTranscript: { [weak self] in
                 self?.popover?.performClose(nil)
                 self?.livePanelController.show()
+            },
+            onOpenLibrary: { [weak self] in
+                self?.popover?.performClose(nil)
+                self?.libraryWindowController.show()
             }
         )
 

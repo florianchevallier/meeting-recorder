@@ -28,7 +28,7 @@ final class CalendarMonitor {
         source: any CalendarEventSource,
         settings: SettingsStore,
         permissionMonitor: PermissionMonitor,
-        recordingsProvider: @escaping @MainActor () -> [URL] = CalendarMonitor.recordingsInDocuments,
+        recordingsProvider: @escaping @MainActor () -> [URL] = CalendarMonitor.recordingsOnDisk,
         now: @escaping @MainActor () -> Date = { Date() }
     ) {
         self.source = source
@@ -133,16 +133,25 @@ final class CalendarMonitor {
         return CalendarMatcher.event(forRecordingStartedAt: date, in: events)
     }
 
+    /// Events of the day `date` falls in, closest start first: candidates to re-link a recording.
+    func events(onDayOf date: Date) -> [CalendarEvent] {
+        guard isAvailable else { return [] }
+        let start = Calendar.current.startOfDay(for: date)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+        return source.events(from: start, to: end, calendarIDs: settings.calendarSelectedIDs)
+            .sorted { abs($0.start.timeIntervalSince(date)) < abs($1.start.timeIntervalSince(date)) }
+    }
+
     func agenda(at date: Date) -> CalendarAgenda {
         CalendarAgenda(events: events, recordings: recordings, now: date)
     }
 
     // MARK: Recordings on disk
 
-    static func recordingsInDocuments() -> [URL] {
-        guard let documents = FileSystemUtilities.getDocumentsDirectory(),
+    static func recordingsOnDisk() -> [URL] {
+        guard let directory = try? FileSystemUtilities.recordingsDirectory(),
             let files = try? FileManager.default.contentsOfDirectory(
-                at: documents, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
         else { return [] }
         let prefix = Constants.Permissions.recordingPrefix + "_"
         return

@@ -260,3 +260,31 @@
 "settings.transcription.pack_editor.help" = "The whole prompt is capped at 400 characters: keep packs short.";
 "settings.transcription.pack_editor.save" = "Save";
 "settings.transcription.pack_editor.cancel" = "Cancel";
+
+/* Library */
+"action.library" = "Library";
+"library.window.title" = "Recordings";
+"library.search.prompt" = "Title, participant, spoken word…";
+"library.empty" = "No recordings yet";
+"library.no_results" = "No results";
+"library.no_selection" = "Select a recording";
+"library.tab.transcript" = "Transcript";
+"library.tab.live" = "Live";
+"library.tab.participants" = "Participants";
+"library.rename" = "Rename";
+"library.rename.title" = "Rename the meeting";
+"library.rename.message" = "The title and every file of the recording are renamed.";
+"library.rename.placeholder" = "Title";
+"library.cancel" = "Cancel";
+"library.link_event" = "Link to a calendar meeting";
+"library.link_event.none" = "No calendar meeting that day";
+"library.participants.empty" = "No known participants. Link the recording to a calendar meeting.";
+"library.participants.hint" = "Participants tell the transcription how many voices to expect and which names to spell. Transcribe again after a change.";
+"library.participant.remove" = "Remove from the meeting";
+"library.participant.organizer" = "Organizer";
+"library.participant.me" = "Me";
+"library.participant.accepted" = "Accepted";
+"library.participant.tentative" = "Maybe";
+"library.participant.pending" = "No answer";
+"library.error.name_taken" = "A recording file is already named “%@”.";
+"library.file" = "File";

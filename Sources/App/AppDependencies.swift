@@ -16,6 +16,7 @@ struct AppDependencies {
     let livePanelController: LiveTranscriptPanelController
     let settingsWindowController: SettingsWindowController
     let speakerNamesWindowController: SpeakerNamesWindowController
+    let libraryWindowController: LibraryWindowController
     let statusBarController: StatusBarController
     let onboardingCoordinator: OnboardingCoordinator
 
@@ -51,6 +52,12 @@ struct AppDependencies {
             calendar: calendar
         )
         let speakerNamesWindowController = SpeakerNamesWindowController()
+        let libraryWindowController = LibraryWindowController(
+            calendar: calendar,
+            transcription: transcription,
+            settings: settings,
+            speakerNamesWindowController: speakerNamesWindowController
+        )
         let statusBarController = StatusBarController(
             coordinator: coordinator,
             permissionMonitor: permissionMonitor,
@@ -58,6 +65,7 @@ struct AppDependencies {
             settings: settings,
             settingsWindowController: settingsWindowController,
             speakerNamesWindowController: speakerNamesWindowController,
+            libraryWindowController: libraryWindowController,
             livePanelController: livePanelController
         )
         let onboardingCoordinator = OnboardingCoordinator(
@@ -77,6 +85,7 @@ struct AppDependencies {
         self.livePanelController = livePanelController
         self.settingsWindowController = settingsWindowController
         self.speakerNamesWindowController = speakerNamesWindowController
+        self.libraryWindowController = libraryWindowController
         self.statusBarController = statusBarController
         self.onboardingCoordinator = onboardingCoordinator
     }

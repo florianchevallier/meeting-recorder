@@ -4,29 +4,27 @@ import Foundation
 /// Centralized file system utilities to avoid code duplication and force unwrapping
 enum FileSystemUtilities {
 
-    // MARK: - Documents Directory Access
+    // MARK: - Recordings Directory
 
-    /// Safe access to the user's Documents directory
-    /// - Returns: The Documents directory URL, or nil if unavailable (extremely rare in non-sandboxed environments)
+    /// The user's Documents directory: where recordings lived before 0.8 (migration source only).
     static func getDocumentsDirectory() -> URL? {
         return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
     }
 
-    /// Safe access to the user's Documents directory with fallback
-    /// - Parameter fallback: Fallback URL if Documents directory is unavailable
-    /// - Returns: The Documents directory URL, or the fallback URL
-    static func getDocumentsDirectory(fallback: URL) -> URL {
-        return getDocumentsDirectory() ?? fallback
-    }
-
-    /// Safe access to the user's Documents directory with error throwing
-    /// - Throws: FileSystemError.documentsDirectoryUnavailable if the directory cannot be accessed
-    /// - Returns: The Documents directory URL
-    static func getDocumentsDirectoryOrThrow() throws -> URL {
-        guard let documentsURL = getDocumentsDirectory() else {
-            throw FileSystemError.documentsDirectoryUnavailable
+    /// `~/Library/Application Support/Meety/Recordings`, created if missing. The name is
+    /// fixed (not the bundle id) so debug and release builds share their recordings.
+    /// - Throws: FileSystemError.recordingsDirectoryUnavailable if it cannot be created
+    static func recordingsDirectory() throws -> URL {
+        do {
+            let support = try FileManager.default.url(
+                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            let directory = support.appendingPathComponent("Meety/Recordings", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        } catch {
+            Log.app.error("Recordings directory unavailable: \(error.localizedDescription, privacy: .public)")
+            throw FileSystemError.recordingsDirectoryUnavailable
         }
-        return documentsURL
     }
 
     // MARK: - Temporary Directory Access
@@ -107,15 +105,15 @@ enum FileSystemUtilities {
 // MARK: - File System Errors
 
 enum FileSystemError: Error, LocalizedError {
-    case documentsDirectoryUnavailable
+    case recordingsDirectoryUnavailable
     case fileNotFound(URL)
     case deletionFailed(URL)
     case creationFailed(URL)
 
     var errorDescription: String? {
         switch self {
-        case .documentsDirectoryUnavailable:
-            return "Unable to access the Documents directory. Please check your system permissions."
+        case .recordingsDirectoryUnavailable:
+            return "Unable to create the recordings folder in Application Support."
         case .fileNotFound(let url):
             return "File not found at path: \(url.path)"
         case .deletionFailed(let url):

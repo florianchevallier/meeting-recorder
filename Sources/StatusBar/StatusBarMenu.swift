@@ -15,6 +15,7 @@ struct StatusBarMenu: View {
     let onOpenSettings: () -> Void
     let onEditSpeakers: (URL) -> Void
     let onOpenLiveTranscript: () -> Void
+    let onOpenLibrary: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -276,6 +277,11 @@ struct StatusBarMenu: View {
             Divider().padding(.horizontal, 20)
 
             HStack(spacing: 0) {
+                QuickActionButton(icon: "books.vertical.fill", title: L10n.actionLibrary, action: onOpenLibrary)
+
+                Divider()
+                    .frame(height: Constants.UI.quickActionHeight)
+
                 QuickActionButton(icon: "folder.fill", title: L10n.actionFolder, action: openRecordingsFolder)
 
                 Divider()
@@ -361,11 +367,8 @@ struct StatusBarMenu: View {
     }
 
     private func openRecordingsFolder() {
-        guard let documentsURL = FileSystemUtilities.getDocumentsDirectory() else {
-            Log.ui.error("Unable to open Documents directory")
-            return
-        }
-        NSWorkspace.shared.open(documentsURL)
+        guard let directory = try? FileSystemUtilities.recordingsDirectory() else { return }
+        NSWorkspace.shared.open(directory)
     }
 }
 

@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Native macOS status bar application that records meetings (system audio via Core Audio
 process taps + microphone) with automatic Teams meeting detection and optional Whisper
-transcription. Produces AAC M4A files in `~/Documents/`.
+transcription. Produces AAC M4A files in `~/Library/Application Support/Meety/Recordings/`.
 
 **Brand Name**: **Meety** — **Requirements**: macOS 26.0+ (Tahoe), Swift 6 language mode, `swift-tools-version: 6.2`, Xcode 26.x
 
@@ -98,7 +98,7 @@ tccutil reset Calendar com.meetingrecorder.meety
 tccutil reset All com.meetingrecorder.meety.debug   # safe catch-all for the debug bundle
 
 # Check recordings
-ls -la ~/Documents/meeting_*.m4a
+ls -la ~/Library/Application\ Support/Meety/Recordings/meeting_*.m4a
 ```
 
 ## Architecture
@@ -179,12 +179,17 @@ Sources/
 │   ├── LiveSpeechTranscriber.swift # actor: one SpeechAnalyzer + SpeechTranscriber per source
 │   ├── LiveTranscriptionCoordinator.swift # @Observable: session per recording, `<rec>.live.md`
 │   └── LiveTranscriptPanel.swift  # Floating non-activating NSPanel + SwiftUI transcript view
+├── Library/                # "Library" window: every recording, full-text search
+│   ├── RecordingLibrary.swift     # Pure: sidecars → LibraryEntry, multi-word search + snippet
+│   ├── RecordingEditor.swift      # Rename (all sidecars), re-link event, remove participant
+│   └── LibraryWindow.swift        # NSWindow + NavigationSplitView (Transcript / Live / Participants)
 ├── Utils/
 │   ├── Log.swift                  # os.Logger per category (app, capture, recording, teams, …)
 │   ├── DefaultsKey.swift          # Every UserDefaults key (legacy raw values preserved)
 │   ├── Localization.swift         # L10n (EN/FR)
 │   ├── Constants.swift            # UI, TeamsDetection, Recording, App, Transcription, Permissions
-│   ├── FileSystemUtilities.swift  # Documents access, timestamped filenames (local TZ)
+│   ├── FileSystemUtilities.swift  # Recordings folder (Application Support), timestamped filenames (local TZ)
+│   ├── RecordingsMigration.swift  # ~/Documents → recordings folder at launch (skips busy groups)
 │   ├── RecordingFiles.swift       # Every sidecar URL of a recording
 │   └── KeychainStore.swift        # Generic passwords (transcription API key)
 └── Resources/              # en/fr .strings, app icons
@@ -270,7 +275,7 @@ activation, System Settings (de)activation, and a bounded 30 × 1 s recheck afte
 
 Onboarding completes on microphone + accessibility (system audio can't be granted without
 recording), or when the user closes the window. `RecordingCoordinator.start()` gates on
-microphone granted and system audio not denied, checks that `~/Documents` is writable, and
+microphone granted and system audio not denied, checks that the recordings folder is writable, and
 surfaces `RecordingError` with a `Remedy` (deep link / open folder). Microphone revocation
 mid-recording stops and finalizes the recording.
 
@@ -380,6 +385,25 @@ assets via `AssetInventory`, downloaded once by the system).
   isn't activated when it opens, so its glass is drawn inactive).
 - Known gap: with laptop speakers, "them" echoes into the mic and can show up under **Me**.
 
+## Recordings folder & Library
+
+Recordings and every sidecar live flat in `~/Library/Application Support/Meety/Recordings/`
+(`FileSystemUtilities.recordingsDirectory()`, fixed name so debug and release share it).
+Up to 0.7 they were written to `~/Documents`: `RecordingsMigration` runs first in
+`applicationDidFinishLaunching` (before listing recordings or resuming transcription jobs) and
+moves every `meeting_*` file, grouped by recording (`groupKey` strips the sidecar suffix, titles
+may contain dots). A group touched in the last 10 min is left for the next launch (another Meety
+instance may be recording); an existing destination is never overwritten. Same volume ⇒ rename.
+
+The Library window (popover → Library) lists every recording by day; search is in memory
+(`localizedStandardContains`, every word must match title, participants, `.txt` or `.live.md`),
+no index. It reloads on `calendar.recordings` changes and when a transcription ends.
+Edits go through `RecordingEditor` (disabled while that recording is being transcribed):
+rename (title in `.meeting.json` + every `<base>.*` file, timestamp kept, all names checked
+before any move), re-link to another event of the same day (`CalendarMonitor.events(onDayOf:)`,
+closest start first), remove a participant. All of them only touch `.meeting.json` (which the next
+transcription reads for its hints) and re-render the `.txt` header; "Transcribe again" applies them.
+
 ## Localization
 
 EN (default) + FR via `L10n` (`Bundle.resources`, **not** `Bundle.module`: the SwiftPM
@@ -445,6 +469,7 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
 - `TranscriptionHintsTests`, `VocabularyPackTests`, `TranscriptTests` (server JSON shape), `SpeakerLabelerTests`,
   `TranscriptRendererTests`, `VoiceActivityRecorderTests`, `RecordingFilesTests`
 - `LiveTranscriptTests` — volatile/final reducer, speaker interleaving, Markdown
+- `RecordingsMigrationTests` (temp dirs: groups, busy skip, no overwrite), `RecordingLibraryTests`, `RecordingEditorTests`
 - Tests needing `UserDefaults` use `ScratchDefaults.make()` (in-memory subclass), never
   `UserDefaults(suiteName:)`: cfprefsd persists every suite to `~/Library/Preferences`,
   asynchronously and even after the process exits, so cleanup can't keep up.

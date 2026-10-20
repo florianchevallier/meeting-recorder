@@ -19,13 +19,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isTerminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before anything lists recordings or resumes their transcription jobs.
+        if let documents = FileSystemUtilities.getDocumentsDirectory(),
+            let directory = try? FileSystemUtilities.recordingsDirectory()
+        {
+            RecordingsMigration.migrate(from: documents, to: directory)
+        }
+
         let dependencies = AppDependencies()
         self.dependencies = dependencies
 
         dependencies.statusBarController.setup()
         dependencies.permissionMonitor.start()
         dependencies.calendar.start()
-        dependencies.transcription.resumePending(in: CalendarMonitor.recordingsInDocuments())
+        dependencies.transcription.resumePending(in: CalendarMonitor.recordingsOnDisk())
         dependencies.reminderScheduler.start()
         dependencies.autoJoiner.start()
         dependencies.livePanelController.start()
