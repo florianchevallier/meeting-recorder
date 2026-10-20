@@ -61,7 +61,10 @@ build() {
     swift test --parallel --enable-code-coverage -Xswiftc -warnings-as-errors
     coverage
     step "Periphery (unused code)"
-    periphery scan --quiet --strict --baseline .periphery-baseline.json
+    # Swift Build (Swift 6.4 toolchains) writes the index under .build/out, the native build system under .build/debug.
+    local store=.build/out
+    [[ -d "$store/v5" ]] || store=.build/debug/index/store
+    periphery scan --quiet --strict --baseline .periphery-baseline.json --index-store-path "$store"
     step "Tests under Thread Sanitizer"
     swift test --sanitize=thread --scratch-path .build/tsan
     step "Tests under Address + Undefined Behavior Sanitizers"
