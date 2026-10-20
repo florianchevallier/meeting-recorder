@@ -1,0 +1,77 @@
+# SwiftLint: semantic rules only. Layout (commas, braces, line length, wrapping)
+# belongs to swift-format (.swift-format), so those rules are off here.
+# Run through scripts/check.sh: `--strict` turns every warning into an error and
+# `.swiftlint-baseline.json` grandfathers what existed when the gate was added.
+included:
+  - Sources
+  - Tests
+  - Package.swift
+
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - closure_parameter_position
+  - line_length
+  - todo  # RULES forbid TODOs for core code; tracked in review, not by grep
+
+opt_in_rules:
+  - array_init
+  - async_without_await
+  - collection_alignment
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - contains_over_range_nil_comparison
+  - discouraged_assert
+  - discouraged_none_name
+  - discouraged_object_literal
+  - discouraged_optional_boolean
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - enum_case_associated_values_count
+  - fatal_error_message
+  - file_name_no_space
+  - final_test_case
+  - first_where
+  - flatmap_over_map_reduce
+  - force_unwrapping
+  - identical_operands
+  - implicitly_unwrapped_optional
+  - last_where
+  - legacy_multiple
+  - legacy_objc_type
+  - local_doc_comment
+  - lower_acl_than_parent
+  - ns_number_init_as_function_reference
+  - optional_enum_case_matching
+  - overridden_super_call
+  - prefer_key_path
+  - prefer_self_type_over_type_of_self
+  - prefer_zero_over_explicit_init
+  - private_swiftui_state
+  - prohibited_super_call
+  - reduce_into
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - return_value_from_void_function
+  - self_binding
+  - shorthand_optional_binding
+  - sorted_first_last
+  - static_operator
+  - test_case_accessibility
+  - toggle_bool
+  - unavailable_function
+  - unhandled_throwing_task
+  - unneeded_parentheses_in_closure_argument
+  - unowned_variable_capture
+  - untyped_error_in_catch
+  - weak_delegate
+  - yoda_condition
+
+# DSP loops (i, c, x), fixture aliases (F, T) and `me` (the microphone speaker) are fine.
+identifier_name:
+  min_length: 1
+  max_length: 60
+type_name:
+  min_length: 1

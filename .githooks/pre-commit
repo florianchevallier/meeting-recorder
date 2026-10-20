@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Opt in once per clone: git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/scripts/check.sh" fast

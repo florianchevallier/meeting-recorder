@@ -63,10 +63,23 @@ swift build -c release
 ```bash
 swift test                                   # same DEVELOPER_DIR caveat as above
 
-# CI runs exactly this (warnings are errors there):
-swift build -Xswiftc -warnings-as-errors
-swift test --parallel -Xswiftc -warnings-as-errors
+# CI runs exactly this (see "Quality gates" below):
+scripts/check.sh              # lint + build; `lint` / `build` / `fast` for one stage
 ```
+
+### Quality gates (`scripts/check.sh`)
+Tools: `brew bundle --file=Brewfile`. Pre-commit hook (opt-in): `git config core.hooksPath .githooks`.
+- `lint`: swift-format `--strict`, SwiftLint `--strict` (`.swiftlint.yml`: semantic rules only,
+  layout is swift-format's), ShellCheck, actionlint, zizmor (workflow security: SHA-pinned actions,
+  read-only `permissions`, no caches in the release path), Ruff (`ruff.toml`, release-notes script),
+  `plutil -lint`, `brew style` on the cask, gitleaks over the git history.
+- `build`: `-warnings-as-errors` build and tests, Sources line coverage ≥ `COVERAGE_FLOOR` (only
+  ever raise it), Periphery `--strict` (unused code), tests under TSan, then ASan + UBSan.
+- Baselines `.swiftlint-baseline.json` / `.periphery-baseline.json` grandfather what existed on
+  2026-10-20; anything new fails. Regenerate them only after *removing* findings
+  (`swiftlint lint --write-baseline …`, `periphery scan --write-baseline …`), never to hide new ones.
+- An action bump needs its new commit SHA (`gh api repos/<o>/<r>/commits/<tag> --jq .sha`) with the
+  tag in a trailing comment.
 
 ### Debugging
 ```bash
@@ -386,8 +399,8 @@ directly and mark what must stay readable in release with `privacy: .public`
 
 ## Code Signing & Distribution (GitHub Actions)
 
-CI (`macos-26`, Xcode 26.5): `lint` (`swift format lint --strict`) and `test`
-(`-warnings-as-errors`) on every push to `main`, PR and tag. A `v*` tag additionally
+CI (`macos-26`, Xcode 26.5): `lint` (`scripts/check.sh lint`) and `test`
+(`scripts/check.sh build`) on every push to `main`, PR and tag. A `v*` tag additionally
 builds the arm64 binary, signs **inside-out without `--deep`** (resource bundle, then the
 app with entitlements), creates + signs the DMG, notarizes via notarytool, staples and
 creates the GitHub Release (AI-generated notes only); `scripts/release.sh` then updates
@@ -400,7 +413,7 @@ https://github.com/florianchevallier/meeting-recorder`. Keep it `brew style`-cle
 
 ```bash
 ./scripts/release.sh 0.2.0   # full release (tag → CI → cask)
-swift format lint --strict --recursive Sources Tests Package.swift   # what CI runs
+scripts/check.sh lint                                                # what the CI lint job runs
 swift format --in-place --recursive Sources Tests Package.swift      # fix formatting
 ```
 

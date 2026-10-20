@@ -51,9 +51,10 @@ validate_icon() {
     fi
     
     # Obtenir les dimensions
-    local dimensions=$(sips -g pixelWidth -g pixelHeight "$icon_file" 2>/dev/null | tail -2 | awk '{print $2}')
-    local width=$(echo "$dimensions" | head -1)
-    local height=$(echo "$dimensions" | tail -1)
+    local dimensions width height
+    dimensions=$(sips -g pixelWidth -g pixelHeight "$icon_file" 2>/dev/null | tail -2 | awk '{print $2}')
+    width=$(echo "$dimensions" | head -1)
+    height=$(echo "$dimensions" | tail -1)
     
     log_info "Dimensions de l'icône: ${width}x${height}"
     
@@ -127,7 +128,8 @@ generate_icns() {
     fi
     
     # Vérifier la taille du fichier généré
-    local file_size=$(ls -lh "$ICNS_FILE" | awk '{print $5}')
+    local file_size
+    file_size=$(du -h "$ICNS_FILE" | awk '{print $1}')
     log_success "Fichier .icns généré: $file_size"
 }
 

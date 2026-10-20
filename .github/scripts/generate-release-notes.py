@@ -5,19 +5,19 @@ Supports: OpenAI (GPT-4) and Google Gemini
 """
 
 import os
-import sys
-import json
 import subprocess
-from typing import List, Dict
+import sys
 
-def get_commits_since_last_tag(target_version: str) -> List[Dict[str, str]]:
+
+def get_commits_since_last_tag(target_version: str) -> list[dict[str, str]]:
     """Get all commits since the last tag up to target version"""
     target_ref = f"v{target_version}" if not target_version.startswith('v') else target_version
 
     # Check if target tag exists
     tag_exists = subprocess.run(
         ["git", "rev-parse", "--verify", target_ref],
-        capture_output=True
+        capture_output=True,
+        check=False,
     ).returncode == 0
 
     # If tag doesn't exist, use HEAD (for testing future versions)
@@ -59,7 +59,7 @@ def get_commits_since_last_tag(target_version: str) -> List[Dict[str, str]]:
 
     return commits
 
-def categorize_commits(commits: List[Dict[str, str]]) -> Dict[str, List[Dict[str, str]]]:
+def categorize_commits(commits: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
     """Categorize commits by conventional commit type"""
     categories = {
         'feat': [],
@@ -77,8 +77,8 @@ def categorize_commits(commits: List[Dict[str, str]]) -> Dict[str, List[Dict[str
     for commit in commits:
         subject = commit['subject']
         found = False
-        for category in categories.keys():
-            if subject.startswith(f"{category}:") or subject.startswith(f"{category}("):
+        for category in categories:
+            if subject.startswith((f"{category}:", f"{category}(")):
                 categories[category].append(commit)
                 found = True
                 break
@@ -87,7 +87,7 @@ def categorize_commits(commits: List[Dict[str, str]]) -> Dict[str, List[Dict[str
 
     return categories
 
-def create_prompt(version: str, categories: Dict[str, List[Dict[str, str]]]) -> str:
+def create_prompt(version: str, categories: dict[str, list[dict[str, str]]]) -> str:
     """Create the prompt for AI generation"""
     commit_summary = []
     for category, commits_list in categories.items():
@@ -161,7 +161,7 @@ def generate_with_openai(prompt: str) -> str:
         return response.choices[0].message.content
 
     except ImportError:
-        raise ImportError("openai package not found. Install with: pip install openai")
+        raise ImportError("openai package not found. Install with: pip install openai") from None
 
 def generate_with_gemini(prompt: str) -> str:
     """Generate release notes using Google Gemini API"""
@@ -184,9 +184,9 @@ def generate_with_gemini(prompt: str) -> str:
         return response.text
 
     except ImportError:
-        raise ImportError("google-genai package not found. Install with: pip install google-genai")
+        raise ImportError("google-genai package not found. Install with: pip install google-genai") from None
 
-def generate_with_ai(version: str, categories: Dict[str, List[Dict[str, str]]]) -> str:
+def generate_with_ai(version: str, categories: dict[str, list[dict[str, str]]]) -> str:
     """Generate release notes using available AI provider"""
 
     prompt = create_prompt(version, categories)
@@ -196,7 +196,7 @@ def generate_with_ai(version: str, categories: Dict[str, List[Dict[str, str]]]) 
     if os.environ.get('OPENAI_API_KEY'):
         try:
             content = generate_with_openai(prompt)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any provider failure falls back to the next one
             print(f"⚠️  OpenAI error: {e}", file=sys.stderr)
             content = None
 
@@ -204,7 +204,7 @@ def generate_with_ai(version: str, categories: Dict[str, List[Dict[str, str]]]) 
     if not content and os.environ.get('GOOGLE_API_KEY'):
         try:
             content = generate_with_gemini(prompt)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any provider failure falls back to the next one
             print(f"⚠️  Gemini error: {e}", file=sys.stderr)
             content = None
 
@@ -216,7 +216,7 @@ def generate_with_ai(version: str, categories: Dict[str, List[Dict[str, str]]]) 
         return generate_basic_notes(version, categories)
 
     # Add security and installation info
-    content += f"""
+    content += """
 
 ## Sécurité
 - Signé avec Developer ID Application
@@ -236,7 +236,7 @@ def generate_with_ai(version: str, categories: Dict[str, List[Dict[str, str]]]) 
 
     return content
 
-def generate_basic_notes(version: str, categories: Dict[str, List[Dict[str, str]]]) -> str:
+def generate_basic_notes(version: str, categories: dict[str, list[dict[str, str]]]) -> str:
     """Generate basic release notes without AI"""
 
     notes = [f"# Meety v{version}\n"]
@@ -276,7 +276,7 @@ def generate_basic_notes(version: str, categories: Dict[str, List[Dict[str, str]
             subject = commit['subject'].replace('docs:', '').replace('docs(', '(').strip()
             notes.append(f"- {subject}")
 
-    notes.append(f"""
+    notes.append("""
 ## Installation
 
 ### Via Homebrew (recommandé)

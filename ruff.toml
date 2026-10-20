@@ -1,0 +1,10 @@
+# Lints .github/scripts (release notes). Pinned here so CI and laptops agree.
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "PIE", "BLE", "PLE", "PLW", "RUF"]
+
+[lint.per-file-ignores]
+# The Gemini/OpenAI prompt is prose: long lines on purpose.
+".github/scripts/generate-release-notes.py" = ["E501"]
