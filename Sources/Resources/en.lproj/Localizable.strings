@@ -289,3 +289,15 @@
 "library.error.name_taken" = "A recording file is already named “%@”.";
 "library.copy" = "Copy this tab";
 "library.file" = "File";
+"settings.tab.mcp" = "AI assistants";
+"settings.mcp.header.title" = "Connect an AI assistant";
+"settings.mcp.header.subtitle" = "Let Claude or any MCP client read your transcripts";
+"settings.mcp.tools.title" = "What the assistant can do";
+"settings.mcp.tools.body" = "List and search your recordings, read a transcript, and follow the meeting being recorded (10 to 30 seconds behind). Meety only lets it read: nothing is changed. The transcripts it reads are sent to the provider of that assistant.";
+"settings.mcp.claude_code.title" = "Claude Code";
+"settings.mcp.claude_code.subtitle" = "Run this command in a terminal:";
+"settings.mcp.desktop.title" = "Claude Desktop and other clients";
+"settings.mcp.desktop.subtitle" = "Add this server to the client's MCP configuration (claude_desktop_config.json for Claude Desktop):";
+"settings.mcp.note" = "The path points to this copy of Meety: if you move the app, run the command again.";
+"settings.mcp.copy" = "Copy";
+"settings.mcp.copied" = "Copied";

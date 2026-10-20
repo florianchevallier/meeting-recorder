@@ -288,4 +288,16 @@
 "library.participant.pending" = "Sans réponse";
 "library.error.name_taken" = "Un fichier d'enregistrement s'appelle déjà « %@ ».";
 "library.copy" = "Copier cet onglet";
-"library.file" = "Fichier";
+"settings.tab.mcp" = "Assistants IA";
+"settings.mcp.header.title" = "Connecter un assistant IA";
+"settings.mcp.header.subtitle" = "Laissez Claude ou un client MCP lire vos transcriptions";
+"settings.mcp.tools.title" = "Ce que l'assistant peut faire";
+"settings.mcp.tools.body" = "Lister et chercher vos enregistrements, lire une transcription et suivre la réunion en cours d'enregistrement (10 à 30 secondes de retard). Meety ne lui donne qu'un accès en lecture : rien n'est modifié. Les transcriptions lues sont envoyées au fournisseur de cet assistant.";
+"settings.mcp.claude_code.title" = "Claude Code";
+"settings.mcp.claude_code.subtitle" = "Lancez cette commande dans un terminal :";
+"settings.mcp.desktop.title" = "Claude Desktop et autres clients";
+"settings.mcp.desktop.subtitle" = "Ajoutez ce serveur à la configuration MCP du client (claude_desktop_config.json pour Claude Desktop) :";
+"settings.mcp.note" = "Le chemin pointe vers cette copie de Meety : si vous déplacez l'app, relancez la commande.";
+"settings.mcp.copy" = "Copier";
+"settings.mcp.copied" = "Copié";
+"library.file" ="Fichier";

@@ -7,6 +7,11 @@ enum MeetyMain {
     @MainActor private static let delegate = AppDelegate()
 
     static func main() {
+        // `MeetingRecorder mcp`: MCP server over stdio for an LLM client, no UI.
+        if CommandLine.arguments.dropFirst().first == "mcp" {
+            MCPServer().run()
+            return
+        }
         let app = NSApplication.shared
         app.delegate = delegate
         app.run()

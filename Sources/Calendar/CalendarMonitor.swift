@@ -149,7 +149,13 @@ final class CalendarMonitor {
     // MARK: Recordings on disk
 
     static func recordingsOnDisk() -> [URL] {
-        guard let directory = try? FileSystemUtilities.recordingsDirectory(),
+        guard let directory = try? FileSystemUtilities.recordingsDirectory() else { return [] }
+        return recordingsOnDisk(in: directory)
+    }
+
+    /// Finished recordings (no `.partial`) of `directory`, oldest first.
+    nonisolated static func recordingsOnDisk(in directory: URL) -> [URL] {
+        guard
             let files = try? FileManager.default.contentsOfDirectory(
                 at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
         else { return [] }

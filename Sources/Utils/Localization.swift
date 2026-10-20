@@ -371,4 +371,17 @@ extension L10n {
     static func liveErrorUnavailable(_ detail: String) -> String {
         L10n.string("live.error.unavailable", detail)
     }
+
+    static let settingsTabMcp = "settings.tab.mcp".localized
+    static let settingsMcpHeaderTitle = "settings.mcp.header.title".localized
+    static let settingsMcpHeaderSubtitle = "settings.mcp.header.subtitle".localized
+    static let settingsMcpToolsTitle = "settings.mcp.tools.title".localized
+    static let settingsMcpToolsBody = "settings.mcp.tools.body".localized
+    static let settingsMcpClaudeCodeTitle = "settings.mcp.claude_code.title".localized
+    static let settingsMcpClaudeCodeSubtitle = "settings.mcp.claude_code.subtitle".localized
+    static let settingsMcpDesktopTitle = "settings.mcp.desktop.title".localized
+    static let settingsMcpDesktopSubtitle = "settings.mcp.desktop.subtitle".localized
+    static let settingsMcpNote = "settings.mcp.note".localized
+    static let settingsMcpCopy = "settings.mcp.copy".localized
+    static let settingsMcpCopied = "settings.mcp.copied".localized
 }

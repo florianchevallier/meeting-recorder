@@ -187,6 +187,8 @@ Sources/
 │   ├── LibraryWindow.swift        # NSWindow + NavigationSplitView: list by day, search
 │   ├── LibraryDetail.swift        # One recording: Transcript / Live / Participants, rename, re-link
 │   └── LibraryStrings.swift       # `extension L10n` for the window (parity test reads it too)
+├── MCP/
+│   └── MCPServer.swift            # `MeetingRecorder mcp`: stdio MCP server, reads the recordings folder
 ├── Utils/
 │   ├── Log.swift                  # os.Logger per category (app, capture, recording, teams, …)
 │   ├── DefaultsKey.swift          # Every UserDefaults key (legacy raw values preserved)
@@ -388,6 +390,20 @@ assets via `AssetInventory`, downloaded once by the system).
   `.glassProminent` / `.glassEffect(.tint)` render grey in the status-item popover (the app
   isn't activated when it opens, so its glass is drawn inactive).
 - Known gap: with laptop speakers, "them" echoes into the mic and can show up under **Me**.
+
+## MCP server (for LLM clients)
+
+`MeetingRecorder mcp` (checked in `MeetyMain.main` before `NSApplication`) speaks MCP over stdio,
+one JSON-RPC message per line, hand-written (`MCPServer`, zero dependency). It only reads the
+recordings folder, so it works with the app closed; stdout carries JSON-RPC only.
+Install: `claude mcp add meety -- /Applications/Meety.app/Contents/MacOS/MeetingRecorder mcp`.
+In the app: Settings → AI assistants (`MCPSettingsTab`) shows the Claude Code command and the
+`mcpServers` JSON for Claude Desktop, both built by `MCPInstall` from `Bundle.main.executablePath`
+(so they follow the copy of Meety that is running), each with a Copy button.
+- `list_recordings(query?, limit?)` → `RecordingLibrary.load/search`; `get_transcript(id)` → `.txt`,
+  else `.live.md`; `get_live_transcript()` → the `*.partial.m4a` touched < 60 s ago (older = crash).
+- `id` comes from the LLM: plain `meeting_*.m4a` filename only, no path, no `.partial`.
+- Live text = `.live.md` finals (10–30 s behind); the volatile text only exists in the app process.
 
 ## Recordings folder & Library
 
