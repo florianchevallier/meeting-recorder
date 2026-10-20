@@ -12,6 +12,7 @@ extension L10n {
     static let libraryTabLive = "library.tab.live".localized
     static let libraryTabParticipants = "library.tab.participants".localized
     static let libraryFile = "library.file".localized
+    static let libraryCopy = "library.copy".localized
     static let libraryRename = "library.rename".localized
     static let libraryRenameTitle = "library.rename.title".localized
     static let libraryRenameMessage = "library.rename.message".localized

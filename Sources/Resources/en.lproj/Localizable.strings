@@ -287,4 +287,5 @@
 "library.participant.tentative" = "Maybe";
 "library.participant.pending" = "No answer";
 "library.error.name_taken" = "A recording file is already named “%@”.";
+"library.copy" = "Copy this tab";
 "library.file" = "File";

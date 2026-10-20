@@ -287,4 +287,5 @@
 "library.participant.tentative" = "Peut-être";
 "library.participant.pending" = "Sans réponse";
 "library.error.name_taken" = "Un fichier d'enregistrement s'appelle déjà « %@ ».";
+"library.copy" = "Copier cet onglet";
 "library.file" = "Fichier";

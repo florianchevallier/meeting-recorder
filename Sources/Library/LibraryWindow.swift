@@ -4,7 +4,7 @@ import SwiftUI
 /// Owns the Library NSWindow (created once): every recording, searchable, with
 /// its transcript, live transcript and meeting info.
 @MainActor
-final class LibraryWindowController {
+final class LibraryWindowController: NSObject, NSWindowDelegate {
 
     private let calendar: CalendarMonitor
     private let transcription: TranscriptionCoordinator
@@ -22,17 +22,23 @@ final class LibraryWindowController {
         self.transcription = transcription
         self.settings = settings
         self.speakerNamesWindowController = speakerNamesWindowController
+        super.init()
     }
 
     func show() {
         calendar.refresh()
         let window = self.window ?? makeWindow()
+        // A regular app while the window is open (Dock icon, ⌘-Tab), back to the menu bar when
+        // it closes. The cooperative `activate()` is declined after a popover click: the window
+        // showed up but the keyboard stayed in the previous app (dead search field).
+        NSApp.setActivationPolicy(.regular)
+        (NSApp as any ForceActivating).forceActivate()
         window.makeKeyAndOrderFront(nil)
-        // An LSUIElement app opened from its popover isn't active yet: `activate()` alone may
-        // leave the window behind the frontmost app.
-        window.orderFrontRegardless()
-        NSApp.activate()
         self.window = window
+    }
+
+    nonisolated func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated { _ = NSApp.setActivationPolicy(.accessory) }
     }
 
     private func makeWindow() -> NSWindow {
@@ -53,6 +59,7 @@ final class LibraryWindowController {
         window.contentViewController = hosting
         window.title = L10n.libraryWindowTitle
         window.isReleasedWhenClosed = false
+        window.delegate = self
         window.setContentSize(NSSize(width: 920, height: 620))
         window.setFrameAutosaveName("MeetyLibrary")
         if window.frame.origin == .zero { window.center() }
@@ -181,5 +188,19 @@ private struct LibraryRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// `activate(ignoringOtherApps:)` is deprecated since macOS 14 but is the only call that brings an
+/// LSUIElement app forward from its status item (measured on macOS 27). Called through a protocol
+/// so the deprecation stays local and `-warnings-as-errors` builds pass.
+private protocol ForceActivating {
+    func forceActivate()
+}
+
+extension NSApplication: ForceActivating {
+    @available(macOS, deprecated: 14.0, message: "Only for windows that need the keyboard from the menu bar")
+    fileprivate func forceActivate() {
+        activate(ignoringOtherApps: true)
     }
 }

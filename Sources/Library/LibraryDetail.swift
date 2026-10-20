@@ -20,6 +20,7 @@ struct LibraryDetail: View {
     @State private var isRenaming = false
     @State private var draftTitle = ""
     @State private var dayEvents: [CalendarEvent] = []
+    @State private var copied = false
 
     init(
         entry: LibraryEntry,
@@ -114,6 +115,8 @@ struct LibraryDetail: View {
     private var actions: some View {
         let files = RecordingFiles(audio: entry.audio)
         return HStack(spacing: 8) {
+            Button(L10n.libraryCopy, systemImage: copied ? "checkmark" : "doc.on.doc", action: copy)
+                .help(L10n.libraryCopy)
             Button(L10n.calendarPlayRecording, systemImage: "play.fill") { NSWorkspace.shared.open(entry.audio) }
             Button(L10n.calendarShowInFinder, systemImage: "folder") {
                 NSWorkspace.shared.activateFileViewerSelecting([entry.audio])
@@ -207,6 +210,25 @@ struct LibraryDetail: View {
     }
 
     // MARK: Helpers
+
+    /// The tab on screen, whole: the transcript already carries its title / date / participants header.
+    private var copyableText: String {
+        switch tab {
+        case .transcript: entry.transcript ?? ""
+        case .live: entry.live ?? ""
+        case .participants: entry.participants.joined(separator: "\n")
+        }
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(copyableText, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
+    }
 
     /// Runs a file edit, reports failures, then tells the list (new URL after a rename).
     private func edit(_ change: () throws -> URL) {
