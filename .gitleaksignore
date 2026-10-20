@@ -1,0 +1,2 @@
+# False positive: a recording filename in a test ("meeting_x.partial.m4a") read as an API key.
+965d862e0673b3f62cf29a6d64f724f7bf47e793:Tests/MCPServerTests.swift:generic-api-key:59
