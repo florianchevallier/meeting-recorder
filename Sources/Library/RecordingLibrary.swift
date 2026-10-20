@@ -59,7 +59,7 @@ enum RecordingLibrary {
     static func titleFromFilename(_ filename: String) -> String? {
         let prefix = Constants.Permissions.recordingPrefix + "_"
         guard filename.hasPrefix(prefix) else { return nil }
-        let rest = (filename as NSString).deletingPathExtension
+        let rest = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
             .dropFirst(prefix.count + Constants.DateFormat.timestamp.count)
         guard rest.hasPrefix("_") else { return nil }
         let title = rest.dropFirst().trimmingCharacters(in: .whitespaces)

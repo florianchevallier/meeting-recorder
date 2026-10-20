@@ -7,13 +7,14 @@ struct RecordingsMigrationTests {
     private let fileManager = FileManager.default
     private let now = Date()
 
-    private func scratch() throws -> (source: URL, destination: URL, root: URL) {
+    /// `<tmp>/<uuid>/Documents` and `<tmp>/<uuid>/Recordings`; remove the parent when done.
+    private func scratch() throws -> (source: URL, destination: URL) {
         let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let source = root.appendingPathComponent("Documents")
         let destination = root.appendingPathComponent("Recordings")
         try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
-        return (source, destination, root)
+        return (source, destination)
     }
 
     /// Writes `name` in `directory`, last modified `age` seconds before `now`.
@@ -29,8 +30,8 @@ struct RecordingsMigrationTests {
 
     @Test("Moves a recording with all its sidecars, leaves other files alone")
     func movesGroup() throws {
-        let (source, destination, root) = try scratch()
-        defer { try? fileManager.removeItem(at: root) }
+        let (source, destination) = try scratch()
+        defer { try? fileManager.removeItem(at: source.deletingLastPathComponent()) }
         let group = [
             "meeting_2026-09-22_10-00-00_J. Doe + A. Smith.m4a",
             "meeting_2026-09-22_10-00-00_J. Doe + A. Smith.txt",
@@ -49,8 +50,8 @@ struct RecordingsMigrationTests {
 
     @Test("A group written recently stays put (another instance may be recording)")
     func skipsBusyGroup() throws {
-        let (source, destination, root) = try scratch()
-        defer { try? fileManager.removeItem(at: root) }
+        let (source, destination) = try scratch()
+        defer { try? fileManager.removeItem(at: source.deletingLastPathComponent()) }
         try file("meeting_2026-10-20_10-00-00_Call.meeting.json", in: source)
         try file("meeting_2026-10-20_10-00-00_Call.partial.m4a", in: source, age: 5)
         try file("meeting_2026-10-19_10-00-00.m4a", in: source)
@@ -66,8 +67,8 @@ struct RecordingsMigrationTests {
 
     @Test("Never overwrites, and a second run changes nothing")
     func neverOverwrites() throws {
-        let (source, destination, root) = try scratch()
-        defer { try? fileManager.removeItem(at: root) }
+        let (source, destination) = try scratch()
+        defer { try? fileManager.removeItem(at: source.deletingLastPathComponent()) }
         try file("meeting_2026-09-22_10-00-00.m4a", in: source, contents: "old")
         try file("meeting_2026-09-22_10-00-00.m4a", in: destination, contents: "new")
 

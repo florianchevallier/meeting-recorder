@@ -34,12 +34,13 @@ struct L10nParityTests {
         #expect(missingInEn.isEmpty, "Keys missing in en.lproj: \(missingInEn.sorted())")
     }
 
-    @Test("Every key referenced from Localization.swift exists in en.lproj")
+    @Test("Every key referenced from the L10n files exists in en.lproj")
     func referencedKeysExist() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let repoRoot = testFile.deletingLastPathComponent().deletingLastPathComponent()
-        let source = try String(
-            contentsOf: repoRoot.appendingPathComponent("Sources/Utils/Localization.swift"), encoding: .utf8)
+        let source = try ["Sources/Utils/Localization.swift", "Sources/Library/LibraryStrings.swift"]
+            .map { try String(contentsOf: repoRoot.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
         let regex = try NSRegularExpression(pattern: #""([a-z0-9_.]+)"\.localized|L10n\.string\("([a-z0-9_.]+)""#)
         let range = NSRange(source.startIndex..., in: source)
         var referenced = Set<String>()

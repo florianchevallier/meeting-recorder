@@ -22,7 +22,7 @@ struct StatusBarMenu: View {
             headerSection
             mainControlSection
             errorSection
-            transcriptionSection
+            TranscriptionMenuSection(transcription: coordinator.transcription)
             CalendarMenuSection(
                 calendar: calendar,
                 permissionMonitor: permissionMonitor,
@@ -172,104 +172,6 @@ struct StatusBarMenu: View {
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: coordinator.isRecording)
     }
 
-    // MARK: - Transcription Section
-
-    @ViewBuilder
-    private var transcriptionSection: some View {
-        if coordinator.transcription.state.isTranscribing {
-            VStack(spacing: 0) {
-                Divider().padding(.horizontal, 20)
-
-                HStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.purple.opacity(0.1))
-                            .frame(width: 32, height: 32)
-
-                        Image(systemName: "waveform.circle")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.purple)
-                            .symbolEffect(.pulse, options: .repeating)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.menuTranscriptionRunning)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.primary)
-
-                        Text(coordinator.transcription.state.progress)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        if let percent = coordinator.transcription.state.percent {
-                            ProgressView(value: Double(percent), total: 100)
-                                .controlSize(.small)
-                                .tint(.purple)
-                        }
-
-                        if !coordinator.transcription.queue.isEmpty {
-                            Text(L10n.menuTranscriptionQueued(coordinator.transcription.queue.count))
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    if coordinator.transcription.state.status == .running,
-                        coordinator.transcription.state.percent == nil
-                    {
-                        ProgressView()
-                            .controlSize(.small)
-                            .scaleEffect(0.8)
-                    }
-
-                    if coordinator.transcription.current != nil {
-                        Button(L10n.menuTranscriptionCancel) { coordinator.transcription.cancel() }
-                            .buttonStyle(.borderless)
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color.purple.opacity(0.05))
-            }
-        } else if let error = coordinator.transcription.state.error {
-            VStack(spacing: 0) {
-                Divider().padding(.horizontal, 20)
-
-                HStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.orange)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.menuTranscriptionError)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.primary)
-
-                        Text(error)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-
-                    Spacer()
-
-                    if coordinator.transcription.lastFailed != nil {
-                        Button(L10n.menuTranscriptionRetry) { coordinator.transcription.retry() }
-                            .buttonStyle(.borderless)
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color.orange.opacity(0.05))
-            }
-        }
-    }
-
     // MARK: - Quick Actions Section
 
     private var quickActionsSection: some View {
@@ -367,7 +269,10 @@ struct StatusBarMenu: View {
     }
 
     private func openRecordingsFolder() {
-        guard let directory = try? FileSystemUtilities.recordingsDirectory() else { return }
+        guard let directory = try? FileSystemUtilities.recordingsDirectory() else {
+            Log.ui.error("Unable to open the recordings folder")
+            return
+        }
         NSWorkspace.shared.open(directory)
     }
 }
@@ -473,72 +378,5 @@ private struct DurationLabel: View {
         return hours > 0
             ? String(format: "%d:%02d:%02d", hours, minutes, seconds)
             : String(format: "%02d:%02d", minutes, seconds)
-    }
-}
-
-// MARK: - Record Button
-
-private struct RecordButton: View {
-    let isRecording: Bool
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        // The primary action, always in color. Tinted glass (`.glassProminent`, `.glassEffect(.tint)`)
-        // renders grey in the menu bar popover, so this is a filled disc with a glass-like rim.
-        let tint: Color = isRecording ? .red : .blue
-        Button(action: action) {
-            Image(systemName: isRecording ? "stop.fill" : "record.circle")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.white)
-                .contentTransition(.symbolEffect(.replace))
-                .frame(width: Constants.UI.controlButtonSize, height: Constants.UI.controlButtonSize)
-                .background(tint.gradient, in: .circle)
-                .overlay {
-                    Circle().strokeBorder(
-                        LinearGradient(
-                            colors: [.white.opacity(0.55), .white.opacity(0.05)], startPoint: .top,
-                            endPoint: .bottom),
-                        lineWidth: 1)
-                }
-                .shadow(color: tint.opacity(0.35), radius: isHovering ? 12 : 8, y: 3)
-                .contentShape(.circle)
-        }
-        .buttonStyle(.plain)
-        .scaleEffect(isHovering ? 1.04 : 1.0)
-        .onHover { isHovering = $0 }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
-        .animation(.smooth, value: isRecording)
-    }
-}
-
-// MARK: - Quick Action Button
-
-struct QuickActionButton: View {
-    let icon: String
-    let title: String
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
-
-                Text(title)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(isHovering ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 10))
-            .contentShape(.rect(cornerRadius: 10))
-            .animation(.smooth(duration: 0.15), value: isHovering)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
     }
 }

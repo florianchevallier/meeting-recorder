@@ -117,6 +117,8 @@ Sources/
 ├── StatusBar/              # Status bar UI
 │   ├── StatusBarController.swift  # NSStatusItem + NSPopover, IconState (pure) + cached NSImages
 │   ├── StatusBarMenu.swift        # Popover SwiftUI; TimelineView only around the duration/ring
+│   ├── StatusBarMenuButtons.swift # Record disc + quick action buttons
+│   ├── TranscriptionMenuSection.swift # WhisperX progress / error + Retry row
 │   ├── CalendarMenuSection.swift  # Today's meetings; TimelineView(.everyMinute) over a pure agenda
 │   ├── RecordingCoordinator.swift # Drives CaptureEngine, permission gating, RecordingError + Remedy
 │   └── RecordingState.swift       # idle/starting/recording/recovering/stopping + pure transition()
@@ -182,7 +184,9 @@ Sources/
 ├── Library/                # "Library" window: every recording, full-text search
 │   ├── RecordingLibrary.swift     # Pure: sidecars → LibraryEntry, multi-word search + snippet
 │   ├── RecordingEditor.swift      # Rename (all sidecars), re-link event, remove participant
-│   └── LibraryWindow.swift        # NSWindow + NavigationSplitView (Transcript / Live / Participants)
+│   ├── LibraryWindow.swift        # NSWindow + NavigationSplitView: list by day, search
+│   ├── LibraryDetail.swift        # One recording: Transcript / Live / Participants, rename, re-link
+│   └── LibraryStrings.swift       # `extension L10n` for the window (parity test reads it too)
 ├── Utils/
 │   ├── Log.swift                  # os.Logger per category (app, capture, recording, teams, …)
 │   ├── DefaultsKey.swift          # Every UserDefaults key (legacy raw values preserved)

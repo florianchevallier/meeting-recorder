@@ -96,7 +96,33 @@ final class StatusBarController {
             button.target = self
         }
 
-        let menu = StatusBarMenu(
+        // Let SwiftUI drive the popover size. A fixed `contentSize` taller than
+        // the view makes AppKit anchor a 360 pt window under the status item and
+        // then shrink it from the top, leaving a gap between the bar and the arrow.
+        let hosting = NSHostingController(rootView: makeMenu())
+        hosting.sizingOptions = .preferredContentSize
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentViewController = hosting
+        self.popover = popover
+
+        let coordinator = self.coordinator
+        iconTask = Task { [weak self] in
+            for await state in Observations({
+                IconState(
+                    isStopping: coordinator.isStopping,
+                    isRecording: coordinator.isRecording,
+                    isTeamsMeetingDetected: coordinator.isTeamsMeetingDetected
+                )
+            }) {
+                self?.apply(state)
+            }
+        }
+    }
+
+    private func makeMenu() -> StatusBarMenu {
+        StatusBarMenu(
             coordinator: coordinator,
             permissionMonitor: permissionMonitor,
             calendar: calendar,
@@ -117,30 +143,6 @@ final class StatusBarController {
                 self?.libraryWindowController.show()
             }
         )
-
-        // Let SwiftUI drive the popover size. A fixed `contentSize` taller than
-        // the view makes AppKit anchor a 360 pt window under the status item and
-        // then shrink it from the top, leaving a gap between the bar and the arrow.
-        let hosting = NSHostingController(rootView: menu)
-        hosting.sizingOptions = .preferredContentSize
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = true
-        popover.contentViewController = hosting
-        self.popover = popover
-
-        let coordinator = self.coordinator
-        iconTask = Task { [weak self] in
-            for await state in Observations({
-                IconState(
-                    isStopping: coordinator.isStopping,
-                    isRecording: coordinator.isRecording,
-                    isTeamsMeetingDetected: coordinator.isTeamsMeetingDetected
-                )
-            }) {
-                self?.apply(state)
-            }
-        }
     }
 
     func tearDown() {

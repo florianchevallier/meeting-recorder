@@ -16,11 +16,11 @@ struct AppDependencies {
     let livePanelController: LiveTranscriptPanelController
     let settingsWindowController: SettingsWindowController
     let speakerNamesWindowController: SpeakerNamesWindowController
-    let libraryWindowController: LibraryWindowController
     let statusBarController: StatusBarController
     let onboardingCoordinator: OnboardingCoordinator
 
-    init() {
+    // swiftlint:disable:next function_body_length
+    init() {  // one statement per dependency: splitting it would only hide the graph
         let settings = SettingsStore()
         let permissionMonitor = PermissionMonitor()
         let teamsMonitor = TeamsMonitor()
@@ -85,7 +85,6 @@ struct AppDependencies {
         self.livePanelController = livePanelController
         self.settingsWindowController = settingsWindowController
         self.speakerNamesWindowController = speakerNamesWindowController
-        self.libraryWindowController = libraryWindowController
         self.statusBarController = statusBarController
         self.onboardingCoordinator = onboardingCoordinator
     }
