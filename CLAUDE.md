@@ -158,7 +158,11 @@ Sources/
 │   └── PermissionStatus.swift     # PermissionKind, PermissionStatus, SystemAudioOutcome, errors
 ├── Settings/
 │   ├── SettingsStore.swift        # @Observable, DefaultsKey-backed, UserDefaults injectable
-│   ├── SettingsWindow.swift       # 4 tabs; selected tab lives in SettingsWindowModel
+│   ├── SettingsWindow.swift       # TabView of 5 tabs; selected tab lives in SettingsWindowModel
+│   ├── GeneralSettingsTab.swift, TranscriptionSettingsTab.swift, CalendarSettingsTab.swift,
+│   │   PermissionsSettingsTab.swift, MCPSettingsTab.swift  # one file per tab
+│   ├── TranscriptionAdvancedSection.swift, VocabularyPacksField.swift, VocabularyPackEditor.swift
+│   ├── SettingsComponents.swift   # SettingsHeader / Card / Row / Field / PermissionRow
 │   └── SettingsWindowController.swift # NSWindow (created once), NSWindowDelegate → onClose
 ├── Onboarding/
 │   └── OnboardingCoordinator.swift # decide() pure + Observations-driven completion
@@ -188,7 +192,8 @@ Sources/
 │   ├── LibraryDetail.swift        # One recording: Transcript / Live / Participants, rename, re-link
 │   └── LibraryStrings.swift       # `extension L10n` for the window (parity test reads it too)
 ├── MCP/
-│   └── MCPServer.swift            # `MeetingRecorder mcp`: stdio MCP server, reads the recordings folder
+│   ├── MCPServer.swift            # `MeetingRecorder mcp`: stdio MCP server, reads the recordings folder
+│   └── MCPInstall.swift           # Pure: Claude Code command + `mcpServers` JSON for the Settings tab
 ├── Utils/
 │   ├── Log.swift                  # os.Logger per category (app, capture, recording, teams, …)
 │   ├── DefaultsKey.swift          # Every UserDefaults key (legacy raw values preserved)
@@ -301,7 +306,10 @@ open, and the end of each recording. No polling.
 - **Recording ↔ event** (`CalendarMatcher`, pure): a recording started in
   `[start − 10 min, end)` belongs to the event; a meeting link wins, then the closest start.
   Linking reads the start from the filename, so it works for old recordings too.
-- **Filename**: `meeting_<timestamp>_<sanitized title>.m4a` (≤60 chars, no `/:\?*"<>|`).
+- **Filename**: `meeting_<timestamp>_<sanitized title>.m4a` (≤60 chars, no `/:\?*"<>|`). Pre-0.6
+  files are `meeting_unified_<timestamp>.m4a`: `CalendarMatcher.nameAfterPrefix` is the one place
+  that strips the prefix, so date, title and rename read both. Lists sort by start date, never by
+  filename (`unified` would outrank every newer name).
 - **Sidecar**: `<recording>.meeting.json` (event, organizer, attendees + status) for
   diarization: the attendee count (minus declined, ≥2) becomes `maxSpeakers`, the title and
   names go into the prompt (see Transcription).
@@ -490,6 +498,7 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
   `TranscriptRendererTests`, `VoiceActivityRecorderTests`, `RecordingFilesTests`
 - `LiveTranscriptTests` — volatile/final reducer, speaker interleaving, Markdown
 - `RecordingsMigrationTests` (temp dirs: groups, busy skip, no overwrite), `RecordingLibraryTests`, `RecordingEditorTests`
+- `MCPServerTests` (+ `MCPInstallTests`) — JSON-RPC lines in/out on a temp recordings folder: tools, bad ids, live freshness
 - Tests needing `UserDefaults` use `ScratchDefaults.make()` (in-memory subclass), never
   `UserDefaults(suiteName:)`: cfprefsd persists every suite to `~/Library/Preferences`,
   asynchronously and even after the process exits, so cleanup can't keep up.
