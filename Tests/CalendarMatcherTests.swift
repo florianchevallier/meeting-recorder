@@ -36,6 +36,9 @@ struct CalendarMatcherTests {
         let expected = F.calendar.date(byAdding: .second, value: 30, to: F.date(10, 5))
         #expect(CalendarMatcher.recordingDate(fromFilename: plain, timeZone: F.timeZone) == expected)
         #expect(CalendarMatcher.recordingDate(fromFilename: titled, timeZone: F.timeZone) == expected)
+        #expect(
+            CalendarMatcher.recordingDate(fromFilename: "meeting_unified_2026-09-22_10-05-30.m4a", timeZone: F.timeZone)
+                == expected)
         #expect(CalendarMatcher.recordingDate(fromFilename: "notes.m4a", timeZone: F.timeZone) == nil)
         #expect(CalendarMatcher.recordingDate(fromFilename: "meeting_2026-09.m4a", timeZone: F.timeZone) == nil)
     }

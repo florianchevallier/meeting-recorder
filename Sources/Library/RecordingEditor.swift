@@ -28,9 +28,10 @@ enum RecordingEditor {
     /// `meeting_<timestamp>_<title>.m4a` for the same timestamp; nil if `audio` isn't a recording.
     static func renamed(_ audio: URL, to title: String) -> URL? {
         let prefix = Constants.Permissions.recordingPrefix + "_"
-        let name = audio.lastPathComponent
-        let stamp = name.dropFirst(prefix.count).prefix(Constants.DateFormat.timestamp.count)
-        guard name.hasPrefix(prefix), stamp.count == Constants.DateFormat.timestamp.count else { return nil }
+        // A pre-0.6 `meeting_unified_<timestamp>` file is renamed to the current `meeting_<timestamp>_…` scheme.
+        guard let body = CalendarMatcher.nameAfterPrefix(audio.lastPathComponent) else { return nil }
+        let stamp = body.prefix(Constants.DateFormat.timestamp.count)
+        guard stamp.count == Constants.DateFormat.timestamp.count else { return nil }
         let suffix = FileSystemUtilities.sanitizedFilenameComponent(title).map { "_" + $0 } ?? ""
         return audio.deletingLastPathComponent()
             .appendingPathComponent("\(prefix)\(stamp)\(suffix).\(audio.pathExtension)")

@@ -21,6 +21,14 @@ struct RecordingEditorTests {
         Set((try? fileManager.contentsOfDirectory(atPath: directory.path)) ?? [])
     }
 
+    @Test("A pre-0.6 `meeting_unified_` name is renamed to the current scheme with its real timestamp")
+    func renameLegacyName() {
+        let audio = URL(fileURLWithPath: "/R/meeting_unified_2026-09-21_14-00-02.m4a")
+        #expect(
+            RecordingEditor.renamed(audio, to: "Point")?.lastPathComponent == "meeting_2026-09-21_14-00-02_Point.m4a")
+        #expect(RecordingEditor.renamed(URL(fileURLWithPath: "/R/notes.m4a"), to: "Point") == nil)
+    }
+
     @Test("Rename moves every sidecar, keeps the timestamp and retitles the event")
     func rename() throws {
         let directory = try scratch()

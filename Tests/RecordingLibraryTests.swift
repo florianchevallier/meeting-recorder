@@ -21,7 +21,23 @@ struct RecordingLibraryTests {
         #expect(RecordingLibrary.titleFromFilename("meeting_2026-09-22_10-00-00_Point hebdo.m4a") == "Point hebdo")
         #expect(RecordingLibrary.titleFromFilename("meeting_2026-09-22_10-00-00_J. Doe.m4a") == "J. Doe")
         #expect(RecordingLibrary.titleFromFilename("meeting_2026-09-22_10-00-00.m4a") == nil)
+        #expect(RecordingLibrary.titleFromFilename("meeting_unified_2026-09-22_10-00-00.m4a") == nil)
+        #expect(RecordingLibrary.titleFromFilename("meeting_unified_2026-09-22_10-00-00_Old.m4a") == "Old")
         #expect(RecordingLibrary.titleFromFilename("notes.m4a") == nil)
+    }
+
+    @Test("Load sorts by start date: pre-0.6 `meeting_unified_` names don't outrank newer recordings")
+    func loadSortsByDate() {
+        let names = [
+            "meeting_unified_2026-07-08_09-09-09.m4a", "meeting_2026-09-23_10-00-00.m4a",
+            "meeting_unified_2026-09-21_14-00-02.m4a", "meeting_2026-09-22_10-00-00.m4a",
+        ]
+        let loaded = RecordingLibrary.load(names.map { URL(fileURLWithPath: "/R/" + $0) })
+        #expect(
+            loaded.map(\.audio.lastPathComponent) == [
+                "meeting_2026-09-23_10-00-00.m4a", "meeting_2026-09-22_10-00-00.m4a",
+                "meeting_unified_2026-09-21_14-00-02.m4a", "meeting_unified_2026-07-08_09-09-09.m4a",
+            ])
     }
 
     @Test("Load: event title beats filename, sidecar texts read, newest first")

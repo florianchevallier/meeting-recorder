@@ -43,16 +43,24 @@ enum CalendarMatcher {
 
     /// Start date of a recording from its name: `meeting_yyyy-MM-dd_HH-mm-ss[_title].m4a`.
     static func recordingDate(fromFilename filename: String, timeZone: TimeZone = .current) -> Date? {
-        let prefix = Constants.Permissions.recordingPrefix + "_"
         let pattern = Constants.DateFormat.timestamp
-        guard filename.hasPrefix(prefix) else { return nil }
-        let stamp = filename.dropFirst(prefix.count).prefix(pattern.count)
+        guard let body = nameAfterPrefix(filename) else { return nil }
+        let stamp = body.prefix(pattern.count)
         guard stamp.count == pattern.count else { return nil }
         let formatter = DateFormatter()
         formatter.dateFormat = pattern
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = timeZone
         return formatter.date(from: String(stamp))
+    }
+
+    /// `<timestamp>[_title].m4a` of `meeting_<timestamp>…`; also reads the `meeting_unified_<timestamp>…`
+    /// names the app wrote before 0.6, which are still in people's recordings folder.
+    static func nameAfterPrefix(_ filename: String) -> Substring? {
+        let prefix = Constants.Permissions.recordingPrefix + "_"
+        guard filename.hasPrefix(prefix) else { return nil }
+        let body = filename.dropFirst(prefix.count)
+        return body.hasPrefix("unified_") ? body.dropFirst("unified_".count) : body
     }
 
     // MARK: Meeting links

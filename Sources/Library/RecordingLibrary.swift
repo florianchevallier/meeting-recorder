@@ -39,7 +39,6 @@ enum RecordingLibrary {
     /// Reads the sidecars of `recordings`, newest first. Blocking I/O: call off the main actor.
     static func load(_ recordings: [URL]) -> [LibraryEntry] {
         recordings
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
             .map { audio in
                 let files = RecordingFiles(audio: audio)
                 let event = (try? MeetingMetadata.read(forRecording: audio))?.event
@@ -53,14 +52,21 @@ enum RecordingLibrary {
                     live: try? String(contentsOf: files.liveTranscript, encoding: .utf8)
                 )
             }
+            // By start date, not by filename: `meeting_unified_…` (pre-0.6) would sort above every newer name.
+            .sorted {
+                ($0.date ?? .distantPast, $0.audio.lastPathComponent) > (
+                    $1.date ?? .distantPast, $1.audio.lastPathComponent
+                )
+            }
     }
 
     /// `meeting_<timestamp>_<title>.m4a` → `<title>`.
     static func titleFromFilename(_ filename: String) -> String? {
-        let prefix = Constants.Permissions.recordingPrefix + "_"
-        guard filename.hasPrefix(prefix) else { return nil }
-        let rest = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-            .dropFirst(prefix.count + Constants.DateFormat.timestamp.count)
+        guard
+            let body = CalendarMatcher.nameAfterPrefix(
+                URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent)
+        else { return nil }
+        let rest = body.dropFirst(Constants.DateFormat.timestamp.count)
         guard rest.hasPrefix("_") else { return nil }
         let title = rest.dropFirst().trimmingCharacters(in: .whitespaces)
         return title.isEmpty ? nil : title
