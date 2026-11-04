@@ -9,7 +9,8 @@ enum MCPTranscriber {
 
     /// Transcript text (or error message) for the file at `path`, and whether it is an error.
     /// Must run on the main thread unless the file already has a transcript (settings are main-actor).
-    static func transcribe(path: String) -> (String, Bool) {
+    /// `vocabulary`: terms chosen by the LLM for this file, sent before the settings' glossary.
+    static func transcribe(path: String, vocabulary: String = "") -> (String, Bool) {
         // Trust boundary: the path comes from the LLM.
         let expanded =
             path.hasPrefix("~/") ? FileManager.default.homeDirectoryForCurrentUser.path + path.dropFirst() : path
@@ -31,7 +32,10 @@ enum MCPTranscriber {
         let (client, parameters) = MainActor.assumeIsolated { () -> (WhisperAPIClient, TranscriptionRequest) in
             let settings = SettingsStore()
             let hints = TranscriptionHints.make(
-                event: nil, glossary: settings.transcriptionGlossary, maxSpeakers: settings.nbSpeaker,
+                // First, so the 400-character cut drops the generic settings terms before these.
+                event: nil,
+                glossary: [vocabulary, settings.transcriptionGlossary].filter { !$0.isEmpty }.joined(separator: ". "),
+                maxSpeakers: settings.nbSpeaker,
                 packTerms: VocabularyPack.terms(
                     for: settings.vocabularyPacks, custom: settings.customVocabularyPacks))
             return (

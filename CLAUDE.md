@@ -412,8 +412,8 @@ In the app: Settings → AI assistants (`MCPSettingsTab`) shows the Claude Code 
   else `.live.md`; `get_live_transcript()` → the `*.partial.m4a` touched < 60 s ago (older = crash).
 - `id` comes from the LLM: plain `meeting_*.m4a` filename only, no path, no `.partial`.
 - Live text = `.live.md` finals (10–30 s behind); the volatile text only exists in the app process.
-- `transcribe_file(path)` (`MCPTranscriber`) → any absolute file path: uploads it with the app's
-  settings + keychain key, blocks until the job ends, writes `.transcript.json` + `.txt` next to the
+- `transcribe_file(path, vocabulary?)` (`MCPTranscriber`) → any absolute file path: uploads it with
+  the app's settings + keychain key (`vocabulary` = LLM-picked terms, prepended to the glossary), blocks until the job ends, writes `.transcript.json` + `.txt` next to the
   file (same sidecars as a recording) and returns the text. A file with both sidecars is not re-sent;
   a network error keeps `.transcription-job.json`, so a second call resumes the job.
 
