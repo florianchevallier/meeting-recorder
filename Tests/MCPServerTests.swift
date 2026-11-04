@@ -35,7 +35,8 @@ struct MCPServerTests {
         let tools = try #require(
             (try rpc(server, "tools/list")["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         #expect(
-            tools.compactMap { $0["name"] as? String } == ["list_recordings", "get_transcript", "get_live_transcript"])
+            tools.compactMap { $0["name"] as? String }
+                == ["list_recordings", "get_transcript", "transcribe_file", "get_live_transcript"])
         #expect(((try rpc(server, "nope")["error"]) as? [String: Any])?["code"] as? Int == -32601)
         #expect(server.handle(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#) == nil)
         #expect(server.handle("not json")?.contains("-32700") == true)
@@ -59,6 +60,25 @@ struct MCPServerTests {
         for id in ["../x.m4a", "/etc/passwd", "meeting_x.partial.m4a", "meeting_missing.m4a"] {
             #expect(try call(server, "get_transcript", ["id": id]).1)
         }
+    }
+
+    @Test("transcribe_file rejects bad paths and returns an existing transcript without uploading")
+    func transcribeFile() throws {
+        let dir = try directory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let server = MCPServer(directory: dir)
+        let audio = dir.appendingPathComponent("interview.mp4")
+        try Data().write(to: audio)
+        let files = RecordingFiles(audio: audio)
+        try "Bonjour".write(to: files.transcriptText, atomically: true, encoding: .utf8)
+
+        for path in [
+            "", "interview.mp4", dir.path, dir.appendingPathComponent("missing.mp4").path, files.transcriptText.path,
+        ] {
+            #expect(try call(server, "transcribe_file", ["path": path]).1)
+        }
+        try Data("{}".utf8).write(to: files.transcriptJSON)
+        #expect(try call(server, "transcribe_file", ["path": audio.path]) == ("Bonjour", false))
     }
 
     @Test("get_live_transcript: fresh .partial only")
