@@ -105,7 +105,17 @@ struct MCPServer: Sendable {
                     + "the file and returns the text. Calling it again on a transcribed file returns the saved text.",
                 "inputSchema": [
                     "type": "object",
-                    "properties": ["path": ["type": "string", "description": "Absolute path (`~` allowed)"]],
+                    "properties": [
+                        "path": ["type": "string", "description": "Absolute path (`~` allowed)"],
+                        "vocabulary": [
+                            "type": "string",
+                            "description":
+                                "Optional comma-separated words Whisper should expect, picked from the context: "
+                                + "people and company names, product names, acronyms, jargon. Most important "
+                                + "first, ~300 characters max (Whisper only reads the start). Added to the glossary "
+                                + "set in Meety.",
+                        ],
+                    ],
                     "required": ["path"],
                 ],
             ],
@@ -119,7 +129,10 @@ struct MCPServer: Sendable {
     }
 
     private func call(_ name: String, arguments: [String: Any]) -> (String, Bool) {
-        if name == "transcribe_file" { return MCPTranscriber.transcribe(path: arguments["path"] as? String ?? "") }
+        if name == "transcribe_file" {
+            return MCPTranscriber.transcribe(
+                path: arguments["path"] as? String ?? "", vocabulary: arguments["vocabulary"] as? String ?? "")
+        }
         guard let directory else { return ("Recordings folder unavailable", true) }
         switch name {
         case "list_recordings":
