@@ -2,7 +2,8 @@ import Foundation
 
 /// Minimal MCP server over stdio (one JSON-RPC message per line) that exposes the recordings
 /// folder to an LLM: past transcripts and the live transcript of the recording in progress.
-/// Reads files only, so it works while the app is closed. Nothing but JSON-RPC may reach stdout.
+/// Reads files only (plus `transcribe_file`, see `MCPTranscriber`), so it works while the app is
+/// closed. Nothing but JSON-RPC may reach stdout.
 /// ponytail: the live text is the `.live.md` finals (10–30 s behind); volatile text would need
 /// the app process (HTTP) — upgrade then.
 struct MCPServer: Sendable {
@@ -97,6 +98,18 @@ struct MCPServer: Sendable {
                 ],
             ],
             [
+                "name": "transcribe_file",
+                "description":
+                    "Transcribes any local audio or video file with the WhisperX server set in Meety (speakers "
+                    + "included). Takes minutes: waits for the result, saves `.txt` + `.transcript.json` next to "
+                    + "the file and returns the text. Calling it again on a transcribed file returns the saved text.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": ["path": ["type": "string", "description": "Absolute path (`~` allowed)"]],
+                    "required": ["path"],
+                ],
+            ],
+            [
                 "name": "get_live_transcript",
                 "description":
                     "Live transcript of the meeting being recorded right now (a few seconds to 30 s behind).",
@@ -106,6 +119,7 @@ struct MCPServer: Sendable {
     }
 
     private func call(_ name: String, arguments: [String: Any]) -> (String, Bool) {
+        if name == "transcribe_file" { return MCPTranscriber.transcribe(path: arguments["path"] as? String ?? "") }
         guard let directory else { return ("Recordings folder unavailable", true) }
         switch name {
         case "list_recordings":
