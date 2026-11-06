@@ -200,9 +200,8 @@ actor CaptureEngine {
         for stream in formats where stream.bufferIndex < list.count {
             let buffer = list[stream.bufferIndex]
             guard let data = buffer.mData else { continue }
-            let channels = Int(buffer.mNumberChannels)
-            let frames = Int(buffer.mDataByteSize) / (channels * MemoryLayout<Float>.size)
-            guard frames > 0,
+            let channels = Int(stream.format.channelCount)
+            guard let frames = CaptureStreamLayout.frameCount(of: buffer, channels: channels),
                 let pcm = AVAudioPCMBuffer(pcmFormat: stream.format, frameCapacity: AVAudioFrameCount(frames)),
                 let destination = pcm.floatChannelData?[0]
             else { continue }

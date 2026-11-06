@@ -1,3 +1,4 @@
+import CoreAudio
 import Foundation
 
 /// Maps the buffers of the aggregate device's input `AudioBufferList` to their
@@ -18,6 +19,15 @@ struct CaptureStreamLayout: Sendable, Equatable {
     var tapStreams: [Stream] { streams.filter { $0.source == .systemTap } }
     var microphoneStreams: [Stream] { streams.filter { $0.source == .microphone } }
     var hasMicrophone: Bool { !microphoneStreams.isEmpty }
+
+    /// Float32 frames in an IO buffer, or nil when its channel count no longer matches
+    /// the stream's format: unplugging a sub-device reshapes the buffer list before the
+    /// tap is rebuilt, and copying it would overrun the PCM buffer (heap corruption).
+    static func frameCount(of buffer: AudioBuffer, channels: Int) -> Int? {
+        guard Int(buffer.mNumberChannels) == channels, channels > 0 else { return nil }
+        let frames = Int(buffer.mDataByteSize) / (channels * MemoryLayout<Float>.size)
+        return frames > 0 ? frames : nil
+    }
 
     /// Infers the layout from per-buffer channel counts.
     ///

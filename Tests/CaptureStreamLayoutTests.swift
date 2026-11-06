@@ -1,3 +1,4 @@
+import CoreAudio
 import Testing
 @testable import MeetingRecorder
 
@@ -76,5 +77,38 @@ struct DeviceChangeObserverTests {
         #expect(
             DeviceChangeObserver.externalDevices(["BuiltInSpeaker", own])
                 == DeviceChangeObserver.externalDevices(["BuiltInSpeaker"]))
+    }
+}
+
+@Suite("IO buffer frame count")
+struct IOFrameCountTests {
+    @Test("Matching channels give the frame count")
+    func matching() {
+        #expect(
+            CaptureStreamLayout.frameCount(
+                of: AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(512 * 2 * 4), mData: nil), channels: 2) == 512
+        )
+    }
+
+    @Test("A reshaped buffer (device unplugged) is skipped, never copied")
+    func mismatch() {
+        // Stereo tap buffer landing where the mono microphone was expected.
+        #expect(
+            CaptureStreamLayout.frameCount(
+                of: AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(512 * 2 * 4), mData: nil), channels: 1) == nil
+        )
+        #expect(
+            CaptureStreamLayout.frameCount(
+                of: AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(512 * 4), mData: nil), channels: 2) == nil)
+    }
+
+    @Test("Empty or channel-less buffers are skipped")
+    func empty() {
+        #expect(
+            CaptureStreamLayout.frameCount(
+                of: AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(0), mData: nil), channels: 2) == nil)
+        #expect(
+            CaptureStreamLayout.frameCount(
+                of: AudioBuffer(mNumberChannels: 0, mDataByteSize: UInt32(64), mData: nil), channels: 0) == nil)
     }
 }
