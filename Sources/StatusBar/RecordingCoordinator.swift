@@ -184,7 +184,7 @@ final class RecordingCoordinator {
             let event = calendar?.isAvailable == true ? calendar?.currentEvent(at: startedAt) : nil
             sessionEvent = event.map { ($0, startedAt) }
             if let event {
-                Log.recording.info("Recording matched calendar event \(event.title, privacy: .private)")
+                didMatch(event)
             }
             let name = FileSystemUtilities.createTimestampedFilename(
                 prefix: Constants.Permissions.recordingPrefix,
@@ -387,5 +387,13 @@ final class RecordingCoordinator {
             Task { [live] in await live?.end() }
             apply(.stopped)
         }
+    }
+}
+
+extension RecordingCoordinator {
+    /// Outside the class body, already past SwiftLint's length limit. Scheduled even if the start then fails.
+    fileprivate func didMatch(_ event: CalendarEvent) {
+        Log.recording.info("Recording matched calendar event \(event.title, privacy: .private)")
+        transcription.scheduleServerWakeUp(meetingEnd: event.end)
     }
 }

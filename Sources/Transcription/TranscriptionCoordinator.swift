@@ -25,6 +25,21 @@ final class TranscriptionCoordinator {
     @ObservationIgnored private let apiKey: @MainActor () -> String?
     @ObservationIgnored private var worker: Task<Void, Never>?
     @ObservationIgnored private var workerID = UUID()
+    @ObservationIgnored private let session: URLSession?
+    @ObservationIgnored private let clock: any Clock<Duration>
+    @ObservationIgnored private let timing: Timing
+    /// Early wake-up of the server for the recording in progress.
+    @ObservationIgnored private var wakeUpTimer: Task<Void, Never>?
+    @ObservationIgnored private var serverPinged = false
+
+    /// Delays, injectable so tests don't wait real minutes.
+    struct Timing {
+        var initialPollingDelay: Duration = .seconds(Constants.Transcription.initialPollingDelay)
+        var pollingInterval: Duration = .seconds(Constants.Transcription.pollingInterval)
+        var wakeProbeInterval: Duration = .seconds(Constants.Transcription.wakeProbeInterval)
+        var wakeTimeout: Duration = .seconds(Constants.Transcription.wakeTimeout)
+        var savedMessageDuration: Duration = .seconds(2)
+    }
 
     // MARK: - Init
 
@@ -32,17 +47,57 @@ final class TranscriptionCoordinator {
         settings: SettingsStore,
         apiKey: @escaping @MainActor () -> String? = {
             KeychainStore.string(for: KeychainStore.transcriptionAPIKeyAccount)
-        }
+        },
+        session: URLSession? = nil,
+        clock: any Clock<Duration> = ContinuousClock(),
+        timing: Timing = Timing()
     ) {
         self.settings = settings
         self.apiKey = apiKey
+        self.session = session
+        self.clock = clock
+        self.timing = timing
+    }
+
+    // MARK: - Early Wake-Up (called by RecordingCoordinator)
+
+    /// Pings the server `wakeUpLead` before the meeting ends, so it is awake when the recording stops.
+    /// Only when the recording will be transcribed: waking the GPU costs.
+    func scheduleServerWakeUp(meetingEnd: Date) {
+        wakeUpTimer?.cancel()
+        serverPinged = false
+        guard settings.shouldAutoTranscribe(hasMeeting: true) else { return }
+        let delay = max(0, meetingEnd.timeIntervalSinceNow - Constants.Transcription.wakeUpLead)
+        let clock = clock
+        wakeUpTimer = Task { [weak self] in
+            guard (try? await clock.sleep(for: .seconds(delay))) != nil else { return }
+            self?.pingServer()
+        }
+    }
+
+    /// Recording stopped: ping now unless the timer already did, then get ready for the next recording.
+    func wakeServerOnStop() {
+        wakeUpTimer?.cancel()
+        wakeUpTimer = nil
+        pingServer()
+        serverPinged = false
+    }
+
+    /// Fire-and-forget `GET /status`, once per recording; the answer doesn't matter.
+    private func pingServer() {
+        guard !serverPinged, !settings.apiBaseURL.isEmpty else { return }
+        serverPinged = true
+        Log.transcription.info("Waking up the transcription server ahead of the upload")
+        let client = makeClient()
+        Task { try? await client.checkStatus() }
     }
 
     // MARK: - Pre-Indication (called by RecordingCoordinator during stop)
 
-    /// Show the transcription panel early, while the recording is finalized.
+    /// Show the transcription panel early, while the recording is finalized, and wake the server up.
     func preIndicate() {
         apply(.prepare)
+        wakeServerOnStop()
     }
 
     func notifyConversionInProgress() {
@@ -148,16 +203,16 @@ final class TranscriptionCoordinator {
             apply(.saved)
             // Show the success message briefly, unless another recording is waiting
             if queue.isEmpty {
-                try? await Task.sleep(for: .seconds(2))
+                try? await clock.sleep(for: timing.savedMessageDuration)
                 if !Task.isCancelled && queue.isEmpty { apply(.reset) }
             }
         } catch  where Task.isCancelled || error is CancellationError {
             return
         } catch {
             Log.transcription.error("Transcription failed: \(error.localizedDescription, privacy: .public)")
-            // A network failure keeps the job: the next launch resumes it.
+            // A network failure or a sleeping server keeps the job: the next launch resumes it.
             // Anything else (job failed or unknown on the server) starts over on retry.
-            if !(error is URLError) {
+            if !(error is URLError || WhisperAPIClient.isAsleep(error)) {
                 try? FileManager.default.removeItem(at: files.pendingJob)
             }
             lastFailed = audioURL
@@ -174,7 +229,6 @@ final class TranscriptionCoordinator {
             return pending.jobId
         }
 
-        apply(.uploadStarted)
         let event = (try? MeetingMetadata.read(forRecording: audioURL))?.event
         let hints = TranscriptionHints.make(
             event: event, glossary: settings.transcriptionGlossary, maxSpeakers: settings.nbSpeaker,
@@ -183,15 +237,35 @@ final class TranscriptionCoordinator {
             "Speakers \(hints.minSpeakers ?? 0)…\(hints.maxSpeakers ?? 0), prompt \(hints.initialPrompt?.count ?? 0) chars"
         )
 
-        let response = try await client.startTranscription(audioFileURL: audioURL, parameters: parameters(hints))
+        let response = try await upload(audioURL, parameters: parameters(hints), client: client)
         try PendingTranscriptionJob(jobId: response.jobId, submittedAt: Date()).write(to: files.pendingJob)
         apply(.jobCreated(response.jobId))
         return response.jobId
     }
 
+    /// Waits for the server to be awake, then uploads. A 502/503/504 on the upload means it fell
+    /// asleep again: wait and send again, a few times at most.
+    private func upload(_ audioURL: URL, parameters: TranscriptionRequest, client: WhisperAPIClient) async throws
+        -> TranscriptionJobResponse
+    {
+        var attempt = 1
+        while true {
+            try await client.waitUntilAwake(
+                clock: clock, interval: timing.wakeProbeInterval, timeout: timing.wakeTimeout,
+                onAsleep: { apply(.progressMessage(L10n.transcriptionProgressWaking)) })
+            apply(.uploadStarted)
+            do {
+                return try await client.startTranscription(audioFileURL: audioURL, parameters: parameters)
+            } catch APIError.serverUnavailable(let code) where attempt < Constants.Transcription.maxUploadAttempts {
+                Log.transcription.warning("Upload refused (\(code)), server asleep again: waiting before resending")
+                attempt += 1
+            }
+        }
+    }
+
     private func waitForCompletion(client: WhisperAPIClient, jobId: String) async throws {
         // Let the server register the job before the first poll
-        try await Task.sleep(for: .seconds(Constants.Transcription.initialPollingDelay))
+        try await clock.sleep(for: timing.initialPollingDelay)
 
         var failures = 0
         for _ in 0..<Constants.Transcription.maxPollingAttempts {
@@ -209,12 +283,14 @@ final class TranscriptionCoordinator {
                 case .pending, .running:
                     break
                 }
-            } catch let error as URLError where error.code != .cancelled {
-                // Transient network error (tunnel restart, Wi-Fi): keep polling.
+            } catch
+                where WhisperAPIClient.isAsleep(error) || (error as? URLError).map({ $0.code != .cancelled }) == true
+            {
+                // Transient network error (Wi-Fi) or server waking up (502/503/504): keep polling.
                 failures += 1
                 Log.transcription.warning("Polling error \(failures): \(error.localizedDescription, privacy: .public)")
             }
-            try await Task.sleep(for: .seconds(Constants.Transcription.pollingInterval))
+            try await clock.sleep(for: timing.pollingInterval)
         }
         throw TranscriptionFailure.tooLong
     }
@@ -233,7 +309,7 @@ final class TranscriptionCoordinator {
     }
 
     private func makeClient() -> WhisperAPIClient {
-        WhisperAPIClient(baseURL: settings.apiBaseURL, apiKey: apiKey())
+        WhisperAPIClient(baseURL: settings.apiBaseURL, apiKey: apiKey(), session: session)
     }
 
     // MARK: - Reducer Bridge

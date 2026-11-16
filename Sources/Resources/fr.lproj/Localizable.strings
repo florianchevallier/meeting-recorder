@@ -133,6 +133,7 @@
 "transcription.progress.preparing" = "⏳ Préparation de la transcription...";
 "transcription.progress.converting" = "🔄 Conversion en cours...";
 "transcription.progress.uploading" = "📤 Upload vers API...";
+"transcription.progress.waking" = "⏳ Réveil du serveur…";
 "transcription.progress.started" = "🎤 Transcription démarrée...";
 "transcription.progress.pending" = "⏳ En attente...";
 "transcription.progress.running" = "🔄 Transcription en cours...";
@@ -154,6 +155,7 @@
 "api.error.bad_request" = "Requête invalide: %@";
 "api.error.server_error" = "Erreur serveur: %@";
 "api.error.unexpected_status" = "Code HTTP inattendu: %d";
+"api.error.server_did_not_wake" = "Le serveur de transcription ne s'est pas réveillé";
 
 /* Calendar */
 "permission.calendar.title" = "Calendrier";

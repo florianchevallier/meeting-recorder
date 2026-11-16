@@ -69,6 +69,55 @@ struct WhisperAPIClient: Sendable {
         }
     }
 
+    // MARK: - Server Wake-Up
+
+    /// `GET /status` (public). Returns on 200, throws `serverUnavailable` while the server wakes up.
+    func checkStatus() async throws {
+        let request = try makeRequest(EndpointResolver.statusURL(baseURL: baseURL), method: "GET")
+        let (_, response) = try await session.data(for: request)
+        let code = try Self.statusCode(of: response)
+        guard code == 200 else { throw APIError.unexpectedStatusCode(code) }
+    }
+
+    /// Probes `/status` every `interval` until the server answers, so the audio is uploaded once.
+    /// `onAsleep` runs once, at the first 502/503/504 or transient network error.
+    /// Any other answer (e.g. a server without `/status`) lets the caller go on.
+    /// ponytail: the limit counts probes (`timeout / interval`), not wall time; probes answered by
+    /// an immediate 503 make them equal, slow network errors stretch it.
+    func waitUntilAwake(
+        clock: any Clock<Duration>,
+        interval: Duration = .seconds(Constants.Transcription.wakeProbeInterval),
+        timeout: Duration = .seconds(Constants.Transcription.wakeTimeout),
+        onAsleep: () -> Void = {}
+    ) async throws {
+        var asleep = false
+        for probe in 1... {
+            do {
+                try await checkStatus()
+                if asleep { Log.transcription.info("Transcription server is awake") }
+                return
+            } catch  where Self.isAsleep(error) {
+                if !asleep {
+                    asleep = true
+                    Log.transcription.info("Transcription server asleep, waiting for it to wake up")
+                    onAsleep()
+                }
+            } catch let error as APIError {
+                Log.transcription.warning("Status probe: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            guard interval * probe < timeout else { throw APIError.serverDidNotWake }
+            try await clock.sleep(for: interval)
+        }
+    }
+
+    /// 502/503/504, or a network error that waiting can fix.
+    static func isAsleep(_ error: any Error) -> Bool {
+        if case APIError.serverUnavailable = error { return true }
+        guard let error = error as? URLError else { return false }
+        return [.timedOut, .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet].contains(error.code)
+    }
+
     // MARK: - Job Status
 
     func getJobStatus(jobId: String) async throws -> JobDetailResponse {
@@ -151,6 +200,10 @@ struct WhisperAPIClient: Sendable {
 
     private static func statusCode(of response: URLResponse) throws -> Int {
         guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        // Asleep or waking up (OVH AI Deploy answers 503 on every route for a few minutes).
+        if [502, 503, 504].contains(httpResponse.statusCode) {
+            throw APIError.serverUnavailable(httpResponse.statusCode)
+        }
         return httpResponse.statusCode
     }
 }

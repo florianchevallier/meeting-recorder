@@ -13,6 +13,11 @@ enum EndpointResolver {
         return sanitized
     }
 
+    /// Public readiness probe: 200 once the server is awake.
+    static func statusURL(baseURL: String) -> URL? {
+        endpointURL(baseURL: baseURL, path: "status")
+    }
+
     static func processURL(baseURL: String) -> URL? {
         endpointURL(baseURL: baseURL, path: "process")
     }

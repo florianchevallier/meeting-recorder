@@ -198,6 +198,7 @@ extension L10n {
     static let transcriptionProgressPreparing = "transcription.progress.preparing".localized
     static let transcriptionProgressConverting = "transcription.progress.converting".localized
     static let transcriptionProgressUploading = "transcription.progress.uploading".localized
+    static let transcriptionProgressWaking = "transcription.progress.waking".localized
     static let transcriptionProgressStarted = "transcription.progress.started".localized
     static let transcriptionProgressPending = "transcription.progress.pending".localized
     static let transcriptionProgressRunning = "transcription.progress.running".localized
@@ -223,6 +224,7 @@ extension L10n {
     static let apiErrorResultNotFound = "api.error.result_not_found".localized
     static let apiErrorMissingBaseURL = "api.error.missing_base_url".localized
     static let apiErrorUnauthorized = "api.error.unauthorized".localized
+    static let apiErrorServerDidNotWake = "api.error.server_did_not_wake".localized
     static func apiErrorBadRequest(_ message: String) -> String {
         L10n.string("api.error.bad_request", message)
     }
