@@ -62,8 +62,9 @@ final class Counter: Sendable {
     private let value = Mutex(0)
     /// Returns the current value, then increments it.
     func next() -> Int {
-        value.withLock {
-            defer { $0 += 1 }; return $0
+        value.withLock { count in
+            defer { count += 1 }
+            return count
         }
     }
 }
