@@ -15,6 +15,7 @@ struct EndpointResolverTests {
     @Test("Process, job and result URLs hang off the API prefix")
     func urls() {
         let base = "https://api.example.com/api"
+        #expect(EndpointResolver.statusURL(baseURL: base)?.absoluteString == "https://api.example.com/api/status")
         #expect(EndpointResolver.processURL(baseURL: base)?.absoluteString == "https://api.example.com/api/process")
         #expect(
             EndpointResolver.jobURL(baseURL: base, jobId: "abc")?.absoluteString

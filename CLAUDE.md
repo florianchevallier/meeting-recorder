@@ -322,9 +322,13 @@ open, and the end of each recording. No polling.
 
 ## Transcription (WhisperX server)
 
-Server: `apps/api` of `~/Projects/innovation-transcript` (WhisperX + pyannote). Base URL
-setting ends with `/api`. Optional API key (Settings → Transcription, stored in the keychain)
-goes in `X-API-Key`; every request also sends `ngrok-skip-browser-warning`.
+Server: `apps/api` of `~/Projects/innovation-transcript` (WhisperX + pyannote), on OVHcloud
+AI Deploy (L4 GPU, sleeps after ~7 min idle, answers 503 for ~3 min 30 while waking up). Base URL
+setting ends with `/api`, default `https://whisperx.atecna.fr/api` (a stored `ngrok-free.app` URL,
+the old dead server, migrates to it at launch). API key (Settings → Transcription, stored in the
+keychain, required by that server) goes in `X-API-Key`; every request also sends
+`ngrok-skip-browser-warning`. Early wake-up: a recording matched to a calendar event (and
+auto-transcribed) fires one `GET /status` 5 min before the event ends, or at stop if not done.
 
 Automatic after a recording when Settings → General → Transcription is on (optionally only
 for recordings with a calendar event: `transcriptionOnlyWithMeeting`, decided by
@@ -338,9 +342,13 @@ runs one recording at a time from a queue:
    `CustomVocabularyPack`s (Settings → Transcription: "New pack", right-click to edit, JSON in
    `customVocabularyPacks`) before the built-in `VocabularyPack`s (last, so the 400-char cut
    drops them first), quotes/`$`/backticks/control chars stripped, ≤ 400 chars.
-2. `POST /process` (`outputFormat=json`), body streamed from a temp file →
-   `<rec>.transcription-job.json` {jobId} so a relaunch resumes (`resumePending` at launch).
+2. `WhisperAPIClient.waitUntilAwake`: probe the public `GET /status` every 10 s while it answers
+   502/503/504 or a transient network error ("Waking up the server…"), 8 min max
+   (`serverDidNotWake`); any other answer goes on. Then `POST /process` (`outputFormat=json`),
+   body streamed from a temp file → `<rec>.transcription-job.json` {jobId} so a relaunch resumes
+   (`resumePending` at launch). A 502/503/504 on the upload probes again and resends (3 tries).
 3. Poll `GET /jobs/{id}` every 5 s (max 360); `[NN%]` in `lastLog` feeds the progress bar.
+   502/503/504 and network errors are skipped, not fatal (2 jobs run at once, others stay `pending`).
 4. `GET /jobs/{id}/result` → `<rec>.transcript.json` (raw) → `<rec>.txt` rendered →
    `DELETE /jobs/{id}` (audio and result gone from the server).
 Network errors keep the job file (resumed next launch); a failed/unknown job deletes it
@@ -498,6 +506,8 @@ Swift Testing (`@Test`/`#expect`) in `Tests/`, run by CI on every push/PR/tag:
   `CalendarMonitorTests` (fake source)
 - `FilenameGenerationTests`, `SettingsStoreTests`, `EndpointResolverTests`,
   `MultipartBuilderTests`, `TranscriptionStateMachineTests` (+ progress parsing), `L10nParityTests`
+- `ServerWakeUpTests`, `TranscriptionCoordinatorTests` — `StubServer` (`URLProtocol`, one host per
+  test) + `InstantClock`: 503 → 200 probe, timeout, 503 on upload / while polling, early wake-up
 - `TranscriptionHintsTests`, `VocabularyPackTests`, `TranscriptTests` (server JSON shape), `SpeakerLabelerTests`,
   `TranscriptRendererTests`, `VoiceActivityRecorderTests`, `RecordingFilesTests`
 - `LiveTranscriptTests` — volatile/final reducer, speaker interleaving, Markdown

@@ -66,6 +66,7 @@ enum MCPTranscriber {
             if let pending = try? PendingTranscriptionJob.read(from: files.pendingJob) {
                 jobId = pending.jobId
             } else {
+                try await client.waitUntilAwake(clock: ContinuousClock())
                 jobId = try await client.startTranscription(audioFileURL: files.audio, parameters: parameters).jobId
                 try PendingTranscriptionJob(jobId: jobId, submittedAt: Date()).write(to: files.pendingJob)
             }

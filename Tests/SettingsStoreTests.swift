@@ -15,7 +15,7 @@ struct SettingsStoreTests {
     func defaults() {
         let (store, _) = makeStore()
         #expect(store.transcriptionEnabled == false)
-        #expect(store.apiBaseURL == "")
+        #expect(store.apiBaseURL == "https://whisperx.atecna.fr/api")
         #expect(store.whisperModel == "large-v3")
         #expect(store.language == "fr")
         #expect(store.nbSpeaker == 2)
@@ -141,5 +141,15 @@ struct SettingsStoreTests {
         ])
     func urlValidation(url: String, expected: Bool) {
         #expect(SettingsStore.isValidAPIURL(url) == expected)
+    }
+
+    @Test("The dead ngrok server URL migrates to the new server, any other URL is kept")
+    func apiURLMigration() {
+        let defaults = ScratchDefaults.make()
+        defaults.set("https://abc-12-34.ngrok-free.app/api", forKey: "apiBaseURL")
+        #expect(SettingsStore(defaults: defaults).apiBaseURL == "https://whisperx.atecna.fr/api")
+
+        defaults.set("https://my.server/api", forKey: "apiBaseURL")
+        #expect(SettingsStore(defaults: defaults).apiBaseURL == "https://my.server/api")
     }
 }

@@ -133,6 +133,7 @@
 "transcription.progress.preparing" = "⏳ Preparing transcription...";
 "transcription.progress.converting" = "🔄 Converting...";
 "transcription.progress.uploading" = "📤 Uploading to API...";
+"transcription.progress.waking" = "⏳ Waking up the server…";
 "transcription.progress.started" = "🎤 Transcription started...";
 "transcription.progress.pending" = "⏳ Pending...";
 "transcription.progress.running" = "🔄 Transcribing...";
@@ -154,6 +155,7 @@
 "api.error.bad_request" = "Invalid request: %@";
 "api.error.server_error" = "Server error: %@";
 "api.error.unexpected_status" = "Unexpected HTTP status: %d";
+"api.error.server_did_not_wake" = "The transcription server did not wake up";
 
 /* Calendar */
 "permission.calendar.title" = "Calendar";

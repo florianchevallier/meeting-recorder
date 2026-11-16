@@ -13,7 +13,7 @@ final class SettingsStore {
 
     enum Defaults {
         static let transcriptionEnabled = false
-        static let apiBaseURL = ""
+        static let apiBaseURL = "https://whisperx.atecna.fr/api"
         static let whisperModel = "large-v3"
         static let language = "fr"
         static let nbSpeaker = 2
@@ -165,8 +165,9 @@ final class SettingsStore {
         self.transcriptionEnabled =
             defaults.object(for: .transcriptionEnabled) as? Bool
             ?? Defaults.transcriptionEnabled
+        // The old ngrok server is gone: move its users to the new one, keep any other URL.
         self.apiBaseURL =
-            defaults.string(for: .apiBaseURL)
+            defaults.string(for: .apiBaseURL).flatMap { $0.isEmpty || $0.contains("ngrok-free.app") ? nil : $0 }
             ?? Defaults.apiBaseURL
         self.whisperModel =
             defaults.string(for: .whisperModel)

@@ -124,6 +124,9 @@ enum APIError: LocalizedError {
     case resultNotFound
     case missingBaseURL
     case unauthorized
+    /// 502/503/504: the server is asleep or waking up.
+    case serverUnavailable(Int)
+    case serverDidNotWake
 
     var errorDescription: String? {
         switch self {
@@ -149,6 +152,10 @@ enum APIError: LocalizedError {
             return L10n.apiErrorMissingBaseURL
         case .unauthorized:
             return L10n.apiErrorUnauthorized
+        case .serverUnavailable(let code):
+            return L10n.apiErrorUnexpectedStatus(code)
+        case .serverDidNotWake:
+            return L10n.apiErrorServerDidNotWake
         }
     }
 }
