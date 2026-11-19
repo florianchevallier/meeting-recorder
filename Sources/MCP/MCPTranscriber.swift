@@ -10,7 +10,8 @@ enum MCPTranscriber {
     /// Transcript text (or error message) for the file at `path`, and whether it is an error.
     /// Must run on the main thread unless the file already has a transcript (settings are main-actor).
     /// `vocabulary`: terms chosen by the LLM for this file, sent before the settings' glossary.
-    static func transcribe(path: String, vocabulary: String = "") -> (String, Bool) {
+    /// `speakers`: exact number of people speaking, if the user said so; replaces the settings' upper bound.
+    static func transcribe(path: String, vocabulary: String = "", speakers: Int? = nil) -> (String, Bool) {
         // Trust boundary: the path comes from the LLM.
         let expanded =
             path.hasPrefix("~/") ? FileManager.default.homeDirectoryForCurrentUser.path + path.dropFirst() : path
@@ -31,13 +32,18 @@ enum MCPTranscriber {
 
         let (client, parameters) = MainActor.assumeIsolated { () -> (WhisperAPIClient, TranscriptionRequest) in
             let settings = SettingsStore()
-            let hints = TranscriptionHints.make(
+            var hints = TranscriptionHints.make(
                 // First, so the 400-character cut drops the generic settings terms before these.
                 event: nil,
                 glossary: [vocabulary, settings.transcriptionGlossary].filter { !$0.isEmpty }.joined(separator: ". "),
                 maxSpeakers: settings.nbSpeaker,
                 packTerms: VocabularyPack.terms(
                     for: settings.vocabularyPacks, custom: settings.customVocabularyPacks))
+            if let speakers {
+                // Trust boundary: the count comes from the LLM.
+                let count = min(max(speakers, 1), Constants.Transcription.maxSpeakers)
+                (hints.minSpeakers, hints.maxSpeakers) = (count, count)
+            }
             return (
                 WhisperAPIClient(
                     baseURL: settings.apiBaseURL,

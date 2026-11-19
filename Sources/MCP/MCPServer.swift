@@ -115,6 +115,13 @@ struct MCPServer: Sendable {
                                 + "first, ~300 characters max (Whisper only reads the start). Added to the glossary "
                                 + "set in Meety.",
                         ],
+                        "speakers": [
+                            "type": "integer",
+                            "description":
+                                "Optional exact number of people who speak in the file, when known (e.g. 4 for "
+                                + "3 players and a game master). Without it, Meety's setting is an upper bound "
+                                + "(2 by default), so more voices get merged.",
+                        ],
                     ],
                     "required": ["path"],
                 ],
@@ -131,7 +138,8 @@ struct MCPServer: Sendable {
     private func call(_ name: String, arguments: [String: Any]) -> (String, Bool) {
         if name == "transcribe_file" {
             return MCPTranscriber.transcribe(
-                path: arguments["path"] as? String ?? "", vocabulary: arguments["vocabulary"] as? String ?? "")
+                path: arguments["path"] as? String ?? "", vocabulary: arguments["vocabulary"] as? String ?? "",
+                speakers: arguments["speakers"] as? Int)
         }
         guard let directory else { return ("Recordings folder unavailable", true) }
         switch name {
