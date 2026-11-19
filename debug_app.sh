@@ -27,8 +27,6 @@ else
     APP_DISPLAY_NAME="Meety"
     APP_FILE_NAME="Meety.app"
 fi
-ARCH=$(uname -m)
-BUILD_PATH="$BUILD_DIR/$ARCH-apple-macosx/$BUILD_CONFIG"
 
 echo "🐛 Building Meety.app (config: $BUILD_CONFIG, bundle ID: $BUNDLE_ID)..."
 
@@ -37,7 +35,8 @@ echo "🗑️  Cleaning previous install..."
 if [ "$BUILD_CONFIG" = "debug" ]; then
     pkill -f "MeetyDebug" 2>/dev/null || true
 else
-    pkill -x "Meety" 2>/dev/null || true
+    # The process is named MeetingRecorder; the anchor spares the `MeetingRecorder mcp` servers.
+    pkill -f "/Applications/Meety.app/Contents/MacOS/MeetingRecorder$" 2>/dev/null || true
 fi
 rm -rf "/Applications/$APP_FILE_NAME"
 rm -rf "$APP_BUNDLE"
@@ -49,6 +48,8 @@ if [ -z "${DEVELOPER_DIR:-}" ] && [[ "$(xcode-select -p)" == *CommandLineTools* 
 fi
 echo "📦 Building Swift executable..."
 swift build -c "$BUILD_CONFIG"
+# Ask SwiftPM: the new build system writes to .build/out/Products/, not .build/<arch>-apple-macosx/.
+BUILD_PATH="$(swift build -c "$BUILD_CONFIG" --show-bin-path)"
 
 # 3. Create bundle structure
 echo "🏗️  Creating app bundle..."
