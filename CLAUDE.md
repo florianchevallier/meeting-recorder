@@ -343,7 +343,8 @@ runs one recording at a time from a queue:
    `customVocabularyPacks`) before the built-in `VocabularyPack`s (last, so the 400-char cut
    drops them first), quotes/`$`/backticks/control chars stripped, ≤ 400 chars.
 2. `WhisperAPIClient.waitUntilAwake`: probe the public `GET /status` every 10 s while it answers
-   502/503/504 or a transient network error ("Waking up the server…"), 8 min max
+   502/503/504 or a transient network error ("Waking up the server…"), 25 min max
+   (room for the PWA worker to switch GPUs, then restart the OVH app)
    (`serverDidNotWake`); any other answer goes on. Then `POST /process` (`outputFormat=json`),
    body streamed from a temp file → `<rec>.transcription-job.json` {jobId} so a relaunch resumes
    (`resumePending` at launch). A 502/503/504 on the upload probes again and resends (3 tries).

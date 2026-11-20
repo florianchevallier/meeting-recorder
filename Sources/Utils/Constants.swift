@@ -71,7 +71,9 @@ enum Constants {
 
         /// The server sleeps after ~7 min idle and answers 503 for ~3 min 30 while it wakes up.
         static let wakeProbeInterval: TimeInterval = 10
-        static let wakeTimeout: TimeInterval = 8 * 60
+        /// When the wake-up gets stuck on OVH, the PWA worker tries 3 GPUs (5 min each), then stops
+        /// and restarts the app: up to ~21 min before the server answers.
+        static let wakeTimeout: TimeInterval = 25 * 60
         /// Uploads refused with 502/503/504 (server fell asleep again) before giving up.
         static let maxUploadAttempts = 3
         /// Ping the server this long before a calendar meeting ends, so it is awake at stop.
